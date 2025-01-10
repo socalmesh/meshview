@@ -31,8 +31,8 @@ if __name__ == '__main__':
     parser.add_argument('--port', default=8080, type=int)
     parser.add_argument('--tls-cert')
 
-    parser.add_argument('--mqtt-server', default='mqtt.meshtastic.org')
-    parser.add_argument('--topic', nargs='*', default=['msh/US/#'])
+    parser.add_argument('--mqtt-server', default='mqtt.bayme.sh')
+    parser.add_argument('--topic', nargs='*', default=['msh/US/bayarea/#'])
 
     parser.add_argument('--database', default='sqlite+aiosqlite:///packets.db')
 
