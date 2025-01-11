@@ -16,4 +16,13 @@ You also need to install:
 
 Now you can hit http://localhost/
 
+Other Options:
+--port
+    Web server port, default is 80
+
+--mqtt-server
+    MQTT Server, default is mqtt.bayme.sh
+
+--topic
+    MQTT Topic, default is 'msh/US/bayarea/#'
 
