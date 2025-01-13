@@ -244,7 +244,7 @@ async def get_traceroutes(since):
         result = await session.execute(
                 select(Traceroute)
                 .join(Packet)
-                .where(Traceroute.import_time > (datetime.datetime.utc() - since))
+                .where(Traceroute.import_time > (datetime.datetime.now() - since))
                 .order_by(Traceroute.import_time)
         )
         return result.scalars()
