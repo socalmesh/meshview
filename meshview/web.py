@@ -55,7 +55,7 @@ async def build_neighbors(node_id):
     packet = (await store.get_packets_from(node_id, PortNum.NEIGHBORINFO_APP, limit=1)).first()
     if not packet:
         return []
-    if packet.import_time < datetime.datetime.utcnow() - datetime.timedelta(days=1):
+    if packet.import_time < datetime.datetime.now() - datetime.timedelta(days=1):
         return []
     _, payload = decode_payload.decode(packet)
     neighbors = []
@@ -78,6 +78,7 @@ async def build_neighbors(node_id):
             del results[node_id]
 
     return list(results.values())
+    return list(results.values())
 
 
 def node_id_to_hex(node_id):
@@ -89,7 +90,7 @@ def node_id_to_hex(node_id):
 
 def format_timestamp(timestamp):
     if isinstance(timestamp, int):
-        timestamp = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
+        timestamp = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.now)
     return timestamp.isoformat(timespec="milliseconds")
 
 
@@ -676,7 +677,7 @@ async def graph_power_metrics(request):
 
 @routes.get("/graph/neighbors/{node_id}")
 async def graph_neighbors(request):
-    oldest = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+    oldest = datetime.datetime.now() - datetime.timedelta(days=4)
 
     data = {}
     dates =[]
@@ -724,7 +725,7 @@ async def graph_neighbors(request):
 
 @routes.get("/graph/neighbors2/{node_id}")
 async def graph_neighbors2(request):
-    oldest = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+    oldest = datetime.datetime.now() - datetime.timedelta(days=30)
 
     data = []
     node_ids = set()

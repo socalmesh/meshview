@@ -28,7 +28,8 @@ async def process_envelope(topic, env):
                 from_node_id=getattr(env.packet, "from"),
                 to_node_id=env.packet.to,
                 payload=env.packet.SerializeToString(),
-                import_time=datetime.datetime.utcnow(),
+                # p.r. Here seems to be where the packet is imported on the Database and import time is set.
+                import_time=datetime.datetime.now(),
             )
             session.add(packet)
 
@@ -51,7 +52,8 @@ async def process_envelope(topic, env):
                 hop_limit=env.packet.hop_limit,
                 hop_start=env.packet.hop_start,
                 topic=topic,
-                import_time=datetime.datetime.utcnow(),
+                # p.r. Here seems to be where the packet is imported on the Database and import time is set.
+                import_time=datetime.datetime.now(),
             )
             session.add(seen)
 
@@ -122,7 +124,7 @@ async def process_envelope(topic, env):
                     route=env.packet.decoded.payload,
                     done=not env.packet.decoded.want_response,
                     gateway_node_id=int(env.gateway_id[1:], 16),
-                    import_time=datetime.datetime.utcnow(),
+                    import_time=datetime.datetime.now(),
                 ))
 
         await session.commit()
@@ -164,7 +166,7 @@ async def get_packets(node_id=None, portnum=None, since=None, limit=500, before=
         if portnum:
             q = q.where(Packet.portnum == portnum)
         if since:
-            q = q.where(Packet.import_time > (datetime.datetime.utcnow() - since))
+            q = q.where(Packet.import_time > (datetime.datetime.utc() - since))
         if before:
             q = q.where(Packet.import_time < before)
         if after:
@@ -187,7 +189,7 @@ async def get_packets_from(node_id=None, portnum=None, since=None, limit=500):
         if portnum:
             q = q.where(Packet.portnum == portnum)
         if since:
-            q = q.where(Packet.import_time > (datetime.datetime.utcnow() - since))
+            q = q.where(Packet.import_time > (datetime.datetime.now() - since))
         result = await session.execute(q.limit(limit).order_by(Packet.import_time.desc()))
         return result.scalars()
 
@@ -242,7 +244,7 @@ async def get_traceroutes(since):
         result = await session.execute(
                 select(Traceroute)
                 .join(Packet)
-                .where(Traceroute.import_time > (datetime.datetime.utcnow() - since))
+                .where(Traceroute.import_time > (datetime.datetime.utc() - since))
                 .order_by(Traceroute.import_time)
         )
         return result.scalars()
@@ -255,7 +257,7 @@ async def get_mqtt_neighbors(since):
             .where(
                 (PacketSeen.hop_limit == PacketSeen.hop_start)
                 & (PacketSeen.hop_start != 0)
-                & (PacketSeen.import_time > (datetime.datetime.utcnow() - since))
+                & (PacketSeen.import_time > (datetime.datetime.now() - since))
             )
             .options(
                 lazyload(Packet.from_node),
