@@ -166,7 +166,7 @@ async def get_packets(node_id=None, portnum=None, since=None, limit=500, before=
         if portnum:
             q = q.where(Packet.portnum == portnum)
         if since:
-            q = q.where(Packet.import_time > (datetime.datetime.utc() - since))
+            q = q.where(Packet.import_time > (datetime.datetime.now() - since))
         if before:
             q = q.where(Packet.import_time < before)
         if after:
