@@ -14,6 +14,7 @@ from meshview import notify
 
 
 # We count the total amount of packages
+# This is to be used by /stats in web.py
 async def get_total_packet_count():
     async with database.async_session() as session:
         q = select(func.count(Packet.id))  # Use SQLAlchemy's func to count packets
