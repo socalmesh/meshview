@@ -1,3 +1,4 @@
 env/*
 __pycache__/*
 packets.db
+/table_details.py

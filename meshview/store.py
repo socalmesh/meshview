@@ -12,6 +12,29 @@ from meshview.models import Packet, PacketSeen, Node, Traceroute
 from meshview import notify
 
 
+
+# We count the total amount of packages
+async def get_total_packet_count():
+    async with database.async_session() as session:
+        q = select(func.count(Packet.id))  # Use SQLAlchemy's func to count packets
+        result = await session.execute(q)
+        return result.scalar()  # Return the total count of packets
+
+# We count the total amount of nodes
+async def get_total_node_count():
+    async with database.async_session() as session:
+        q = select(func.count(Node.id))  # Use SQLAlchemy's func to count nodes
+        result = await session.execute(q)
+        return result.scalar()  # Return the total count of nodes
+
+# We count the total amount of seen packets
+async def get_total_packet_seen_count():
+    async with database.async_session() as session:
+        q = select(func.count(PacketSeen.node_id))  # Use SQLAlchemy's func to count nodes
+        result = await session.execute(q)
+        return result.scalar()  # Return the total count of seen packets
+
+
 async def process_envelope(topic, env):
     if not env.packet.id:
         return
@@ -265,4 +288,7 @@ async def get_mqtt_neighbors(since):
             )
         )
         return result
+
+
+
 

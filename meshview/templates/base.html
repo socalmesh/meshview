@@ -26,19 +26,19 @@
                 }
                 #details_map {
                     width: 100%;
-                    height: 300px;
+                    height: 500px;
                 }
                 {% block css %}
                 {% endblock %}
         </style>
     </head>
     <body hx-indicator="#spinner">
-        <div style="text-align:center"><strong>Bay Area Mesh - http://bayme.sh</strong></div>
-        <div style="text-align:center"><a href="/">Search for a node </a>&nbsp;-&nbsp;<a href="/graph/network">See a realtime graph of the network </a>&nbsp;-&nbsp;<a href="/chat">See what people are saying </a>&nbsp;-&nbsp;<a href="/firehose">See <strong>everything</strong> </a> </div><br>
-        <div id="spinner" class="spinner-border secondary-primary htmx-indicator position-absolute top-50 start-50" role="status">
+        <br><div style="text-align:center"><strong>Bay Area Mesh - http://bayme.sh</strong></div>
+        <div style="text-align:center">Quick Links:&nbsp;&nbsp;<a href="/">Search for a node </a>&nbsp;-&nbsp;<a href="/chat">Conversations</a>&nbsp;-&nbsp;<a href="/firehose">See <strong>everything</strong> </a>&nbsp;-&nbsp;<a href="/graph/network">Mesh Graph </a></div><br>        <div id="spinner" class="spinner-border secondary-primary htmx-indicator position-absolute top-50 start-50" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
         {% block body %}
         {% endblock %}
+    <br><div style="text-align:center">Visit <strong><a href="https://github.com/pablorevilla-meshtastic/meshview">Meshview</a></strong> on Github. Also visit the original <a href="https://github.com/armooo/meshview">Meshview</a> by Armooo.</div><br>
     </body>
 </html>
