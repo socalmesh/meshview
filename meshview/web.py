@@ -20,7 +20,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from google.protobuf import text_format
 from google.protobuf.message import Message
 
-from meshtastic.portnums_pb2 import PortNum
+from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshview import store
 from meshview import models
 from meshview import decode_payload

@@ -6,7 +6,7 @@ import aiomqtt
 from google.protobuf.message import DecodeError
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from meshtastic.mqtt_pb2 import ServiceEnvelope
+from meshtastic.protobuf.mqtt_pb2 import ServiceEnvelope
 
 KEY = base64.b64decode("1PG7OiApB1nwvP+rz05pAQ==")
 
