@@ -654,6 +654,31 @@ async def graph_humidity(request):
         ],
     )
 
+@routes.get("/graph/pressure/{node_id}")
+async def graph_pressure(request):
+    return await graph_telemetry(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [
+            {
+                'label': 'barometric pressure',
+                'fields': ['barometric_pressure'],
+            },
+        ],
+    )
+
+@routes.get("/graph/iaq/{node_id}")
+async def graph_pressure(request):
+    return await graph_telemetry(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [
+            {
+                'label': 'IAQ',
+                'fields': ['iaq'],
+            },
+        ],
+    )
 
 @routes.get("/graph/power_metrics/{node_id}")
 async def graph_power_metrics(request):

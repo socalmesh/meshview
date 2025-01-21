@@ -11,4 +11,3 @@ asyncpg
 seaborn
 pydot
 plotly
-graphviz
