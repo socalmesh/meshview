@@ -268,7 +268,8 @@ async def uplinked_list(request):
     else:
         portnum = None
     return await _packet_list(request, store.get_uplinked_packets(node_id, portnum), 'uplinked')
-
+    
+# does this needs a web.response ?
 
 async def _packet_list(request, raw_packets, packet_event):
     node_id = int(request.match_info["node_id"])
