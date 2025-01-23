@@ -111,6 +111,8 @@ async def process_envelope(topic, env):
                     node.short_name = user.short_name
                     node.hw_model = hw_model
                     node.role = role
+                    # if need to update time of last update it may be here 
+
                 else:
                     node = Node(
                         id=user.id,
@@ -119,6 +121,7 @@ async def process_envelope(topic, env):
                         short_name=user.short_name,
                         hw_model=hw_model,
                         role=role,
+                        # if need to update time of last update it may be here 
                     )
                     session.add(node)
 
