@@ -1,6 +1,6 @@
 import asyncio
 import argparse
-
+import configparser
 from meshview import mqtt_reader
 from meshview import database
 from meshview import store
@@ -13,29 +13,44 @@ async def load_database_from_mqtt(mqtt_server, topic):
         await store.process_envelope(topic, env)
 
 
-async def main(args):
-    database.init_database(args.database)
+async def main(config):
+    database.init_database(config["database"]["connection_string"])
 
     await database.create_tables()
     async with asyncio.TaskGroup() as tg:
-        tg.create_task(load_database_from_mqtt(args.mqtt_server, args.topic))
-        tg.create_task(web.run_server(args.bind, args.port, args.tls_cert))
-        if args.acme_challenge:
-            tg.create_task(http.run_server(args.bind, args.acme_challenge))
+        tg.create_task(
+            load_database_from_mqtt(config["mqtt"]["server"], config["mqtt"]["topics"].split(","))
+        )
+        tg.create_task(
+            web.run_server(
+                config["server"]["bind"],
+                int(config["server"]["port"]),
+                config["server"].get("tls_cert"),
+            )
+        )
+        if config["server"].get("acme_challenge"):
+            tg.create_task(
+                http.run_server(
+                    config["server"]["bind"], config["server"]["acme_challenge"]
+                )
+            )
+
+
+def load_config(file_path):
+    """Load configuration from an INI-style text file."""
+    config_parser = configparser.ConfigParser()
+    config_parser.read(file_path)
+
+    # Convert to a dictionary for easier access
+    config = {section: dict(config_parser.items(section)) for section in config_parser.sections()}
+    return config
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('meshview')
-    parser.add_argument('--bind', nargs='*', default=['*'])
-    parser.add_argument('--acme-challenge')
-    parser.add_argument('--port', default=8081, type=int)
-    parser.add_argument('--tls-cert')
-
-    parser.add_argument('--mqtt-server', default='mqtt.bayme.sh')
-    parser.add_argument('--topic', nargs='*', default=['msh/US/bayarea/#'])
-
-    parser.add_argument('--database', default='sqlite+aiosqlite:///packets.db')
-
+    parser = argparse.ArgumentParser("meshview")
+    parser.add_argument("--config", help="Path to the configuration file.", default='config.ini')
     args = parser.parse_args()
 
-    asyncio.run(main(args))
+    config = load_config(args.config)
+
+    asyncio.run(main(config))
