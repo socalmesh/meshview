@@ -20,7 +20,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from google.protobuf import text_format
 from google.protobuf.message import Message
 
-from meshtastic.portnums_pb2 import PortNum
+from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshview import store
 from meshview import models
 from meshview import decode_payload
@@ -655,6 +655,31 @@ async def graph_humidity(request):
         ],
     )
 
+@routes.get("/graph/pressure/{node_id}")
+async def graph_pressure(request):
+    return await graph_telemetry(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [
+            {
+                'label': 'barometric pressure',
+                'fields': ['barometric_pressure'],
+            },
+        ],
+    )
+
+@routes.get("/graph/iaq/{node_id}")
+async def graph_pressure(request):
+    return await graph_telemetry(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [
+            {
+                'label': 'IAQ',
+                'fields': ['iaq'],
+            },
+        ],
+    )
 
 @routes.get("/graph/power_metrics/{node_id}")
 async def graph_power_metrics(request):

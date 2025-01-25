@@ -1,5 +1,5 @@
-from meshtastic.portnums_pb2 import PortNum
-from meshtastic.mesh_pb2 import (
+from meshtastic.protobuf.portnums_pb2 import PortNum
+from meshtastic.protobuf.mesh_pb2 import (
     Position,
     NeighborInfo,
     NodeInfo,
@@ -8,7 +8,7 @@ from meshtastic.mesh_pb2 import (
     Routing,
     MeshPacket,
 )
-from meshtastic.telemetry_pb2 import Telemetry
+from meshtastic.protobuf.telemetry_pb2 import Telemetry
 from google.protobuf.message import DecodeError
 
 

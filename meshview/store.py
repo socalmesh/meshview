@@ -3,9 +3,9 @@ import datetime
 from sqlalchemy import select, func
 from sqlalchemy.orm import lazyload
 
-from meshtastic.config_pb2 import Config
-from meshtastic.portnums_pb2 import PortNum
-from meshtastic.mesh_pb2 import User, HardwareModel
+from meshtastic.protobuf.config_pb2 import Config
+from meshtastic.protobuf.portnums_pb2 import PortNum
+from meshtastic.protobuf.mesh_pb2 import User, HardwareModel
 from meshview import database
 from meshview import decode_payload
 from meshview.models import Packet, PacketSeen, Node, Traceroute

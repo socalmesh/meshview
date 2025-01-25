@@ -13,6 +13,9 @@
         overflow: scroll;
         top: 3em;
     }
+    div.tab-pane > dl {
+        display: inline-block;
+       }
 {% endblock %}
 
 {% block body %}
@@ -27,7 +30,7 @@
         {% endif %}
         >
         <div class="row">
-            <div class="col-md mb-3">
+            <div class="col mb-3">
                 <div class="card" id="node_info">
                     {% if node %}
                     <div class="card-header">
@@ -35,11 +38,11 @@
                     </div>
                     <div class="card-body">
                         <dl >
-                            <dt>short name</dt>
+                            <dt>ShortName</dt>
                             <dd>{{node.short_name}}</dd>
-                            <dt>hw model</dt>
+                            <dt>HW Model</dt>
                             <dd>{{node.hw_model}}</dd>
-                            <dt>role</dt>
+                            <dt>Role</dt>
                             <dd>{{node.role}}</dd>
                         </dl>
                         {% include "node_graphs.html" %}
@@ -51,8 +54,8 @@
                     {% endif %}
                 </div>
             </div>
-            <div class="col-md mb-3">
-                <div id="map"/>
+            <div class="col mb-3">
+                <div id="map"></div>
             </div>
         </div>
 
@@ -63,10 +66,10 @@
         </div>
 
         <div class="row">
+            <div class="col">
             {% include 'packet_list.html' %}
-            <div class="col-6 sticky-top" id="packet_details">
             </div>
-        </div>
+            <!-- <div class="col sticky-top" id="packet_details"></div> -->
     </div>
 </div>
 
