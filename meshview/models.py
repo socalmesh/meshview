@@ -9,7 +9,7 @@ from sqlalchemy import ForeignKey, BigInteger
 class Base(AsyncAttrs, DeclarativeBase):
     pass
 
-
+# Node
 class Node(Base):
     __tablename__ = "node"
     id: Mapped[str] = mapped_column(primary_key=True)
