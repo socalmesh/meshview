@@ -20,6 +20,7 @@ class Node(Base):
     role: Mapped[str] = mapped_column(nullable=True)
     last_lat: Mapped[int] = mapped_column(BigInteger, nullable=True)
     last_long: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    channel: Mapped[str]
 
 
 class Packet(Base):
@@ -36,6 +37,7 @@ class Packet(Base):
     )
     payload: Mapped[bytes]
     import_time: Mapped[datetime]
+    channel: Mapped[str]
 
 
 class PacketSeen(Base):
