@@ -9,7 +9,7 @@ from sqlalchemy import ForeignKey, BigInteger
 class Base(AsyncAttrs, DeclarativeBase):
     pass
 
-
+# Node
 class Node(Base):
     __tablename__ = "node"
     id: Mapped[str] = mapped_column(primary_key=True)
@@ -20,6 +20,7 @@ class Node(Base):
     role: Mapped[str] = mapped_column(nullable=True)
     last_lat: Mapped[int] = mapped_column(BigInteger, nullable=True)
     last_long: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    channel: Mapped[str]
 
 
 class Packet(Base):
@@ -36,6 +37,7 @@ class Packet(Base):
     )
     payload: Mapped[bytes]
     import_time: Mapped[datetime]
+    channel: Mapped[str]
 
 
 class PacketSeen(Base):

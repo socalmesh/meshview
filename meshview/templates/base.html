@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en" data-bs-theme="dark">
     <head>
-        <title>MeshView - Bay Area Mesh - http://bayme.sh {% if node and node.short_name %}-- {{node.short_name}}{% endif %}</title>
+        <title>MeshView - Bay Area Mesh - http://meshview.bayme.sh {% if node and node.short_name %}-- {{node.short_name}}{% endif %}</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="https://unpkg.com/htmx.org@1.9.11" integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0" crossorigin="anonymous"></script>
@@ -34,7 +34,7 @@
     </head>
     <body hx-indicator="#spinner">
         <br><div style="text-align:center"><strong>Bay Area Mesh - http://bayme.sh</strong></div>
-        <div style="text-align:center">Quick Links:&nbsp;&nbsp;<a href="/">Search for a node </a>&nbsp;-&nbsp;<a href="/chat">Conversations</a>&nbsp;-&nbsp;<a href="/firehose">See <strong>everything</strong> </a>&nbsp;-&nbsp;<a href="/graph/network">Mesh Graph </a>&nbsp;-&nbsp;<a href="/stats">Stats </a></div><br>
+        <div style="text-align:center">Quick Links:&nbsp;&nbsp;<a href="/">Search for a node </a>&nbsp;-&nbsp;<a href="/chat">Conversations</a>&nbsp;-&nbsp;<a href="/firehose">See <strong>everything</strong> </a>&nbsp;-&nbsp;Mesh Graph <a href="/graph/longfast">LG</a>&nbsp;-&nbsp;<a href="/graph/mediumslow">MS</a>&nbsp;-&nbsp;<a href="/stats">Stats </a></div><br>
         <div id="spinner" class="spinner-border secondary-primary htmx-indicator position-absolute top-50 start-50" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
