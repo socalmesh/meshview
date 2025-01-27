@@ -37,12 +37,10 @@ def remove_event(node_event):
     print("removing event")
     waiting_node_ids_events[node_event.node_id].remove(node_event)
 
-
 def notify_packet(node_id, packet):
     for event in waiting_node_ids_events[node_id]:
         event.packets.append(packet)
         event.set()
-
 
 def notify_uplinked(node_id, packet):
     for event in waiting_node_ids_events[node_id]:
@@ -52,8 +50,16 @@ def notify_uplinked(node_id, packet):
 
 @contextlib.contextmanager
 def subscribe(node_id):
+    """
+    Context manager for subscribing to events for a node_id.
+    Automatically manages event creation and cleanup.
+    """
     event = create_event(node_id)
     try:
         yield event
+        print("adding event...")
+    except Exception as e:
+        print(f"Error during subscription for node_id={node_id}: {e}")
+        raise
     finally:
         remove_event(event)
