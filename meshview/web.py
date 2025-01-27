@@ -474,17 +474,41 @@ async def packet_details(request):
 
 @routes.get("/chat")
 async def chat(request):
-    packets = await store.get_packets(
-        node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP
-    )
-    template = env.get_template("chat.html")
-    ui_packets = (Packet.from_model(p) for p in packets)
-    return web.Response(
-        text=template.render(
-            packets=(p for p in ui_packets if not re.match(r"seq \d+$", p.payload)),
-        ),
-        content_type="text/html",
-    )
+    try:
+        # Fetch packets for the given node ID and port number
+        #print("Fetching packets...")
+        packets = await store.get_packets(
+            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP
+        )
+        #print(f"Fetched {len(packets)} packets.")
+
+        # Convert packets to UI packets
+        #print("Processing packets...")
+        ui_packets = [Packet.from_model(p) for p in packets]
+
+        # Filter packets
+        #print("Filtering packets...")
+        filtered_packets = [
+            p for p in ui_packets if not re.match(r"seq \d+$", p.payload)
+        ]
+
+        # Render template
+        #print("Rendering template...")
+        template = env.get_template("chat.html")
+        return web.Response(
+            text=template.render(packets=filtered_packets),
+            content_type="text/html",
+        )
+
+    except Exception as e:
+        # Log the error and return an appropriate response
+        #print(f"Error in chat handler: {e}")
+        return web.Response(
+            text="An error occurred while processing your request.",
+            status=500,
+            content_type="text/plain",
+        )
+
 
 
 @routes.get("/packet/{packet_id}")
@@ -1053,50 +1077,37 @@ async def graph_network(request):
     )
 
 
-@routes.get("/net")
-async def net(request):
-    if "date" in request.query:
-        start_date = datetime.date.fromisoformat(request.query["date"])
-    else:
-        start_date = datetime.date.today()
-        while start_date.weekday() != 2:
-            start_date = start_date - datetime.timedelta(days=5)
-
-    start_time = datetime.datetime.combine(start_date, datetime.time(0,0))
-
-    text_packets = [
-        Packet.from_model(p)
-        for p in await store.get_packets(
-            portnum=PortNum.TEXT_MESSAGE_APP,
-            after=start_time,
-            before=start_time + datetime.timedelta(hours=74),
-        )
-    ]
-    net_packets = [p for p in text_packets if '#baymeshnet' in p.payload.lower()]
-
-    template = env.get_template("net.html")
-    return web.Response(
-        text=template.render(net_packets=text_packets),
-        content_type="text/html",
-    )
-
 @routes.get("/stats")
 async def stats(request):
-    # Fetch total packet count from the store
-    total_packets = await store.get_total_packet_count()
-    total_nodes = await store.get_total_node_count()
-    total_packets_seen = await store.get_total_packet_seen_count()
-    total_nodes_longfast = await store.get_total_node_count_longfast()
-    total_nodes_mediumslow = await store.get_total_node_count_mediumslow()
+    try:
+        # Add logging to track execution
+        total_packets = await store.get_total_packet_count()
+        total_nodes = await store.get_total_node_count()
+        total_packets_seen = await store.get_total_packet_seen_count()
+        total_nodes_longfast = await store.get_total_node_count_longfast()
+        total_nodes_mediumslow = await store.get_total_node_count_mediumslow()
 
-
-    # Render the stats template with the total packet count
-    template = env.get_template("stats.html")
-    return web.Response(
-        text=template.render(total_packets=total_packets, total_nodes=total_nodes,total_packets_seen=total_packets_seen,total_nodes_longfast=total_nodes_longfast, total_nodes_mediumslow=total_nodes_mediumslow ),
-        content_type="text/html",
-    )
-
+        # Render template
+        #print("Rendering template...")
+        template = env.get_template("stats.html")
+        return web.Response(
+            text=template.render(
+                total_packets=total_packets,
+                total_nodes=total_nodes,
+                total_packets_seen=total_packets_seen,
+                total_nodes_longfast=total_nodes_longfast,
+                total_nodes_mediumslow=total_nodes_mediumslow,
+            ),
+            content_type="text/html",
+        )
+    except Exception as e:
+        # Log and return error response
+        #print(f"Error in stats handler: {e}")
+        return web.Response(
+            text="An error occurred while processing your request.",
+            status=500,
+            content_type="text/plain",
+        )
 
 
 @routes.get("/graph/longfast")
