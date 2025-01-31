@@ -304,7 +304,6 @@ async def _packet_list(request, raw_packets, packet_event):
         content_type="text/html",
     )
 
-
 @routes.get("/chat_events")
 async def chat_events(request):
     chat_packet = env.get_template("chat_packet.html")
@@ -408,7 +407,7 @@ class UplinkedNode:
     snr: float
     rssi: float
 
-
+# Updated code p.r.
 @routes.get("/packet_details/{packet_id}")
 async def packet_details(request):
     packet_id = int(request.match_info["packet_id"])
@@ -416,8 +415,11 @@ async def packet_details(request):
     packet = await store.get_packet(packet_id)
 
     from_node_cord = None
-    if packet.from_node and packet.from_node.last_lat:
-        from_node_cord = [packet.from_node.last_lat * 1e-7 , packet.from_node.last_long * 1e-7]
+    if packet and packet.from_node and packet.from_node.last_lat:
+        from_node_cord = [
+            packet.from_node.last_lat * 1e-7,
+            packet.from_node.last_long * 1e-7,
+        ]
 
     uplinked_nodes = []
     for p in packets_seen:
@@ -444,6 +446,7 @@ async def packet_details(request):
     elif uplinked_nodes:
         map_center = [uplinked_nodes[0].lat, uplinked_nodes[0].long]
 
+    # Render the template and return the response
     template = env.get_template("packet_details.html")
     return web.Response(
         text=template.render(
@@ -461,7 +464,7 @@ async def packet_details(request):
     portnum = request.query.get("portnum")
     if portnum:
         portnum = int(portnum)
-    packets = await store.get_packets(portnum=portnum)
+    packets = await store.get_packets(portnum=portnum, limit=50)
     template = env.get_template("firehose.html")
     return web.Response(
         text=template.render(
@@ -726,7 +729,7 @@ async def graph_power_metrics(request):
 
 @routes.get("/graph/neighbors/{node_id}")
 async def graph_neighbors(request):
-    oldest = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+    oldest = datetime.datetime.now() - datetime.timedelta(days=4)
 
     data = {}
     dates =[]
@@ -774,7 +777,7 @@ async def graph_neighbors(request):
 
 @routes.get("/graph/neighbors2/{node_id}")
 async def graph_neighbors2(request):
-    oldest = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+    oldest = datetime.datetime.now() - datetime.timedelta(days=30)
 
     data = []
     node_ids = set()

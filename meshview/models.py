@@ -21,7 +21,7 @@ class Node(Base):
     last_lat: Mapped[int] = mapped_column(BigInteger, nullable=True)
     last_long: Mapped[int] = mapped_column(BigInteger, nullable=True)
     channel: Mapped[str]
-
+    last_update: Mapped[datetime]
 
 class Packet(Base):
     __tablename__ = "packet"

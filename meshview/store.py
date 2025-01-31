@@ -88,6 +88,7 @@ async def process_envelope(topic, env):
                     node.short_name = user.short_name
                     node.hw_model = hw_model
                     node.role = role
+                    node.last_update =datetime.datetime.now()
                     # if need to update time of last update it may be here
 
                 else:
@@ -415,6 +416,7 @@ async def get_total_packet_count():
 async def get_total_node_count():
     async with database.async_session() as session:
         q = select(func.count(Node.id))  # Use SQLAlchemy's func to count nodes
+        q = q.where(Node.last_update > datetime.datetime.now() - datetime.timedelta(days=1)) # Look for nodes with nodeinfo updates in the last 24 hours
         result = await session.execute(q)
         return result.scalar()  # Return the total count of nodes
 
@@ -427,24 +429,13 @@ async def get_total_packet_seen_count():
 
 
 async def get_total_node_count_longfast() -> int:
-    """
-    Retrieves the total count of nodes where the channel is equal to 'LongFast'.
-
-    This function queries the database asynchronously to count the number of nodes
-    in the `Node` table that meet the condition `channel == 'LongFast'`. It uses
-    SQLAlchemy's asynchronous session management and query construction.
-
-    Returns:
-        int: The total count of nodes with `channel == 'LongFast'`.
-
-    Raises:
-        Exception: If an error occurs during the database query execution.
-    """
     try:
         # Open an asynchronous session with the database
         async with database.async_session() as session:
             # Build the query to count nodes where channel == 'LongFast'
-            q = select(func.count(Node.id)).filter(Node.channel == 'LongFast')
+            q = select(func.count(Node.id))
+            q = q.where(Node.last_update > datetime.datetime.now() - datetime.timedelta( days=1))  # Look for nodes with nodeinfo updates in the last 24 hours
+            q = q.where(Node.channel == 'LongFast')  #
 
             # Execute the query asynchronously and fetch the result
             result = await session.execute(q)
@@ -458,25 +449,14 @@ async def get_total_node_count_longfast() -> int:
 
 
 async def get_total_node_count_mediumslow() -> int:
-    """
-    Retrieves the total count of nodes where the channel is equal to 'MediumSlow'.
-
-    This function queries the database asynchronously to count the number of nodes
-    in the `Node` table that meet the condition `channel == 'MediumSlow'`. It uses
-    SQLAlchemy's asynchronous session management and query construction.
-
-    Returns:
-        int: The total count of nodes with `channel == 'MediumSlow'`.
-
-    Raises:
-        Exception: If an error occurs during the database query execution.
-    """
     try:
         # Open an asynchronous session with the database
         async with database.async_session() as session:
             # Build the query to count nodes where channel == 'LongFast'
-            q = select(func.count(Node.id)).filter(Node.channel == 'MediumSlow')
-
+            q = select(func.count(Node.id))
+            q = q.where(Node.last_update > datetime.datetime.now() - datetime.timedelta(
+                days=1))  # Look for nodes with nodeinfo updates in the last 24 hours
+            q = q.where(Node.channel == 'MediumSlow')  #
             # Execute the query asynchronously and fetch the result
             result = await session.execute(q)
 
