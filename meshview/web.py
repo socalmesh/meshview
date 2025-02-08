@@ -474,14 +474,13 @@ async def packet_details(request):
         content_type="text/html",
     )
 
-
 @routes.get("/chat")
 async def chat(request):
     try:
         # Fetch packets for the given node ID and port number
         #print("Fetching packets...")
         packets = await store.get_packets(
-            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP
+            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=100
         )
         #print(f"Fetched {len(packets)} packets.")
 
@@ -624,9 +623,6 @@ async def graph_chutil(request):
             },
         ],
     )
-
-
-
 
 @routes.get("/graph/wind_speed/{node_id}")
 async def graph_wind_speed(request):
@@ -1022,7 +1018,10 @@ async def graph_network(request):
 
     #graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="prism", quadtree="2", repulsiveforce="1.5", k="1", overlap_scaling="1.5", concentrate=True)
     #graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="prism1000", overlap_scaling="-4", sep="1000", pack="true")
-    graph = pydot.Dot('network', graph_type="digraph", layout="neato", overlap="false", model='subset', esep="+5")
+    #graph = pydot.Dot('network', graph_type="digraph", layout="neato", overlap="false", model='subset', esep="+5")
+    graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="prism", esep="+10", nodesep="0.5",
+                      ranksep="1")
+
     for node_id in used_nodes:
         node = await nodes[node_id]
         color = '#000000'
@@ -1229,20 +1228,21 @@ async def graph_network_longfast(request):
             edges = new_edges
 
         # Create graph
-        graph = pydot.Dot('network', graph_type="digraph", layout="neato", overlap="false", model='subset', esep="+5")
+        graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="scale", model='subset', splines="true")
         for node_id in used_nodes:
             node = await nodes[node_id]
             color = '#000000'
             node_name = await get_node_name(node_id)
             if node and node.role in ('ROUTER', 'ROUTER_CLIENT', 'REPEATER'):
                 color = '#0000FF'
-            elif node and node.role == 'CLIENT_MUTE':
-                color = '#00FF00'
+            #elif node and node.role == 'CLIENT_MUTE':
+            #   color = '#00FF00'
             graph.add_node(pydot.Node(
                 str(node_id),
                 label=node_name,
                 shape='box',
                 color=color,
+                fontsize="10", width="0", height="0",
                 href=f"/graph/network?root={node_id}&amp;depth={depth-1}",
             ))
 
@@ -1276,8 +1276,9 @@ async def graph_network_longfast(request):
                     str(dest),
                     color=color,
                     tooltip=f'{await get_node_name(src)} -> {await get_node_name(dest)}',
-                    penwidth=1.85,
+                    penwidth=.5,
                     dir=edge_dir,
+                    arrowsize=".5",
                 ))
 
         return web.Response(
@@ -1407,7 +1408,8 @@ async def graph_network_mediumslow(request):
             edges = new_edges
 
         # Create graph
-        graph = pydot.Dot('network', graph_type="digraph", layout="neato", overlap="false", model='subset', esep="+5")
+        graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="scale", model='subset', esep="+5", splines="true", nodesep="2", ranksep="2")
+
         for node_id in used_nodes:
             node = await nodes[node_id]
             color = '#000000'
@@ -1466,6 +1468,25 @@ async def graph_network_mediumslow(request):
     except Exception as e:
         print(f"Error in graph_network_longfast: {e}")
         return web.Response(status=500, text="Internal Server Error")
+
+@routes.get("/nodelist")
+async def nodelist(request):
+    try:
+        nodes= await store.get_nodes()
+        template = env.get_template("nodelist.html")
+        return web.Response(
+            text=template.render(nodes=nodes),
+            content_type="text/html",
+        )
+    except Exception as e:
+
+        return web.Response(
+            text="An error occurred while processing your request.",
+            status=500,
+            content_type="text/plain",
+        )
+
+
 
 
 

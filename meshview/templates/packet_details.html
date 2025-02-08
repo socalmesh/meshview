@@ -12,8 +12,8 @@
     <div class="card-body">
         <div class="card-text text-start">
             <dl>
-                <dt>import_time</dt>
-                <dd>{{seen.import_time|format_timestamp}}</dd>
+                <dt>Import Time</dt>
+                <dd>{{seen.import_time.strftime('%-I:%M:%S %p - %d-%m-%Y')}}</dd>
                 <dt>rx_time</dt>
                 <dd>{{seen.rx_time|format_timestamp}}</dd>
                 <dt>hop_limit</dt>

@@ -5,7 +5,7 @@
     </div>
     <div class="card-text text-start">
         <dl>
-            <div>{{packet.import_time | format_timestamp}}</div>
+            <div>{{packet.import_time.strftime('%-I:%M:%S %p - %d-%m-%Y')}}</div>
             <div>{{packet.payload}}</div>
         </dl>
     </div>

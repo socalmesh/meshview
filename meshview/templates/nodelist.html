@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block css %}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1em;
+}
+
+th, td {
+    padding: 10px;
+    border: 1px solid #333;
+    text-align: left;
+}
+
+th {
+    background-color: #1f1f1f;
+    color: white;
+}
+
+tr:nth-child(even) {
+    background-color: #181818;
+}
+
+tr:nth-child(odd) {
+    background-color: #222;
+}
+{% endblock %}
+
+{% block body %}
+    <div>
+        {% if nodes %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Long Name</th>
+                        <th>Short Name</th>
+                        <th>HW Model</th>
+                        <th>Firmware</th>
+                        <th>Role</th>
+                        <th>Last Latitude</th>
+                        <th>Last Longitude</th>
+                        <th>Channel</th>
+                        <th>Last Update</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for node in nodes %}
+                        <tr>
+                            <td> <a href="/packet_list/{{node.node_id }}">{{node.node_id }}</a></td>
+                            <td>{{ node.long_name }}</td>
+                            <td>{{ node.short_name }}</td>
+                            <td>{{ node.hw_model }}</td>
+                            <td>{{ node.firmware }}</td>
+                            <td>{{ node.role if node.role else "N/A" }}</td>
+                            <td>{{ node.last_lat if node.last_lat else "N/A" }}</td>
+                            <td>{{ node.last_long if node.last_long else "N/A" }}</td>
+                            <td>{{ node.channel }}</td>
+                            <td>{{ node.last_update.strftime('%-I:%M:%S %p - %d-%m-%Y') if node.last_update else "N/A" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No nodes found.</p>
+        {% endif %}
+    </div>
+{% endblock %}

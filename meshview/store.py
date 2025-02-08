@@ -2,7 +2,7 @@ import datetime
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import lazyload
-
+from sqlalchemy import update
 from meshtastic.protobuf.config_pb2 import Config
 from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshtastic.protobuf.mesh_pb2 import User, HardwareModel
@@ -12,7 +12,34 @@ from meshview.models import Packet, PacketSeen, Node, Traceroute
 from meshview import notify
 
 
+
 async def process_envelope(topic, env):
+
+    # Checking if the received packet is a MAP_REPORT
+    # Update the node table with the firmware version
+    if env.packet.decoded.portnum == PortNum.MAP_REPORT_APP:
+        # Extract the node ID from the packet (renamed from 'id' to 'node_id' to avoid conflicts with Python's built-in id function)
+        node_id = getattr(env.packet, "from")
+
+        # Decode the MAP report payload to extract the firmware version
+        map_report = decode_payload.decode_payload(PortNum.MAP_REPORT_APP, env.packet.decoded.payload)
+
+        # Establish an asynchronous database session
+        async with database.async_session() as session:
+            # Construct an SQLAlchemy update statement
+            stmt = (
+                update(Node)
+                .where(Node.node_id == node_id)  # Ensure correct column reference
+                .values(firmware=map_report.firmware_version)  # Assign new firmware value
+            )
+
+            # Execute the update statement asynchronously
+            await session.execute(stmt)
+
+            # Commit the changes to the database
+            await session.commit()
+
+    # This ignores any packet that does not have a ID
     if not env.packet.id:
         return
 
@@ -58,6 +85,8 @@ async def process_envelope(topic, env):
             )
             session.add(seen)
 
+
+
         if env.packet.decoded.portnum == PortNum.NODEINFO_APP:
             user = decode_payload.decode_payload(
                 PortNum.NODEINFO_APP, env.packet.decoded.payload
@@ -89,7 +118,6 @@ async def process_envelope(topic, env):
                     node.hw_model = hw_model
                     node.role = role
                     node.last_update =datetime.datetime.now()
-                    # if need to update time of last update it may be here
 
                 else:
                     node = Node(
@@ -479,5 +507,18 @@ async def get_nodes_mediumslow():
                 )
         )
         return result.scalars()
+
+
+
+async def get_nodes():
+    async with database.async_session() as session:
+        result = await session.execute(
+                select(Node)
+                .where(Node.last_update != "")
+                .order_by(Node.long_name)  # Sorting by long_name
+        )
+        return result.scalars()
+
+
 
 
