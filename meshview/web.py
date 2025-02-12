@@ -1477,9 +1477,9 @@ async def nodelist(request):
         role = request.query.get("role")
         #print(role)
         channel = request.query.get("channel")
-        print(channel)
+        #print(channel)
         hw_model = request.query.get("hw_model")
-        print(hw_model)
+        #print(hw_model)
         nodes= await store.get_nodes(role,channel, hw_model)
         template = env.get_template("nodelist.html")
         return web.Response(

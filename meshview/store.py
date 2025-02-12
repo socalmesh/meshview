@@ -524,7 +524,7 @@ async def get_nodes(role=None, channel=None, hw_model=None):
     """
     try:
         async with database.async_session() as session:
-            print(channel)  # Debugging output (consider replacing with logging)
+            #print(channel)  # Debugging output (consider replacing with logging)
 
             # Start with a base query selecting all nodes
             query = select(Node)
@@ -546,7 +546,6 @@ async def get_nodes(role=None, channel=None, hw_model=None):
             # Execute the query and retrieve results
             result = await session.execute(query)
             nodes = result.scalars().all()
-
             return nodes  # Return the list of nodes
 
     except Exception as e:

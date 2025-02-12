@@ -28,5 +28,3 @@ Other Options:
 --topic
     MQTT Topic, default is 'msh/US/bayarea/#'
 
-
-<img src="images/main.png" alt="Main Page" >
