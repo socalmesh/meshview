@@ -1261,7 +1261,7 @@ async def graph_network_longfast(request):
             if edge_type[(src, dest)] in ('ni'):
                 color = '#FF0000'
             elif edge_type[(src, dest)] in ('sni'):
-                color = '#00FF00'
+                color = '#040fb3'
             else:
                 color = '#000000'
             edge_dir = "forward"
@@ -1296,7 +1296,7 @@ async def graph_network_longfast(request):
 async def graph_network_mediumslow(request):
     try:
         root = request.query.get("root")
-        depth = int(request.query.get("depth", 5))
+        depth = int(request.query.get("depth", 3))
         hours = int(request.query.get("hours", 24))
         minutes = int(request.query.get("minutes", 0))
 
@@ -1423,6 +1423,7 @@ async def graph_network_mediumslow(request):
                 label=node_name,
                 shape='box',
                 color=color,
+                fontsize="10", width="0", height="0",
                 href=f"/graph/mediumslow?root={node_id}&amp;depth={depth-1}",
             ))
 
@@ -1441,7 +1442,7 @@ async def graph_network_mediumslow(request):
             if edge_type[(src, dest)] in ('ni'):
                 color = '#FF0000'
             elif edge_type[(src, dest)] in ('sni'):
-                color = '#00FF00'
+                color = '#040fb3'
             else:
                 color = '#000000'
             edge_dir = "forward"
@@ -1456,8 +1457,9 @@ async def graph_network_mediumslow(request):
                     str(dest),
                     color=color,
                     tooltip=f'{await get_node_name(src)} -> {await get_node_name(dest)}',
-                    penwidth=1.85,
+                    penwidth=.5,
                     dir=edge_dir,
+                    arrowsize=".5",
                 ))
 
         return web.Response(
@@ -1472,7 +1474,13 @@ async def graph_network_mediumslow(request):
 @routes.get("/nodelist")
 async def nodelist(request):
     try:
-        nodes= await store.get_nodes()
+        role = request.query.get("role")
+        #print(role)
+        channel = request.query.get("channel")
+        print(channel)
+        hw_model = request.query.get("hw_model")
+        print(hw_model)
+        nodes= await store.get_nodes(role,channel, hw_model)
         template = env.get_template("nodelist.html")
         return web.Response(
             text=template.render(nodes=nodes),

@@ -33,7 +33,6 @@ tr:nth-child(odd) {
             <table>
                 <thead>
                     <tr>
-                        <th>Node ID</th>
                         <th>Long Name</th>
                         <th>Short Name</th>
                         <th>HW Model</th>
@@ -48,16 +47,15 @@ tr:nth-child(odd) {
                 <tbody>
                     {% for node in nodes %}
                         <tr>
-                            <td> <a href="/packet_list/{{node.node_id }}">{{node.node_id }}</a></td>
-                            <td>{{ node.long_name }}</td>
+                            <td> <a href="/packet_list/{{node.node_id }}">{{node.long_name}}</a></td>
                             <td>{{ node.short_name }}</td>
-                            <td>{{ node.hw_model }}</td>
+                            <td><a href="/nodelist?hw_model={{node.hw_model}}">{{node.hw_model if node.hw_model else "N/A"}}</a></td>
                             <td>{{ node.firmware }}</td>
-                            <td>{{ node.role if node.role else "N/A" }}</td>
-                            <td>{{ node.last_lat if node.last_lat else "N/A" }}</td>
-                            <td>{{ node.last_long if node.last_long else "N/A" }}</td>
-                            <td>{{ node.channel }}</td>
-                            <td>{{ node.last_update.strftime('%-I:%M:%S %p - %d-%m-%Y') if node.last_update else "N/A" }}</td>
+                            <td><a href="/nodelist?role={{node.role}}">{{node.role if node.role else "N/A"}}</a></td>
+                            <td>{{ "{:.7f}".format(node.last_lat / 10**7)  if node.last_lat else "N/A" }}</td>
+                            <td>{{ "{:.7f}".format(node.last_long / 10**7) if node.last_long else "N/A" }}</td>
+                            <td><a href="/nodelist?channel={{node.channel}}">{{node.channel if node.channel else "N/A"}}</a></td>
+                            <td>{{ node.last_update.strftime('%-I:%M:%S %p - %m-%d-%Y') if node.last_update else "N/A" }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

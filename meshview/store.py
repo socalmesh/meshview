@@ -506,19 +506,52 @@ async def get_nodes_mediumslow():
                 (Node.channel == "MediumSlow")
                 )
         )
+
         return result.scalars()
 
 
+async def get_nodes(role=None, channel=None, hw_model=None):
+    """
+    Fetches nodes from the database based on optional filtering criteria.
 
-async def get_nodes():
-    async with database.async_session() as session:
-        result = await session.execute(
-                select(Node)
-                .where(Node.last_update != "")
-                .order_by(Node.long_name)  # Sorting by long_name
-        )
-        return result.scalars()
+    Parameters:
+        role (str, optional): The role of the node (converted to uppercase for consistency).
+        channel (str, optional): The communication channel associated with the node.
+        hw_model (str, optional): The hardware model of the node.
 
+    Returns:
+        list: A list of Node objects that match the given criteria.
+    """
+    try:
+        async with database.async_session() as session:
+            print(channel)  # Debugging output (consider replacing with logging)
+
+            # Start with a base query selecting all nodes
+            query = select(Node)
+
+            # Apply filters based on provided parameters
+            if role is not None:
+                query = query.where(Node.role == role.upper())  # Ensure role is uppercase
+            if channel is not None:
+                query = query.where(Node.channel == channel)
+            if hw_model is not None:
+                query = query.where(Node.hw_model == hw_model)
+
+            # Exclude nodes where last_update is an empty string
+            query = query.where(Node.last_update != "")
+
+            # Order results by long_name in ascending order
+            query = query.order_by(Node.long_name.asc())
+
+            # Execute the query and retrieve results
+            result = await session.execute(query)
+            nodes = result.scalars().all()
+
+            return nodes  # Return the list of nodes
+
+    except Exception as e:
+        print("error reading DB")  # Consider using logging instead of print
+        return []  # Return an empty list in case of failure
 
 
 
