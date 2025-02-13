@@ -34,7 +34,6 @@ def create_event(node_id):
 
 
 def remove_event(node_event):
-    print("removing event")
     waiting_node_ids_events[node_event.node_id].remove(node_event)
 
 def notify_packet(node_id, packet):
@@ -57,7 +56,6 @@ def subscribe(node_id):
     event = create_event(node_id)
     try:
         yield event
-        print("adding event...")
     except Exception as e:
         print(f"Error during subscription for node_id={node_id}: {e}")
         raise

@@ -31,7 +31,6 @@ tr:nth-child(odd) {
     display: flex;
     gap: 10px;
     margin-bottom: 10px;
-    align-items: center;
 }
 
 .search, .filter-role, .filter-channel, .filter-hw_model, .export-btn {
@@ -55,8 +54,8 @@ tr:nth-child(odd) {
     background: #218838;
 }
 
-.node-count {
-    font-size: 16px;
+.count-container {
+    margin-bottom: 10px;
     font-weight: bold;
     color: white;
 }
@@ -67,7 +66,7 @@ tr:nth-child(odd) {
         <div class="search-container">
             <input class="search" placeholder="Search nodes..." />
 
-            <!-- Filter by Role Dropdown -->
+            <!-- Filter by Role -->
             <select class="filter-role" onchange="applyFilters()">
                 <option value="">Filter by Role</option>
                 {% for node in nodes|groupby('role') %}
@@ -75,7 +74,7 @@ tr:nth-child(odd) {
                 {% endfor %}
             </select>
 
-            <!-- Filter by Channel Dropdown -->
+            <!-- Filter by Channel -->
             <select class="filter-channel" onchange="applyFilters()">
                 <option value="">Filter by Channel</option>
                 {% for node in nodes|groupby('channel') %}
@@ -83,7 +82,7 @@ tr:nth-child(odd) {
                 {% endfor %}
             </select>
 
-            <!-- Filter by HW Model Dropdown -->
+            <!-- Filter by HW Model -->
             <select class="filter-hw_model" onchange="applyFilters()">
                 <option value="">Filter by HW Model</option>
                 {% for node in nodes|groupby('hw_model') %}
@@ -92,10 +91,10 @@ tr:nth-child(odd) {
             </select>
 
             <button class="export-btn" onclick="exportToCSV()">Export to CSV</button>
-
-            <!-- Display the count of filtered nodes -->
-            <span class="node-count">Total Nodes: <span id="node-count-value">0</span></span>
         </div>
+
+        <!-- Count Display -->
+        <div class="count-container">Showing <span id="node-count-value">0</span> nodes</div>
 
         {% if nodes %}
             <table id="node-table">
@@ -109,7 +108,7 @@ tr:nth-child(odd) {
                         <th class="sort" data-sort="last_lat">Last Latitude</th>
                         <th class="sort" data-sort="last_long">Last Longitude</th>
                         <th class="sort" data-sort="channel">Channel</th>
-                        <th class="sort" data-sort="last_update">Last Update</th>
+                        <th class="sort" data-sort="last_update" data-order="desc">Last Update</th>
                     </tr>
                 </thead>
                 <tbody class="list">
@@ -123,7 +122,9 @@ tr:nth-child(odd) {
                             <td class="last_lat">{{ "{:.7f}".format(node.last_lat / 10**7) if node.last_lat else "N/A" }}</td>
                             <td class="last_long">{{ "{:.7f}".format(node.last_long / 10**7) if node.last_long else "N/A" }}</td>
                             <td class="channel">{{ node.channel if node.channel else "N/A" }}</td>
-                            <td class="last_update">{{ node.last_update.strftime('%-I:%M:%S %p - %m-%d-%Y') if node.last_update else "N/A" }}</td>
+                            <td class="last_update" data-timestamp="{{ node.last_update.timestamp() if node.last_update else 0 }}">
+                                {{ node.last_update.strftime('%-I:%M:%S %p - %m-%d-%Y') if node.last_update else "N/A" }}
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -139,10 +140,18 @@ tr:nth-child(odd) {
 
         document.addEventListener("DOMContentLoaded", function () {
             var options = {
-                valueNames: ["long_name", "short_name", "hw_model", "firmware", "role", "last_lat", "last_long", "channel", "last_update"]
+                valueNames: [
+                    "long_name", "short_name", "hw_model", "firmware", "role",
+                    "last_lat", "last_long", "channel", { name: "last_update", attr: "data-timestamp" }
+                ]
             };
             nodeList = new List("node-list", options);
-            updateCount();  // Set initial count
+
+            updateCount(); // Update count on load
+
+            nodeList.on("updated", function () {
+                updateCount(); // Update count when search or sort changes
+            });
         });
 
         function applyFilters() {

@@ -304,73 +304,124 @@ async def _packet_list(request, raw_packets, packet_event):
         content_type="text/html",
     )
 
+
 @routes.get("/chat_events")
 async def chat_events(request):
+    """
+    Server-Sent Events (SSE) endpoint for real-time chat packet updates.
+
+    This endpoint listens for new chat packets related to `PortNum.TEXT_MESSAGE_APP`
+    and streams them to connected clients. Messages matching the pattern `"seq \d+$"`
+    are filtered out before sending.
+
+    Args:
+        request (aiohttp.web.Request): The incoming HTTP request.
+
+    Returns:
+        aiohttp.web.StreamResponse: SSE response streaming chat events.
+    """
     chat_packet = env.get_template("chat_packet.html")
 
+    # Precompile regex for filtering out unwanted messages (case insensitive)
+    seq_pattern = re.compile(r"seq \d+$", re.IGNORECASE)
+
+    # Subscribe to notifications for packets from all nodes (0xFFFFFFFF = broadcast)
     with notify.subscribe(node_id=0xFFFFFFFF) as event:
         async with sse_response(request) as resp:
-            while resp.is_connected():
+            while resp.is_connected():  # Keep the connection open while the client is connected
                 try:
-                    async with asyncio.timeout(10):
-                        await event.wait()
-                except TimeoutError:
+                    # Wait for an event with a timeout of 10 seconds
+                    await asyncio.wait_for(event.wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    # Timeout reached, continue looping to keep connection alive
                     continue
+
                 if event.is_set():
+                    # Extract relevant packets, ensuring event.packets is not None
                     packets = [
-                        p
-                        for p in event.packets
-                        if PortNum.TEXT_MESSAGE_APP == p.portnum
+                        p for p in (event.packets or [])
+                        if p.portnum == PortNum.TEXT_MESSAGE_APP
                     ]
-                    event.clear()
+                    event.clear()  # Reset event flag
+
                     try:
                         for packet in packets:
                             ui_packet = Packet.from_model(packet)
-                            if not re.match(r"seq \d+$", ui_packet.payload):
+
+                            # Filter out packets that match "seq <number>"
+                            if not seq_pattern.match(ui_packet.payload):
                                 await resp.send(
-                                    chat_packet.render(
-                                        packet=ui_packet,
-                                    ),
-                                    event="chat_packet",
+                                    chat_packet.render(packet=ui_packet),
+                                    event="chat_packet",  # SSE event type
                                 )
                     except ConnectionResetError:
-                        return
+                        # Log when a client disconnects unexpectedly
+                        logging.warning("Client disconnected from SSE stream.")
+                        return  # Exit the loop and close the connection
 
 
 @routes.get("/events")
 async def events(request):
+    """
+    Server-Sent Events (SSE) endpoint for real-time packet updates.
+
+    This endpoint listens for new network packets and streams them to connected clients.
+    Clients can optionally filter packets based on `node_id` and `portnum` query parameters.
+
+    Query Parameters:
+        - node_id (int, optional): Filter packets for a specific node (default: all nodes).
+        - portnum (int, optional): Filter packets for a specific port number (default: all ports).
+
+    Args:
+        request (aiohttp.web.Request): The incoming HTTP request.
+
+    Returns:
+        aiohttp.web.StreamResponse: SSE response streaming network events.
+    """
+    # Extract and convert query parameters (if provided)
     node_id = request.query.get("node_id")
     if node_id:
-        node_id = int(node_id)
+        node_id = int(node_id)  # Convert node_id to an integer
+
     portnum = request.query.get("portnum")
     if portnum:
-        portnum = int(portnum)
+        portnum = int(portnum)  # Convert portnum to an integer
 
+    # Load Jinja2 templates for rendering packets
     packet_template = env.get_template("packet.html")
     net_packet_template = env.get_template("net_packet.html")
+
+    # Subscribe to packet notifications for the given node_id (or all nodes if None)
     with notify.subscribe(node_id) as event:
         async with sse_response(request) as resp:
-            while resp.is_connected():
+            while resp.is_connected():  # Keep connection open while client is connected
                 try:
-                    async with asyncio.timeout(10):
-                        await event.wait()
-                except TimeoutError:
-                    continue
+                    # Wait for an event with a timeout of 10 seconds
+                    await asyncio.wait_for(event.wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    continue  # No new packets, continue waiting
+
                 if event.is_set():
+                    # Extract relevant packets based on `portnum` filter (if provided)
                     packets = [
-                        p
-                        for p in event.packets
+                        p for p in (event.packets or [])
                         if portnum is None or portnum == p.portnum
                     ]
+
+                    # Extract uplinked packets (if port filter applies)
                     uplinked = [
-                        u
-                        for u in event.uplinked
+                        u for u in (event.uplinked or [])
                         if portnum is None or portnum == u.portnum
                     ]
-                    event.clear()
+
+                    event.clear()  # Reset event flag
+
                     try:
+                        # Process and send incoming packets
                         for packet in packets:
                             ui_packet = Packet.from_model(packet)
+
+                            # Send standard packet event
                             await resp.send(
                                 packet_template.render(
                                     is_hx_request="HX-Request" in request.headers,
@@ -379,12 +430,16 @@ async def events(request):
                                 ),
                                 event="packet",
                             )
+
+                            # If the packet belongs to `PortNum.TEXT_MESSAGE_APP` and contains "#baymeshnet",
+                            # send it as a network event
                             if ui_packet.portnum == PortNum.TEXT_MESSAGE_APP and '#baymeshnet' in ui_packet.payload.lower():
                                 await resp.send(
                                     net_packet_template.render(packet=ui_packet),
                                     event="net_packet",
                                 )
 
+                        # Process and send uplinked packets separately
                         for packet in uplinked:
                             await resp.send(
                                 packet_template.render(
@@ -394,8 +449,10 @@ async def events(request):
                                 ),
                                 event="uplinked",
                             )
+
                     except ConnectionResetError:
-                        return
+                        logging.warning("Client disconnected from SSE stream.")
+                        return  # Gracefully exit on disconnection
 
 @dataclass
 class UplinkedNode:
@@ -1015,10 +1072,7 @@ async def graph_network(request):
 
         used_nodes = new_used_nodes
         edges = new_edges
-
-    #graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="prism", quadtree="2", repulsiveforce="1.5", k="1", overlap_scaling="1.5", concentrate=True)
-    #graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="prism1000", overlap_scaling="-4", sep="1000", pack="true")
-    #graph = pydot.Dot('network', graph_type="digraph", layout="neato", overlap="false", model='subset', esep="+5")
+    # Create the graph
     graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="prism", esep="+10", nodesep="0.5",
                       ranksep="1")
 
@@ -1482,6 +1536,7 @@ async def nodelist(request):
         #print(hw_model)
         nodes= await store.get_nodes(role,channel, hw_model)
         template = env.get_template("nodelist.html")
+
         return web.Response(
             text=template.render(nodes=nodes),
             content_type="text/html",
@@ -1495,7 +1550,79 @@ async def nodelist(request):
         )
 
 
+@routes.get("/net")
+async def net(request):
+    try:
+        # Fetch packets for the given node ID and port number
+        packets = await store.get_packets(
+            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=200
+        )
 
+        # Convert packets to UI packets
+        ui_packets = [Packet.from_model(p) for p in packets]
+
+        # Precompile regex for performance
+        seq_pattern = re.compile(r"seq \d+$")
+
+        # Filter packets: exclude "seq \d+$" but include those containing "pablo-test"
+        filtered_packets = [
+            p for p in ui_packets
+            if not seq_pattern.match(p.payload) and "baymeshnet" in p.payload.lower()
+        ]
+
+        # Render template
+        template = env.get_template("net.html")
+        return web.Response(
+            text=template.render(packets=filtered_packets),
+            content_type="text/html",
+        )
+
+    except web.HTTPException as e:
+        raise  # Let aiohttp handle HTTP exceptions properly
+
+    except Exception as e:
+        logging.exception("Error processing chat request")
+        return web.Response(
+            text="An internal server error occurred.",
+            status=500,
+            content_type="text/plain",
+        )
+
+
+@routes.get("/net_events")
+async def net_events(request):
+    chat_packet = env.get_template("net_packet.html")
+
+    # Precompile regex for performance (case insensitive)
+    seq_pattern = re.compile(r"seq \d+$")
+
+    with notify.subscribe(node_id=0xFFFFFFFF) as event:
+        async with sse_response(request) as resp:
+            while resp.is_connected():
+                try:
+                    await asyncio.wait_for(event.wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    continue  # Timeout occurred, loop again
+
+                if event.is_set():
+                    # Ensure event.packets is valid before accessing it
+                    packets = [
+                        p for p in (event.packets or [])
+                        if p.portnum == PortNum.TEXT_MESSAGE_APP
+                    ]
+                    event.clear()
+
+                    try:
+                        for packet in packets:
+                            ui_packet = Packet.from_model(packet)
+                            if not seq_pattern.match(ui_packet.payload) and "baymeshnet" in ui_packet.payload.lower():
+                                await resp.send(
+                                    chat_packet.render(packet=ui_packet),
+                                    event="net_packet",
+                                )
+                    except ConnectionResetError:
+                        print("Client disconnected from SSE stream.")
+                        return  # Gracefully exit on disconnection
 
 
 async def run_server(bind, port, tls_cert):
