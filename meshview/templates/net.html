@@ -5,18 +5,28 @@
     min-width:10em;
 }
 .chat-packet:nth-of-type(odd){
-    background-color:#1f1f1f;
+    background-color: #3a3a3a; /* Lighter than #2a2a2a */
+}
+.chat-packet {
+    border-bottom: 1px solid #555;
+    padding: 8px;
+    border-radius: 8px; /* Adjust the value to make the corners more or less rounded */
 }
 .chat-packet:nth-of-type(even){
-    background-color:#181818;
+    background-color: #333333; /* Slightly lighter than the previous #181818 */
 }
+
 {% endblock %}
 
 
 {% block body %}
-    <div class="container"hx-ext="sse" sse-connect="/net_events" sse-swap="net_packet" hx-swap="afterbegin">
+
+    <div class="container" > Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins so you do not have to rush.<br>
+        The message format should be (LONG NAME) - (CITY YOU ARE IN) #BayMeshNet.<br><br>
+ </div>
+    <div class="container" hx-ext="sse" sse-connect="/net_events" sse-swap="net_packet" hx-swap="afterbegin">
         {% for packet in packets %}
-        {% include 'net_packet.html' %}
+        {% include 'chat_packet.html' %}
         {% else %}
         No packets found.
         {% endfor %}
