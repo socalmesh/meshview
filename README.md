@@ -13,7 +13,7 @@ Clone the repo from github with:
 ``` bash 
 git clone --recurse-submodules https://github.com/pablorevilla-meshtastic/meshview.git
 ```
-It is important to include the `--recurse-submodule` flag or the meshtastic protobufs wont be included
+It is important to include the `--recurse-submodules` flag or the meshtastic protobufs wont be included
 
 Create a python virtual environment:
 ``` bash
