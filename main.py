@@ -8,8 +8,8 @@ from meshview import web
 from meshview import http
 
 
-async def load_database_from_mqtt(mqtt_server, topic):
-    async for topic, env in mqtt_reader.get_topic_envelopes(mqtt_server, topic):
+async def load_database_from_mqtt(mqtt_server: str , mqtt_port: int, topic: str, mqtt_user: str | None = None, mqtt_passwd: str | None = None):
+    async for topic, env in mqtt_reader.get_topic_envelopes(mqtt_server, mqtt_port, topic, mqtt_user, mqtt_passwd):
         await store.process_envelope(topic, env)
 
 
@@ -17,9 +17,16 @@ async def main(config):
     database.init_database(config["database"]["connection_string"])
 
     await database.create_tables()
+    mqtt_user = None
+    mqtt_passwd = None
+    if config["mqtt"]["username"] != "":
+        mqtt_user: str = config["mqtt"]["username"]
+    if config["mqtt"]["password"] != "":
+        mqtt_passwd: str = config["mqtt"]["password"]
+
     async with asyncio.TaskGroup() as tg:
         tg.create_task(
-            load_database_from_mqtt(config["mqtt"]["server"], config["mqtt"]["topics"].split(","))
+            load_database_from_mqtt(config["mqtt"]["server"], int(config["mqtt"]["port"]), config["mqtt"]["topics"], mqtt_user, mqtt_passwd)
         )
         tg.create_task(
             web.run_server(
