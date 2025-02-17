@@ -26,7 +26,7 @@ async def main(config):
 
     async with asyncio.TaskGroup() as tg:
         tg.create_task(
-            load_database_from_mqtt(config["mqtt"]["server"], int(config["mqtt"]["port"]), config["mqtt"]["topics"].split(","), mqtt_user, mqtt_passwd)
+            load_database_from_mqtt(config["mqtt"]["server"], int(config["mqtt"]["port"]), config["mqtt"]["topics"], mqtt_user, mqtt_passwd)
         )
         tg.create_task(
             web.run_server(
