@@ -26,16 +26,14 @@ You also need to install `graphviz`:
 ``` bash
 sudo apt-get install graphviz
 ```
-Edit `config.ini` to change the MQTT server and topic
+Edit `config.ini` to change the MQTT server, username, password, and topic(s) as necessary. 
 
-Other Options:
-* `port`
-
-   Web server port, default is `8081`
+You may also change the web server port from the ***default 8081***.
+https://github.com/madeofstown/meshview/blob/c9d65a078af5e71a6815c142dbb11e5868f8885b/config.ini#L1-L15
 
 ## Running Meshview
 
 ``` bash
 ./env/bin/python main.py
 ```
-Now you can hit http://localhost/
+Now you can hit http://localhost:8081/
