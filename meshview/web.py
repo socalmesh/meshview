@@ -666,7 +666,7 @@ async def graph_power(request):
             {
                 'label': 'voltage',
                 'fields': ['voltage'],
-                'palette': 'Set2'
+                'palette': 'Set2',
             },
         ],
     )
