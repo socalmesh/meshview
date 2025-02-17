@@ -34,8 +34,8 @@
         </div>
         <div class="card-text text-start">
             <dl>
-                <dt>import_time</dt>
-                <dd>{{packet.import_time | format_timestamp}}</dd>
+                <dt>Import Time</dt>
+                <dd>{{packet.import_time.strftime('%-I:%M:%S %p - %d-%m-%Y')}}</dd>
                 <dt>packet</dt>
                 <dd><pre>{{packet.data}}</pre></dd>
                 <dt>payload</dt>

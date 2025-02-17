@@ -2,7 +2,7 @@ import datetime
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import lazyload
-
+from sqlalchemy import update
 from meshtastic.protobuf.config_pb2 import Config
 from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshtastic.protobuf.mesh_pb2 import User, HardwareModel
@@ -12,7 +12,34 @@ from meshview.models import Packet, PacketSeen, Node, Traceroute
 from meshview import notify
 
 
+
 async def process_envelope(topic, env):
+
+    # Checking if the received packet is a MAP_REPORT
+    # Update the node table with the firmware version
+    if env.packet.decoded.portnum == PortNum.MAP_REPORT_APP:
+        # Extract the node ID from the packet (renamed from 'id' to 'node_id' to avoid conflicts with Python's built-in id function)
+        node_id = getattr(env.packet, "from")
+
+        # Decode the MAP report payload to extract the firmware version
+        map_report = decode_payload.decode_payload(PortNum.MAP_REPORT_APP, env.packet.decoded.payload)
+
+        # Establish an asynchronous database session
+        async with database.async_session() as session:
+            # Construct an SQLAlchemy update statement
+            stmt = (
+                update(Node)
+                .where(Node.node_id == node_id)  # Ensure correct column reference
+                .values(firmware=map_report.firmware_version)  # Assign new firmware value
+            )
+
+            # Execute the update statement asynchronously
+            await session.execute(stmt)
+
+            # Commit the changes to the database
+            await session.commit()
+
+    # This ignores any packet that does not have a ID
     if not env.packet.id:
         return
 
@@ -58,6 +85,8 @@ async def process_envelope(topic, env):
             )
             session.add(seen)
 
+
+
         if env.packet.decoded.portnum == PortNum.NODEINFO_APP:
             user = decode_payload.decode_payload(
                 PortNum.NODEINFO_APP, env.packet.decoded.payload
@@ -88,7 +117,7 @@ async def process_envelope(topic, env):
                     node.short_name = user.short_name
                     node.hw_model = hw_model
                     node.role = role
-                    # if need to update time of last update it may be here
+                    node.last_update =datetime.datetime.now()
 
                 else:
                     node = Node(
@@ -415,6 +444,7 @@ async def get_total_packet_count():
 async def get_total_node_count():
     async with database.async_session() as session:
         q = select(func.count(Node.id))  # Use SQLAlchemy's func to count nodes
+        q = q.where(Node.last_update > datetime.datetime.now() - datetime.timedelta(days=1)) # Look for nodes with nodeinfo updates in the last 24 hours
         result = await session.execute(q)
         return result.scalar()  # Return the total count of nodes
 
@@ -427,24 +457,13 @@ async def get_total_packet_seen_count():
 
 
 async def get_total_node_count_longfast() -> int:
-    """
-    Retrieves the total count of nodes where the channel is equal to 'LongFast'.
-
-    This function queries the database asynchronously to count the number of nodes
-    in the `Node` table that meet the condition `channel == 'LongFast'`. It uses
-    SQLAlchemy's asynchronous session management and query construction.
-
-    Returns:
-        int: The total count of nodes with `channel == 'LongFast'`.
-
-    Raises:
-        Exception: If an error occurs during the database query execution.
-    """
     try:
         # Open an asynchronous session with the database
         async with database.async_session() as session:
             # Build the query to count nodes where channel == 'LongFast'
-            q = select(func.count(Node.id)).filter(Node.channel == 'LongFast')
+            q = select(func.count(Node.id))
+            q = q.where(Node.last_update > datetime.datetime.now() - datetime.timedelta( days=1))  # Look for nodes with nodeinfo updates in the last 24 hours
+            q = q.where(Node.channel == 'LongFast')  #
 
             # Execute the query asynchronously and fetch the result
             result = await session.execute(q)
@@ -458,25 +477,14 @@ async def get_total_node_count_longfast() -> int:
 
 
 async def get_total_node_count_mediumslow() -> int:
-    """
-    Retrieves the total count of nodes where the channel is equal to 'MediumSlow'.
-
-    This function queries the database asynchronously to count the number of nodes
-    in the `Node` table that meet the condition `channel == 'MediumSlow'`. It uses
-    SQLAlchemy's asynchronous session management and query construction.
-
-    Returns:
-        int: The total count of nodes with `channel == 'MediumSlow'`.
-
-    Raises:
-        Exception: If an error occurs during the database query execution.
-    """
     try:
         # Open an asynchronous session with the database
         async with database.async_session() as session:
             # Build the query to count nodes where channel == 'LongFast'
-            q = select(func.count(Node.id)).filter(Node.channel == 'MediumSlow')
-
+            q = select(func.count(Node.id))
+            q = q.where(Node.last_update > datetime.datetime.now() - datetime.timedelta(
+                days=1))  # Look for nodes with nodeinfo updates in the last 24 hours
+            q = q.where(Node.channel == 'MediumSlow')  #
             # Execute the query asynchronously and fetch the result
             result = await session.execute(q)
 
@@ -498,6 +506,51 @@ async def get_nodes_mediumslow():
                 (Node.channel == "MediumSlow")
                 )
         )
+
         return result.scalars()
+
+
+async def get_nodes(role=None, channel=None, hw_model=None):
+    """
+    Fetches nodes from the database based on optional filtering criteria.
+
+    Parameters:
+        role (str, optional): The role of the node (converted to uppercase for consistency).
+        channel (str, optional): The communication channel associated with the node.
+        hw_model (str, optional): The hardware model of the node.
+
+    Returns:
+        list: A list of Node objects that match the given criteria.
+    """
+    try:
+        async with database.async_session() as session:
+            #print(channel)  # Debugging output (consider replacing with logging)
+
+            # Start with a base query selecting all nodes
+            query = select(Node)
+
+            # Apply filters based on provided parameters
+            if role is not None:
+                query = query.where(Node.role == role.upper())  # Ensure role is uppercase
+            if channel is not None:
+                query = query.where(Node.channel == channel)
+            if hw_model is not None:
+                query = query.where(Node.hw_model == hw_model)
+
+            # Exclude nodes where last_update is an empty string
+            query = query.where(Node.last_update != "")
+
+            # Order results by long_name in ascending order
+            query = query.order_by(Node.long_name.asc())
+
+            # Execute the query and retrieve results
+            result = await session.execute(query)
+            nodes = result.scalars().all()
+            return nodes  # Return the list of nodes
+
+    except Exception as e:
+        print("error reading DB")  # Consider using logging instead of print
+        return []  # Return an empty list in case of failure
+
 
 

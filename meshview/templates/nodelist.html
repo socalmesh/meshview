@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block css %}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1em;
+}
+
+th, td {
+    padding: 10px;
+    border: 1px solid #333;
+    text-align: left;
+}
+
+th {
+    background-color: #1f1f1f;
+    color: white;
+    cursor: pointer;
+}
+
+tr:nth-child(even) {
+    background-color: #181818;
+}
+
+tr:nth-child(odd) {
+    background-color: #222;
+}
+
+.search-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.search, .filter-role, .filter-channel, .filter-hw_model, .export-btn {
+    padding: 8px;
+    border: 1px solid #333;
+    border-radius: 4px;
+}
+
+.filter-role, .filter-channel, .filter-hw_model {
+    cursor: pointer;
+}
+
+.export-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.export-btn:hover {
+    background: #218838;
+}
+
+.count-container {
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: white;
+}
+{% endblock %}
+
+{% block body %}
+    <div id="node-list">
+        <div class="search-container">
+            <input class="search" placeholder="Search nodes..." />
+
+            <!-- Filter by Role -->
+            <select class="filter-role" onchange="applyFilters()">
+                <option value="">Filter by Role</option>
+                {% for node in nodes|groupby('role') %}
+                    <option value="{{ node.grouper }}">{{ node.grouper }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Filter by Channel -->
+            <select class="filter-channel" onchange="applyFilters()">
+                <option value="">Filter by Channel</option>
+                {% for node in nodes|groupby('channel') %}
+                    <option value="{{ node.grouper }}">{{ node.grouper }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Filter by HW Model -->
+            <select class="filter-hw_model" onchange="applyFilters()">
+                <option value="">Filter by HW Model</option>
+                {% for node in nodes|groupby('hw_model') %}
+                    <option value="{{ node.grouper }}">{{ node.grouper }}</option>
+                {% endfor %}
+            </select>
+
+            <button class="export-btn" onclick="exportToCSV()">Export to CSV</button>
+        </div>
+
+        <!-- Count Display -->
+        <div class="count-container">Showing <span id="node-count-value">0</span> nodes</div>
+
+        {% if nodes %}
+            <table id="node-table">
+                <thead>
+                    <tr>
+                        <th class="sort" data-sort="long_name">Long Name</th>
+                        <th class="sort" data-sort="short_name">Short Name</th>
+                        <th class="sort" data-sort="hw_model">HW Model</th>
+                        <th class="sort" data-sort="firmware">Firmware</th>
+                        <th class="sort" data-sort="role">Role</th>
+                        <th class="sort" data-sort="last_lat">Last Latitude</th>
+                        <th class="sort" data-sort="last_long">Last Longitude</th>
+                        <th class="sort" data-sort="channel">Channel</th>
+                        <th class="sort" data-sort="last_update" data-order="desc">Last Update</th>
+                    </tr>
+                </thead>
+                <tbody class="list">
+                    {% for node in nodes %}
+                        <tr>
+                            <td class="long_name"> <a href="/packet_list/{{ node.node_id }}">{{ node.long_name }}</a></td>
+                            <td class="short_name">{{ node.short_name }}</td>
+                            <td class="hw_model">{{ node.hw_model if node.hw_model else "N/A" }}</td>
+                            <td class="firmware">{{ node.firmware }}</td>
+                            <td class="role">{{ node.role if node.role else "N/A" }}</td>
+                            <td class="last_lat">{{ "{:.7f}".format(node.last_lat / 10**7) if node.last_lat else "N/A" }}</td>
+                            <td class="last_long">{{ "{:.7f}".format(node.last_long / 10**7) if node.last_long else "N/A" }}</td>
+                            <td class="channel">{{ node.channel if node.channel else "N/A" }}</td>
+                            <td class="last_update" data-timestamp="{{ node.last_update.timestamp() if node.last_update else 0 }}">
+                                {{ node.last_update.strftime('%-I:%M:%S %p - %m-%d-%Y') if node.last_update else "N/A" }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No nodes found.</p>
+        {% endif %}
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.min.js"></script>
+    <script>
+        var nodeList;
+
+        document.addEventListener("DOMContentLoaded", function () {
+            var options = {
+                valueNames: [
+                    "long_name", "short_name", "hw_model", "firmware", "role",
+                    "last_lat", "last_long", "channel", { name: "last_update", attr: "data-timestamp" }
+                ]
+            };
+            nodeList = new List("node-list", options);
+
+            updateCount(); // Update count on load
+
+            nodeList.on("updated", function () {
+                updateCount(); // Update count when search or sort changes
+            });
+        });
+
+        function applyFilters() {
+            var selectedRole = document.querySelector(".filter-role").value;
+            var selectedChannel = document.querySelector(".filter-channel").value;
+            var selectedHWModel = document.querySelector(".filter-hw_model").value;
+
+            nodeList.filter(function (item) {
+                var matchesRole = selectedRole === "" || item.values().role === selectedRole;
+                var matchesChannel = selectedChannel === "" || item.values().channel === selectedChannel;
+                var matchesHWModel = selectedHWModel === "" || item.values().hw_model === selectedHWModel;
+                return matchesRole && matchesChannel && matchesHWModel;
+            });
+
+            updateCount(); // Update the count after filtering
+        }
+
+        function updateCount() {
+            var visibleRows = document.querySelectorAll("#node-table tbody tr:not([style*='display: none'])").length;
+            document.getElementById("node-count-value").innerText = visibleRows;
+        }
+
+        function exportToCSV() {
+            var table = document.getElementById("node-table");
+            var rows = table.querySelectorAll("tr");
+            var csvContent = [];
+
+            // Extract header row
+            var headers = [];
+            table.querySelectorAll("th").forEach(th => headers.push(th.innerText));
+            csvContent.push(headers.join(","));
+
+            // Extract table rows
+            rows.forEach(row => {
+                var cells = row.querySelectorAll("td");
+                if (cells.length > 0) {
+                    var rowData = [];
+                    cells.forEach(cell => rowData.push(cell.innerText));
+                    csvContent.push(rowData.join(","));
+                }
+            });
+
+            // Create CSV file and trigger download
+            var csvString = csvContent.join("\n");
+            var blob = new Blob([csvString], { type: "text/csv" });
+            var a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "nodes_list.csv";
+            a.click();
+        }
+    </script>
+{% endblock %}

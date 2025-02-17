@@ -14,30 +14,31 @@ class Node(Base):
     __tablename__ = "node"
     id: Mapped[str] = mapped_column(primary_key=True)
     node_id: Mapped[int] = mapped_column(BigInteger, nullable=True, unique=True)
-    long_name: Mapped[str]
-    short_name: Mapped[str]
-    hw_model: Mapped[str]
+    long_name: Mapped[str] = mapped_column(nullable=True)
+    short_name: Mapped[str] = mapped_column(nullable=True)
+    hw_model: Mapped[str] = mapped_column(nullable=True)
+    firmware: Mapped[str] = mapped_column(nullable=True)
     role: Mapped[str] = mapped_column(nullable=True)
     last_lat: Mapped[int] = mapped_column(BigInteger, nullable=True)
     last_long: Mapped[int] = mapped_column(BigInteger, nullable=True)
-    channel: Mapped[str]
-
+    channel: Mapped[str] = mapped_column(nullable=True)
+    last_update: Mapped[datetime] = mapped_column(nullable=True)
 
 class Packet(Base):
     __tablename__ = "packet"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    portnum: Mapped[int]
-    from_node_id: Mapped[int] = mapped_column(BigInteger)
+    portnum: Mapped[int] = mapped_column(nullable=True)
+    from_node_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
     from_node: Mapped["Node"] = relationship(
         primaryjoin="Packet.from_node_id == foreign(Node.node_id)", lazy="joined"
     )
-    to_node_id: Mapped[int] = mapped_column(BigInteger)
+    to_node_id: Mapped[int] = mapped_column(BigInteger,nullable=True)
     to_node: Mapped["Node"] = relationship(
         primaryjoin="Packet.to_node_id == foreign(Node.node_id)", lazy="joined"
     )
-    payload: Mapped[bytes]
-    import_time: Mapped[datetime]
-    channel: Mapped[str]
+    payload: Mapped[bytes] = mapped_column(nullable=True)
+    import_time: Mapped[datetime] = mapped_column(nullable=True)
+    channel: Mapped[str] = mapped_column(nullable=True)
 
 
 class PacketSeen(Base):
@@ -48,13 +49,13 @@ class PacketSeen(Base):
         lazy="joined", primaryjoin="PacketSeen.node_id == foreign(Node.node_id)"
     )
     rx_time: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    hop_limit: Mapped[int]
+    hop_limit: Mapped[int] = mapped_column(nullable=True)
     hop_start: Mapped[int] = mapped_column(nullable=True)
-    channel: Mapped[str]
+    channel: Mapped[str] = mapped_column(nullable=True)
     rx_snr: Mapped[float] = mapped_column(nullable=True)
     rx_rssi: Mapped[int] = mapped_column(nullable=True)
-    topic: Mapped[str]
-    import_time: Mapped[datetime]
+    topic: Mapped[str] = mapped_column(nullable=True)
+    import_time: Mapped[datetime] = mapped_column(nullable=True)
 
 
 class Traceroute(Base):
@@ -64,8 +65,8 @@ class Traceroute(Base):
     packet: Mapped["Packet"] = relationship(
         primaryjoin="Traceroute.packet_id == foreign(Packet.id)", lazy="joined"
     )
-    gateway_node_id: Mapped[int] = mapped_column(BigInteger)
-    done: Mapped[bool]
-    route: Mapped[bytes]
-    import_time: Mapped[datetime]
+    gateway_node_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    done: Mapped[bool] = mapped_column(nullable=True)
+    route: Mapped[bytes] = mapped_column(nullable=True)
+    import_time: Mapped[datetime] = mapped_column(nullable=True)
 
