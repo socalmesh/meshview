@@ -638,6 +638,10 @@ async def graph_telemetry(node_id, payload_type, graph_config):
         if 'palette' in ax_config:
             args['palette'] = ax_config['palette']
         sns.lineplot(data=ax_df, ax=ax, **args)
+        if i:
+            sns.move_legend(ax, "upper right")
+        else:
+            sns.move_legend(ax, "upper left")
 
     png = io.BytesIO()
     plt.savefig(png, dpi=100)
