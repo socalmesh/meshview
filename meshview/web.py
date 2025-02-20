@@ -307,19 +307,7 @@ async def _packet_list(request, raw_packets, packet_event):
 
 @routes.get("/chat_events")
 async def chat_events(request):
-    """
-    Server-Sent Events (SSE) endpoint for real-time chat packet updates.
 
-    This endpoint listens for new chat packets related to `PortNum.TEXT_MESSAGE_APP`
-    and streams them to connected clients. Messages matching the pattern `"seq \d+$"`
-    are filtered out before sending.
-
-    Args:
-        request (aiohttp.web.Request): The incoming HTTP request.
-
-    Returns:
-        aiohttp.web.StreamResponse: SSE response streaming chat events.
-    """
     chat_packet = env.get_template("chat_packet.html")
 
     # Precompile regex for filtering out unwanted messages (case insensitive)
