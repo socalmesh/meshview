@@ -19,6 +19,8 @@ git clone --recurse-submodules https://github.com/pablorevilla-meshtastic/meshvi
 Create a python virtual environment:
 ``` bash
 cd meshview
+```
+``` bash
 python3 -m venv env
 ```
 Install the environment requirements:

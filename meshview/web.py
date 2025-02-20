@@ -344,7 +344,7 @@ async def chat_events(request):
                                 )
                     except ConnectionResetError:
                         # Log when a client disconnects unexpectedly
-                        logging.warning("Client disconnected from SSE stream.")
+                        print("Client disconnected from SSE stream.")
                         return  # Exit the loop and close the connection
 
 
@@ -439,7 +439,7 @@ async def events(request):
                             )
 
                     except ConnectionResetError:
-                        logging.warning("Client disconnected from SSE stream.")
+                        print("Client disconnected from SSE stream.")
                         return  # Gracefully exit on disconnection
 
 @dataclass
@@ -1573,7 +1573,7 @@ async def net(request):
         raise  # Let aiohttp handle HTTP exceptions properly
 
     except Exception as e:
-        logging.exception("Error processing chat request")
+        print("Error processing chat request")
         return web.Response(
             text="An internal server error occurred.",
             status=500,
@@ -1616,6 +1616,23 @@ async def net_events(request):
                         print("Client disconnected from SSE stream.")
                         return  # Gracefully exit on disconnection
 
+
+@routes.get("/map")
+async def map(request):
+    try:
+        nodes= await store.get_nodes()
+        template = env.get_template("map.html")
+        return web.Response(
+            text=template.render(nodes=nodes),
+            content_type="text/html",
+        )
+    except Exception as e:
+
+        return web.Response(
+            text="An error occurred while processing your request.",
+            status=500,
+            content_type="text/plain",
+        )
 
 async def run_server(bind, port, tls_cert):
     app = web.Application()
