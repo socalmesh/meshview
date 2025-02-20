@@ -5,7 +5,7 @@ database and has a web UI to view them.
 
 An example of a currently running instace for the San Francisco Bay Area mesh runs at https://meshview.bayme.sh
 
-Requires **`python3.12`** and **`graphviz`**.
+Requires **`python3.11`** or above.
 
 ## Preparing
 
