@@ -3,7 +3,9 @@
 This project watches a MQTT topic for meshtastic messages, imports them to a
 database and has a web UI to view them.
 
-Requires **`python3.12`** and **`graphviz`**.
+An example of a currently running instace for the San Francisco Bay Area mesh runs at https://meshview.bayme.sh
+
+Requires **`python3.11`** or above.
 
 ## Preparing
 
@@ -17,6 +19,8 @@ git clone --recurse-submodules https://github.com/pablorevilla-meshtastic/meshvi
 Create a python virtual environment:
 ``` bash
 cd meshview
+```
+``` bash
 python3 -m venv env
 ```
 Install the environment requirements:
@@ -30,7 +34,7 @@ sudo apt-get install graphviz
 Edit `config.ini` to change the MQTT server, username, password, and topic(s) as necessary. 
 
 You may also change the web server port from the ***default 8081***.
-https://github.com/madeofstown/meshview/blob/c9d65a078af5e71a6815c142dbb11e5868f8885b/config.ini#L1-L15
+https://github.com/pablorevilla-meshtastic/meshview/blob/20bc89a21feb23b0dde51e10e21638c11f4e4443/config.ini#L1-L15
 
 ## Running Meshview
 
