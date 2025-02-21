@@ -1573,48 +1573,12 @@ async def net(request):
         raise  # Let aiohttp handle HTTP exceptions properly
 
     except Exception as e:
-        print("Error processing chat request")
+        print("Error processing net request")
         return web.Response(
             text="An internal server error occurred.",
             status=500,
             content_type="text/plain",
         )
-
-
-@routes.get("/net_events")
-async def net_events(request):
-    chat_packet = env.get_template("net_packet.html")
-
-    # Precompile regex for performance (case insensitive)
-    seq_pattern = re.compile(r"seq \d+$")
-
-    with notify.subscribe(node_id=0xFFFFFFFF) as event:
-        async with sse_response(request) as resp:
-            while resp.is_connected():
-                try:
-                    await asyncio.wait_for(event.wait(), timeout=10)
-                except asyncio.TimeoutError:
-                    continue  # Timeout occurred, loop again
-
-                if event.is_set():
-                    # Ensure event.packets is valid before accessing it
-                    packets = [
-                        p for p in (event.packets or [])
-                        if p.portnum == PortNum.TEXT_MESSAGE_APP
-                    ]
-                    event.clear()
-
-                    try:
-                        for packet in packets:
-                            ui_packet = Packet.from_model(packet)
-                            if not seq_pattern.match(ui_packet.payload) and "baymeshnet" in ui_packet.payload.lower():
-                                await resp.send(
-                                    chat_packet.render(packet=ui_packet),
-                                    event="net_packet",
-                                )
-                    except ConnectionResetError:
-                        print("Client disconnected from SSE stream.")
-                        return  # Gracefully exit on disconnection
 
 
 @routes.get("/map")
