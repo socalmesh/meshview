@@ -9,7 +9,7 @@ from meshview import web
 from meshview import http
 
 
-async def load_database_from_mqtt(mqtt_server: str , mqtt_port: int, topic: list, mqtt_user: list | None = None, mqtt_passwd: str | None = None):
+async def load_database_from_mqtt(mqtt_server: str , mqtt_port: int, topic: list, mqtt_user: str | None = None, mqtt_passwd: str | None = None):
     async for topic, env in mqtt_reader.get_topic_envelopes(mqtt_server, mqtt_port, topic, mqtt_user, mqtt_passwd):
         await store.process_envelope(topic, env)
 
