@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+<style>
+    .legend {
+        background: white;
+        padding: 8px;
+        line-height: 1.5;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        font-size: 14px;
+        color: black;
+    }
+    .legend i {
+        width: 12px;
+        height: 12px;
+        display: inline-block;
+        margin-right: 6px;
+        border-radius: 50%;
+    }
+    #filter-container {
+        text-align: center;
+        margin-top: 10px;
+    }
+    .filter-checkbox {
+        margin: 0 10px;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div id="map" style="width: 100%; height: 600px;"></div>
+
+<div id="filter-container">
+    <input type="checkbox" class="filter-checkbox" id="filter-longfast" checked> LongFast
+    <input type="checkbox" class="filter-checkbox" id="filter-mediumslow" checked> MediumSlow
+    <input type="checkbox" class="filter-checkbox" id="filter-router-longfast" checked> LongFast Routers
+    <input type="checkbox" class="filter-checkbox" id="filter-router-mediumslow" checked> MediumSlow Routers
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+<script>
+    var map = L.map('map');
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    var markers = { LongFast: [], MediumSlow: [], RouterLongFast: [], RouterMediumSlow: [] };
+    var bounds = L.latLngBounds();
+
+    var nodes = [
+        {% for node in nodes %}
+        {
+            lat: {{ node.last_lat / 10**7 if node.last_lat else "null" }},
+            long: {{ node.last_long / 10**7 if node.last_long else "null" }},
+            long_name: "{{ node.long_name | escape }}",
+            short_name: "{{ node.short_name | escape }}",
+            channel: "{{ node.channel | escape }}",
+            hw_model: "{{ node.hw_model | escape }}",
+            role: "{{ node.role | escape }}",
+            last_update: "{{ node.last_update | escape }}",
+            firmware: "{{ node.firmware | escape }}",
+            id: "{{ node.node_id }}"
+        },
+        {% endfor %}
+    ];
+
+    function timeAgo(date) {
+        var now = new Date();
+        var diff = now - new Date(date);
+        var seconds = Math.floor(diff / 1000);
+        var minutes = Math.floor(seconds / 60);
+        var hours = Math.floor(minutes / 60);
+        var days = Math.floor(hours / 24);
+
+        if (days > 0) return days + "d";
+        if (hours > 0) return hours + "h";
+        if (minutes > 0) return minutes + "m";
+        return seconds + "s";
+    }
+
+    nodes.forEach(function(node) {
+        if (node.lat !== null && node.long !== null) {
+            let category = node.channel.toLowerCase().includes("mediumslow") ? "MediumSlow" : "LongFast";
+            let color = category === "MediumSlow" ? "#0000ff" : "#ff0000";
+            let isRouter = node.role.toLowerCase().includes("router");
+
+            let markerOptions = {
+                radius: isRouter ? 8 : 7,
+                color: isRouter ? "black" : color,
+                fillColor: color,
+                fillOpacity: 0.6,
+                weight: isRouter ? 1 : 0
+            };
+
+            var popupContent = `
+                <b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
+                <b>Channel:</b> ${node.channel}<br>
+                <b>Model:</b> ${node.hw_model}<br>
+                <b>Role:</b> ${node.role}<br>
+            `;
+            if (node.last_update) popupContent += `<b>Last seen:</b> ${timeAgo(node.last_update)}<br>`;
+            if (node.firmware) popupContent += `<b>Firmware:</b> ${node.firmware}<br>`;
+
+            var marker = L.circleMarker([node.lat, node.long], markerOptions).bindPopup(popupContent);
+
+            marker.addTo(map);
+
+            if (isRouter) {
+                if (category === "LongFast") {
+                    markers.RouterLongFast.push(marker);
+                } else {
+                    markers.RouterMediumSlow.push(marker);
+                }
+            } else {
+                markers[category].push(marker);
+            }
+
+            bounds.extend(marker.getLatLng());
+        }
+    });
+
+    var bayAreaBounds = [
+        [37.0, -123.2],
+        [38.5, -121.5]
+    ];
+    map.fitBounds(bayAreaBounds);
+
+
+    function updateMarkers() {
+        let showLongFast = document.getElementById("filter-longfast").checked;
+        let showMediumSlow = document.getElementById("filter-mediumslow").checked;
+        let showRouterLongFast = document.getElementById("filter-router-longfast").checked;
+        let showRouterMediumSlow = document.getElementById("filter-router-mediumslow").checked;
+
+        markers.LongFast.forEach(m => showLongFast ? map.addLayer(m) : map.removeLayer(m));
+        markers.MediumSlow.forEach(m => showMediumSlow ? map.addLayer(m) : map.removeLayer(m));
+        markers.RouterLongFast.forEach(m => showRouterLongFast ? map.addLayer(m) : map.removeLayer(m));
+        markers.RouterMediumSlow.forEach(m => showRouterMediumSlow ? map.addLayer(m) : map.removeLayer(m));
+    }
+
+    document.querySelectorAll(".filter-checkbox").forEach(input => {
+        input.addEventListener("change", updateMarkers);
+    });
+
+</script>
+{% endblock %}
