@@ -1,5 +1,5 @@
 # Meshview
-
+![node](screenshots/nodeinfo.png)
 This project watches a MQTT topic for meshtastic messages, imports them to a
 database and has a web UI to view them.
 
@@ -39,7 +39,23 @@ cp sample.config.ini config.ini
  ```bash
  nano config.ini
  ``` 
-https://github.com/pablorevilla-meshtastic/meshview/blob/20bc89a21feb23b0dde51e10e21638c11f4e4443/config.ini#L1-L15
+```ini
+[server]
+bind = *
+port = 8081
+tls_cert = 
+acme_challenge = 
+
+[mqtt]
+server = mqtt.bayme.sh
+topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#"]
+port = 1883
+username = meshdev
+password = large4cats
+
+[database]
+connection_string = sqlite+aiosqlite:///packets.db
+```
 
 ## Running Meshview
 
