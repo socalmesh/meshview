@@ -31,9 +31,14 @@ You also need to install `graphviz`:
 ``` bash
 sudo apt-get install graphviz
 ```
-Edit `config.ini` to change the MQTT server, username, password, and topic(s) as necessary. 
-
-You may also change the web server port from the ***default 8081***.
+Copy `sample.config.ini` to `config.ini`:
+``` bash
+cp sample.config.ini config.ini
+```
+ Edit `config.ini` and change the MQTT server, and Web server settings as necsessary.
+ ```bash
+ nano config.ini
+ ``` 
 https://github.com/pablorevilla-meshtastic/meshview/blob/20bc89a21feb23b0dde51e10e21638c11f4e4443/config.ini#L1-L15
 
 ## Running Meshview
@@ -41,4 +46,9 @@ https://github.com/pablorevilla-meshtastic/meshview/blob/20bc89a21feb23b0dde51e1
 ``` bash
 ./env/bin/python main.py
 ```
-Now you can hit http://localhost:8081/
+Now you can hit http://localhost:8081/ ***(if you did not change the web server port )***
+
+You can specify the path to your `config.ini` file with the run command flag `--config`
+``` bash
+./env/bin/python main.py --config /path/to/config.ini
+```
