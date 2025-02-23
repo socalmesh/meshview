@@ -64,7 +64,7 @@ connection_string = sqlite+aiosqlite:///packets.db
 ```
 Now you can hit http://localhost:8081/ ***(if you did not change the web server port )***
 
-You can specify the path to your `config.ini` file with the run command flag `--config`
+You can specify the path to your `config.ini` file with the run command argument `--config`
 ``` bash
 ./env/bin/python main.py --config /path/to/config.ini
 ```
