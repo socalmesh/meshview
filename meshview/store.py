@@ -308,6 +308,9 @@ async def get_mqtt_neighbors(since):
 # get_mqtt_neighbors_longfast
 #
 # p.r.
+# TODO # combine the duplicated funtions back to the original 3 by letting them take a second variable to specify channel name. 
+# The default value for channel (none) should cause these functioins to operate the same as they did before they were channel specific.
+# This change will make adding new channel specific graphs much easier in the future.
 #
 # Get Traceroute for LongFast only
 async def get_traceroutes_longfast(since):
