@@ -16,6 +16,7 @@
     div.tab-pane > dl {
         display: inline-block;
        }
+
 {% endblock %}
 
 {% block body %}
@@ -33,17 +34,27 @@
             <div class="col mb-3">
                 <div class="card" id="node_info">
                     {% if node %}
-                    <div class="card-header">
-                        {{node.long_name}} ({{node.node_id|node_id_to_hex}})
+                    <div class="card-header" id="node_color">
+                    <strong style="margin-right: 1em ; margin-left: 1em; font-size: x-large;">{{node.short_name}}</strong>
+                    <p style="margin-bottom: 0px; font-size: large; font-weight: bold;">{{node.long_name}}</p>
                     </div>
                     <div class="card-body">
                         <dl >
-                            <dt>ShortName</dt>
-                            <dd>{{node.short_name}}</dd>
+                            {% if trace %}
+                            <dd id="map"></dd>
+                            {% endif %}
+                            <dt>NodeID</dt>
+                            <dd>{{node.node_id|node_id_to_hex}}</dd>
+                            <dt>Channel</dt>
+                            <dd>{{node.channel}}</dd>
                             <dt>HW Model</dt>
                             <dd>{{node.hw_model}}</dd>
                             <dt>Role</dt>
                             <dd>{{node.role}}</dd>
+                            {% if node.firmware %}
+                            <dt>Firmware</dt>
+                            <dd>{{node.firmware}}</dd>
+                            {% endif %}
                         </dl>
                         {% include "node_graphs.html" %}
                     </div>
@@ -54,14 +65,11 @@
                     {% endif %}
                 </div>
             </div>
-            <div class="col mb-3">
-                <div id="map"></div>
-            </div>
         </div>
 
         <div class="row">
             <div class="col">
-<!--            {% include "buttons.html" %}-->
+           {% include "buttons.html" %}
             </div>
         </div>
 
@@ -69,9 +77,36 @@
             <div class="col">
             {% include 'packet_list.html' %}
             </div>
-            <!-- <div class="col sticky-top" id="packet_details"></div> -->
+            
+        </div>
     </div>
 </div>
+<script>
+    var node_color = document.getElementById('node_color');
+    var node_id = '{{node.node_id | node_id_to_hex}}';
+    var color = node_id.slice(-6);
+    var bg_color = "#"+color;
+    node_color.style.background = bg_color;
+    var hex = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(bg_color);
+    var text_color = [
+        parseInt(hex[1], 16),
+        parseInt(hex[2], 16),
+        parseInt(hex[3], 16),
+    ];
+
+    const brightness = Math.round(((parseInt(text_color[0]) * 299) +
+                      (parseInt(text_color[1]) * 587) +
+                      (parseInt(text_color[2]) * 114)) / 1000);
+    
+    if (brightness > 125) {
+        var textColor = '#212529'
+        node_color.style.color = textColor
+    }
+     /*                  const textColor = (brightness > 125) ? '#212529' : 'white';
+    node_color.style.color = textColor */
+
+
+</script>
 
 {% if trace %}
 <script>

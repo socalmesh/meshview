@@ -1289,7 +1289,7 @@ async def graph_network_longfast(request):
                 shape='box',
                 color=color,
                 fontsize="10", width="0", height="0",
-                href=f"/graph/network?root={node_id}&amp;depth={depth-1}",
+                href=f"/graph/longfast?root={node_id}&amp;depth={depth-1}",
             ))
 
         # Adjust edge visualization
