@@ -70,3 +70,9 @@ class Traceroute(Base):
     route: Mapped[bytes] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
 
+class SiteConfig(Base):
+    __tablename__="site_config"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    site_domain: Mapped[str] = mapped_column(nullable=False)
+    site_title: Mapped[str] = mapped_column(nullable=False)
+    site_message: Mapped[str] = mapped_column(nullable=True)

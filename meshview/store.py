@@ -8,7 +8,7 @@ from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshtastic.protobuf.mesh_pb2 import User, HardwareModel
 from meshview import database
 from meshview import decode_payload
-from meshview.models import Packet, PacketSeen, Node, Traceroute
+from meshview.models import Packet, PacketSeen, Node, Traceroute, SiteConfig
 from meshview import notify
 
 
@@ -556,4 +556,10 @@ async def get_nodes(role=None, channel=None, hw_model=None):
         return []  # Return an empty list in case of failure
 
 
-
+async def get_site_config():
+    async with database.async_session() as session:
+       query = select(SiteConfig)
+       result = await session.execute(query)
+       site_config = result.scalars().all()[-1]
+       
+    return site_config

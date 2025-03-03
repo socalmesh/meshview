@@ -104,7 +104,7 @@ routes = web.RouteTableDef()
 async def index(request):
     template = env.get_template("index.html")
     return web.Response(
-        text=template.render(is_hx_request="HX-Request" in request.headers, node=None),
+        text=template.render(is_hx_request="HX-Request" in request.headers, node=None, site_config = await store.get_site_config()),
         content_type="text/html",
     )
 
@@ -245,6 +245,8 @@ async def node_match(request):
     return web.Response(
         text=template.render(
             node_options=node_options,
+            site_config = await store.get_site_config()
+
         ),
         content_type="text/html",
     )
@@ -258,6 +260,7 @@ async def packet_list(request):
     else:
         portnum = None
     return await _packet_list(request, store.get_packets(node_id, portnum), 'packet')
+
 
 
 @routes.get("/uplinked_list/{node_id}")
@@ -300,6 +303,7 @@ async def _packet_list(request, raw_packets, packet_event):
             neighbors=await neighbors,
             has_telemetry=await has_telemetry,
             query_string=request.query_string,
+            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )
@@ -515,6 +519,7 @@ async def packet_details(request):
         text=template.render(
             packets=(Packet.from_model(p) for p in packets),
             portnum=portnum,
+            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )
@@ -543,7 +548,7 @@ async def chat(request):
         #print("Rendering template...")
         template = env.get_template("chat.html")
         return web.Response(
-            text=template.render(packets=filtered_packets),
+            text=template.render(packets=filtered_packets, site_config = await store.get_site_config()),
             content_type="text/html",
         )
 
@@ -567,7 +572,7 @@ async def packet(request):
         )
     template = env.get_template("packet_index.html")
     return web.Response(
-        text=template.render(packet=Packet.from_model(packet)),
+        text=template.render(packet=Packet.from_model(packet), site_config = await store.get_site_config()),
         content_type="text/html",
     )
 
@@ -1145,6 +1150,7 @@ async def stats(request):
                 total_packets_seen=total_packets_seen,
                 total_nodes_longfast=total_nodes_longfast,
                 total_nodes_mediumslow=total_nodes_mediumslow,
+                site_config = await store.get_site_config(),
             ),
             content_type="text/html",
         )
@@ -1530,7 +1536,7 @@ async def nodelist(request):
         template = env.get_template("nodelist.html")
 
         return web.Response(
-            text=template.render(nodes=nodes),
+            text=template.render(nodes=nodes, site_config = await store.get_site_config()),
             content_type="text/html",
         )
     except Exception as e:
@@ -1565,7 +1571,7 @@ async def net(request):
         # Render template
         template = env.get_template("net.html")
         return web.Response(
-            text=template.render(packets=filtered_packets),
+            text=template.render(packets=filtered_packets, site_config = await store.get_site_config()),
             content_type="text/html",
         )
 
@@ -1623,7 +1629,7 @@ async def map(request):
         nodes= await store.get_nodes()
         template = env.get_template("map.html")
         return web.Response(
-            text=template.render(nodes=nodes),
+            text=template.render(nodes=nodes, site_config = await store.get_site_config()),
             content_type="text/html",
         )
     except Exception as e:
