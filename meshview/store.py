@@ -237,11 +237,6 @@ async def get_top_traffic_nodes():
 
         return result.fetchall()  # Returns a list of tuples
 
-
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-
-
 async def get_node_traffic(node_id: int):
     try:
         async with database.async_session() as session:
