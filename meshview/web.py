@@ -23,7 +23,6 @@ from meshview import decode_payload
 import gc
 import psutil
 
-
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
 
 # Optimize garbage collection frequency
@@ -1189,6 +1188,35 @@ async def stats(request):
             status=500,
             content_type="text/plain",
         )
+
+@routes.get("/top")
+async def top(request):
+    try:
+        node_id = request.query.get("node_id")  # Get node_id from the URL query parameters
+
+        if node_id:
+            # If node_id is provided, fetch traffic data for the specific node
+            node_traffic = await store.get_node_traffic(int(node_id))
+            print(node_traffic)
+            template = env.get_template("node_traffic.html")  # Render a different template
+            html_content = template.render(traffic=node_traffic, node_id=node_id)
+        else:
+            # Otherwise, fetch top traffic nodes as usual
+            top_nodes = await store.get_top_traffic_nodes()
+            template = env.get_template("top.html")
+            html_content = template.render(nodes=top_nodes)
+
+        return web.Response(
+            text=html_content,
+            content_type="text/html",
+        )
+    except Exception as e:
+        return web.Response(
+            text=f"An error occurred: {str(e)}",
+            status=500,
+            content_type="text/plain",
+        )
+
 
 
 @routes.get("/chat")

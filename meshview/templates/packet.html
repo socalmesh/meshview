@@ -13,7 +13,6 @@
             {%- endif -%}
             )
         </span>
-        -&gt;
         <span {% if to_me %} class="fw-bold" {% endif %}>
             {{packet.to_node.long_name}}(
             {%- if not to_me -%}
@@ -40,7 +39,7 @@
                 <dt>payload</dt>
                 <dd>
                     {% if packet.pretty_payload %}
-                    <div>{{packet.pretty_payload}}<div>
+                    <div>{{packet.pretty_payload}}</div>
                     {% endif %}
                     {% if  packet.raw_mesh_packet.decoded and packet.raw_mesh_packet.decoded.portnum == 70 %}
                         <ul>

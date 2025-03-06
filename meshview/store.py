@@ -3,6 +3,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import lazyload
 from meshview import database
 from meshview.models import Packet, PacketSeen, Node, Traceroute
+from sqlalchemy import text
 
 async def get_node(node_id):
     async with database.async_session() as session:
@@ -210,6 +211,68 @@ async def get_nodes_mediumslow():
         )
 
         return result.scalars()
+
+async def get_top_traffic_nodes():
+    async with database.async_session() as session:
+        result = await session.execute(text("""
+            SELECT 
+                n.node_id,
+                n.long_name,
+                n.role,
+                COUNT(p.id) AS packet_count
+            FROM 
+                packet p
+            JOIN 
+                node n
+            ON 
+                p.from_node_id = n.node_id
+            WHERE 
+                p.import_time >= DATETIME('now', '-1 day')
+            GROUP BY 
+                n.long_name, n.role
+            ORDER BY 
+                packet_count DESC
+            LIMIT 100;
+        """))
+
+        return result.fetchall()  # Returns a list of tuples
+
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+
+async def get_node_traffic(node_id: int):
+    try:
+        async with database.async_session() as session:
+            result = await session.execute(
+                text("""
+                    SELECT 
+                        node.long_name, packet.portnum, 
+                        COUNT(*) AS packet_count
+                    FROM packet
+                    JOIN node ON packet.from_node_id = node.node_id OR packet.to_node_id = node.node_id
+                    WHERE node.node_id = :node_id 
+                    AND packet.import_time >= DATETIME('now', '-1 day') 
+                    GROUP BY packet.portnum
+                    ORDER BY packet_count DESC;
+                """), {"node_id": node_id}
+            )
+
+            # Map the result to include node.long_name and packet data
+            traffic_data = [{
+                "long_name": row[0],  # node.long_name
+                "portnum": row[1],    # packet.portnum
+                "packet_count": row[2]  # COUNT(*) as packet_count
+            } for row in result.all()]
+
+            return traffic_data
+
+    except Exception as e:
+        # Log the error or handle it as needed
+        print(f"Error fetching node traffic: {str(e)}")
+        return []
+
 
 
 async def get_nodes(role=None, channel=None, hw_model=None):
