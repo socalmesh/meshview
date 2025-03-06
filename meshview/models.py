@@ -1,5 +1,4 @@
 from datetime import datetime
-
 from sqlalchemy.orm import DeclarativeBase, foreign
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import mapped_column, relationship, Mapped
@@ -69,4 +68,3 @@ class Traceroute(Base):
     done: Mapped[bool] = mapped_column(nullable=True)
     route: Mapped[bytes] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
-

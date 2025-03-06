@@ -3,110 +3,35 @@ import io
 from collections import Counter
 from dataclasses import dataclass
 import datetime
-from aiohttp_sse import sse_response
 import ssl
 import re
 import os
-
 import pydot
 from pandas import DataFrame
 import plotly.express as px
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 from aiohttp import web
 from markupsafe import Markup
 from jinja2 import Environment, PackageLoader, select_autoescape
 from google.protobuf import text_format
 from google.protobuf.message import Message
-
 from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshview import store
 from meshview import models
 from meshview import decode_payload
-from meshview import notify
-
-
-with open(os.path.join(os.path.dirname(__file__), '1x1.png'), 'rb') as png:
-    empty_png = png.read()
+import gc
+import psutil
 
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
 
+# Optimize garbage collection frequency
+gc.set_threshold(100, 10, 10)
 
-async def build_trace(node_id):
-    trace = []
-    for raw_p in await store.get_packets_from(node_id, PortNum.POSITION_APP, since=datetime.timedelta(hours=24)):
-        p = Packet.from_model(raw_p)
-        if not p.raw_payload or not p.raw_payload.latitude_i or not p.raw_payload.longitude_i:
-            continue
-        trace.append((p.raw_payload.latitude_i * 1e-7, p.raw_payload.longitude_i * 1e-7))
-    if not trace:
-        for raw_p in await store.get_packets_from(node_id, PortNum.POSITION_APP):
-            p = Packet.from_model(raw_p)
-            if not p.raw_payload or not p.raw_payload.latitude_i or not p.raw_payload.longitude_i:
-                continue
-            trace.append((p.raw_payload.latitude_i * 1e-7, p.raw_payload.longitude_i * 1e-7))
-            break
-    return trace
+with open(os.path.join(os.path.dirname(__file__), '1x1.png'), 'rb') as png:
+    empty_png = png.read()
 
-
-async def build_neighbors(node_id):
-    packet = (await store.get_packets_from(node_id, PortNum.NEIGHBORINFO_APP, limit=1)).first()
-    if not packet:
-        return []
-    if packet.import_time < datetime.datetime.utcnow() - datetime.timedelta(days=1):
-        return []
-    _, payload = decode_payload.decode(packet)
-    neighbors = []
-    results = {}
-    async with asyncio.TaskGroup() as tg:
-        for n in payload.neighbors:
-            results[n.node_id] = {
-                'node_id': n.node_id,
-                'snr': n.snr,
-            }
-            neighbors.append((n.node_id, tg.create_task(store.get_node(n.node_id))))
-
-    for node_id, node in neighbors:
-        node = await node
-        if node and node.last_lat and node.last_long:
-            results[node_id]['short_name'] = node.short_name
-            results[node_id]['long_name'] = node.long_name
-            results[node_id]['location'] = (node.last_lat * 1e-7, node.last_long * 1e-7)
-        else:
-            del results[node_id]
-
-    return list(results.values())
-
-
-def node_id_to_hex(node_id):
-    if node_id == 4294967295:
-        return "^all"
-    else:
-        return f"!{hex(node_id)[2:]}"
-
-
-def format_timestamp(timestamp):
-    if isinstance(timestamp, int):
-        timestamp = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
-    return timestamp.isoformat(timespec="milliseconds")
-
-
-env.filters["node_id_to_hex"] = node_id_to_hex
-env.filters["format_timestamp"] = format_timestamp
-
-
-routes = web.RouteTableDef()
-
-
-@routes.get("/")
-async def index(request):
-    template = env.get_template("index.html")
-    return web.Response(
-        text=template.render(is_hx_request="HX-Request" in request.headers, node=None),
-        content_type="text/html",
-    )
 
 
 @dataclass
@@ -123,6 +48,7 @@ class Packet:
     payload: str
     pretty_payload: Markup
     import_time: datetime.datetime
+
 
     @classmethod
     def from_model(cls, packet):
@@ -173,6 +99,17 @@ class Packet:
             raw_payload=payload,
         )
 
+@dataclass
+class UplinkedNode:
+    lat: float
+    long: float
+    long_name: str
+    short_name: str
+    hops: int
+    snr: float
+    rssi: float
+
+
 
 def generate_responce(request, body, raw_node_id="", node=None):
     if "HX-Request" in request.headers:
@@ -190,16 +127,104 @@ def generate_responce(request, body, raw_node_id="", node=None):
     )
 
 
+async def build_trace(node_id):
+    trace = []
+    for raw_p in await store.get_packets_from(node_id, PortNum.POSITION_APP, since=datetime.timedelta(hours=24)):
+        p = Packet.from_model(raw_p)
+        if not p.raw_payload or not p.raw_payload.latitude_i or not p.raw_payload.longitude_i:
+            continue
+        trace.append((p.raw_payload.latitude_i * 1e-7, p.raw_payload.longitude_i * 1e-7))
+
+    if not trace:
+        for raw_p in await store.get_packets_from(node_id, PortNum.POSITION_APP):
+            p = Packet.from_model(raw_p)
+            if not p.raw_payload or not p.raw_payload.latitude_i or not p.raw_payload.longitude_i:
+                continue
+            trace.append((p.raw_payload.latitude_i * 1e-7, p.raw_payload.longitude_i * 1e-7))
+            break
+
+    gc.collect()  # Force garbage collection
+    return trace
+
+
+async def build_neighbors(node_id):
+    packets = await store.get_packets_from(node_id, PortNum.NEIGHBORINFO_APP, limit=1)
+    packet = packets.first()
+    print(packet)
+    if not packet:
+        return []
+
+    _, payload = decode_payload.decode(packet)
+    neighbors = {}
+
+    # Gather node information asynchronously
+    tasks = {n.node_id: store.get_node(n.node_id) for n in payload.neighbors}
+    results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+
+    for neighbor, node in zip(payload.neighbors, results):
+        if isinstance(node, Exception):
+            continue
+        if node and node.last_lat and node.last_long:
+            neighbors[neighbor.node_id] = {
+                'node_id': neighbor.node_id,
+                'snr': neighbor.snr,  # Fix dictionary keying issue
+                'short_name': node.short_name,
+                'long_name': node.long_name,
+                'location': (node.last_lat * 1e-7, node.last_long * 1e-7),
+            }
+
+    return list(neighbors.values())  # Return a list of dictionaries
+
+
+
+def node_id_to_hex(node_id):
+    if node_id == 4294967295:
+        return "^all"
+    else:
+        return f"!{hex(node_id)[2:]}"
+
+
+def format_timestamp(timestamp):
+    if isinstance(timestamp, int):
+        timestamp = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
+    return timestamp.isoformat(timespec="milliseconds")
+
+
+env.filters["node_id_to_hex"] = node_id_to_hex
+env.filters["format_timestamp"] = format_timestamp
+
+routes = web.RouteTableDef()
+@routes.get("/")
+async def index(request):
+    raise web.HTTPFound(location="/map")  # Redirect to /home
+
+
+def generate_response(request, body, raw_node_id="", node=None):
+    if "HX-Request" in request.headers:
+        return web.Response(text=body, content_type="text/html")
+
+    template = env.get_template("index.html")
+    response = web.Response(
+        text=template.render(
+            is_hx_request="HX-Request" in request.headers,
+            raw_node_id=raw_node_id,
+            node_html=Markup(body),
+            node=node,
+        ),
+        content_type="text/html",
+    )
+    gc.collect()
+    return response
+
+
 @routes.get("/node_search")
 async def node_search(request):
     if not "q" in request.query or not request.query["q"]:
         return web.Response(text="Bad node id")
-    portnum = request.query.get("portnum")
-    if portnum:
-        portnum = int(portnum)
-    raw_node_id = request.query["q"]
 
+    raw_node_id = request.query["q"]
     node_id = None
+
     if raw_node_id == "^all":
         node_id = 0xFFFFFFFF
     elif raw_node_id[0] == "!":
@@ -225,13 +250,12 @@ async def node_search(request):
         )
 
     template = env.get_template("search.html")
-    return web.Response(
-        text=template.render(
-            nodes=fuzzy_nodes,
-            query_string=request.query_string,
-        ),
+    response = web.Response(
+        text=template.render(nodes=fuzzy_nodes, query_string=request.query_string),
         content_type="text/html",
     )
+    gc.collect()
+    return response
 
 
 @routes.get("/node_match")
@@ -257,36 +281,15 @@ async def packet_list(request):
         portnum = int(portnum)
     else:
         portnum = None
-    return await _packet_list(request, store.get_packets(node_id, portnum), 'packet')
-
-
-@routes.get("/uplinked_list/{node_id}")
-async def uplinked_list(request):
-    node_id = int(request.match_info["node_id"])
-    if portnum := request.query.get("portnum"):
-        portnum = int(portnum)
-    else:
-        portnum = None
-    return await _packet_list(request, store.get_uplinked_packets(node_id, portnum), 'uplinked')
-    
-# does this needs a web.response ?
-
-async def _packet_list(request, raw_packets, packet_event):
-    node_id = int(request.match_info["node_id"])
-    if portnum := request.query.get("portnum"):
-        portnum = int(portnum)
-    else:
-        portnum = None
 
     async with asyncio.TaskGroup() as tg:
-        raw_packets = tg.create_task(raw_packets)
         node = tg.create_task(store.get_node(node_id))
+        raw_packets = tg.create_task(store.get_packets(node_id,portnum, limit=200))
         trace = tg.create_task(build_trace(node_id))
-        neighbors = tg.create_task(build_neighbors(node_id))
+        neighbors = await tg.create_task(build_neighbors(node_id))
         has_telemetry = tg.create_task(store.has_packets(node_id, PortNum.TELEMETRY_APP))
 
-    packets = (Packet.from_model(p) for p in await raw_packets)
-
+    packets = [Packet.from_model(p) for p in await raw_packets]  # Convert generator to a list
     template = env.get_template("node.html")
     return web.Response(
         text=template.render(
@@ -295,9 +298,8 @@ async def _packet_list(request, raw_packets, packet_event):
             node=await node,
             portnum=portnum,
             packets=packets,
-            packet_event=packet_event,
             trace=await trace,
-            neighbors=await neighbors,
+            neighbors=neighbors,
             has_telemetry=await has_telemetry,
             query_string=request.query_string,
         ),
@@ -305,152 +307,6 @@ async def _packet_list(request, raw_packets, packet_event):
     )
 
 
-@routes.get("/chat_events")
-async def chat_events(request):
-
-    chat_packet = env.get_template("chat_packet.html")
-
-    # Precompile regex for filtering out unwanted messages (case insensitive)
-    seq_pattern = re.compile(r"seq \d+$", re.IGNORECASE)
-
-    # Subscribe to notifications for packets from all nodes (0xFFFFFFFF = broadcast)
-    with notify.subscribe(node_id=0xFFFFFFFF) as event:
-        async with sse_response(request) as resp:
-            while resp.is_connected():  # Keep the connection open while the client is connected
-                try:
-                    # Wait for an event with a timeout of 10 seconds
-                    await asyncio.wait_for(event.wait(), timeout=10)
-                except asyncio.TimeoutError:
-                    # Timeout reached, continue looping to keep connection alive
-                    continue
-
-                if event.is_set():
-                    # Extract relevant packets, ensuring event.packets is not None
-                    packets = [
-                        p for p in (event.packets or [])
-                        if p.portnum == PortNum.TEXT_MESSAGE_APP
-                    ]
-                    event.clear()  # Reset event flag
-
-                    try:
-                        for packet in packets:
-                            ui_packet = Packet.from_model(packet)
-
-                            # Filter out packets that match "seq <number>"
-                            if not seq_pattern.match(ui_packet.payload):
-                                await resp.send(
-                                    chat_packet.render(packet=ui_packet),
-                                    event="chat_packet",  # SSE event type
-                                )
-                    except ConnectionResetError:
-                        # Log when a client disconnects unexpectedly
-                        print("Client disconnected from SSE stream.")
-                        return  # Exit the loop and close the connection
-
-
-@routes.get("/events")
-async def events(request):
-    """
-    Server-Sent Events (SSE) endpoint for real-time packet updates.
-
-    This endpoint listens for new network packets and streams them to connected clients.
-    Clients can optionally filter packets based on `node_id` and `portnum` query parameters.
-
-    Query Parameters:
-        - node_id (int, optional): Filter packets for a specific node (default: all nodes).
-        - portnum (int, optional): Filter packets for a specific port number (default: all ports).
-
-    Args:
-        request (aiohttp.web.Request): The incoming HTTP request.
-
-    Returns:
-        aiohttp.web.StreamResponse: SSE response streaming network events.
-    """
-    # Extract and convert query parameters (if provided)
-    node_id = request.query.get("node_id")
-    if node_id:
-        node_id = int(node_id)  # Convert node_id to an integer
-
-    portnum = request.query.get("portnum")
-    if portnum:
-        portnum = int(portnum)  # Convert portnum to an integer
-
-    # Load Jinja2 templates for rendering packets
-    packet_template = env.get_template("packet.html")
-    net_packet_template = env.get_template("net_packet.html")
-
-    # Subscribe to packet notifications for the given node_id (or all nodes if None)
-    with notify.subscribe(node_id) as event:
-        async with sse_response(request) as resp:
-            while resp.is_connected():  # Keep connection open while client is connected
-                try:
-                    # Wait for an event with a timeout of 10 seconds
-                    await asyncio.wait_for(event.wait(), timeout=10)
-                except asyncio.TimeoutError:
-                    continue  # No new packets, continue waiting
-
-                if event.is_set():
-                    # Extract relevant packets based on `portnum` filter (if provided)
-                    packets = [
-                        p for p in (event.packets or [])
-                        if portnum is None or portnum == p.portnum
-                    ]
-
-                    # Extract uplinked packets (if port filter applies)
-                    uplinked = [
-                        u for u in (event.uplinked or [])
-                        if portnum is None or portnum == u.portnum
-                    ]
-
-                    event.clear()  # Reset event flag
-
-                    try:
-                        # Process and send incoming packets
-                        for packet in packets:
-                            ui_packet = Packet.from_model(packet)
-
-                            # Send standard packet event
-                            await resp.send(
-                                packet_template.render(
-                                    is_hx_request="HX-Request" in request.headers,
-                                    node_id=node_id,
-                                    packet=ui_packet,
-                                ),
-                                event="packet",
-                            )
-
-                            # If the packet belongs to `PortNum.TEXT_MESSAGE_APP` and contains "#baymeshnet",
-                            # send it as a network event
-                            if ui_packet.portnum == PortNum.TEXT_MESSAGE_APP and '#baymeshnet' in ui_packet.payload.lower():
-                                await resp.send(
-                                    net_packet_template.render(packet=ui_packet),
-                                    event="net_packet",
-                                )
-
-                        # Process and send uplinked packets separately
-                        for packet in uplinked:
-                            await resp.send(
-                                packet_template.render(
-                                    is_hx_request="HX-Request" in request.headers,
-                                    node_id=node_id,
-                                    packet=Packet.from_model(packet),
-                                ),
-                                event="uplinked",
-                            )
-
-                    except ConnectionResetError:
-                        print("Client disconnected from SSE stream.")
-                        return  # Gracefully exit on disconnection
-
-@dataclass
-class UplinkedNode:
-    lat: float
-    long: float
-    long_name: str
-    short_name: str
-    hops: int
-    snr: float
-    rssi: float
 
 # Updated code p.r.
 @routes.get("/packet_details/{packet_id}")
@@ -458,6 +314,7 @@ async def packet_details(request):
     packet_id = int(request.match_info["packet_id"])
     packets_seen = list(await store.get_packets_seen(packet_id))
     packet = await store.get_packet(packet_id)
+    node= await store.get_node(packet.from_node_id)
 
     from_node_cord = None
     if packet and packet.from_node and packet.from_node.last_lat:
@@ -499,6 +356,7 @@ async def packet_details(request):
             map_center=map_center,
             from_node_cord=from_node_cord,
             uplinked_nodes=uplinked_nodes,
+            node=node,
         ),
         content_type="text/html",
     )
@@ -509,7 +367,8 @@ async def packet_details(request):
     portnum = request.query.get("portnum")
     if portnum:
         portnum = int(portnum)
-    packets = await store.get_packets(portnum=portnum, limit=50)
+    packets = await store.get_packets(portnum=portnum, limit=20)
+    print_memory_usage()
     template = env.get_template("firehose.html")
     return web.Response(
         text=template.render(
@@ -519,57 +378,21 @@ async def packet_details(request):
         content_type="text/html",
     )
 
-@routes.get("/chat")
-async def chat(request):
-    try:
-        # Fetch packets for the given node ID and port number
-        #print("Fetching packets...")
-        packets = await store.get_packets(
-            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=100
-        )
-        #print(f"Fetched {len(packets)} packets.")
-
-        # Convert packets to UI packets
-        #print("Processing packets...")
-        ui_packets = [Packet.from_model(p) for p in packets]
-
-        # Filter packets
-        #print("Filtering packets...")
-        filtered_packets = [
-            p for p in ui_packets if not re.match(r"seq \d+$", p.payload)
-        ]
-
-        # Render template
-        #print("Rendering template...")
-        template = env.get_template("chat.html")
-        return web.Response(
-            text=template.render(packets=filtered_packets),
-            content_type="text/html",
-        )
-
-    except Exception as e:
-        # Log the error and return an appropriate response
-        #print(f"Error in chat handler: {e}")
-        return web.Response(
-            text="An error occurred while processing your request.",
-            status=500,
-            content_type="text/plain",
-        )
-
-
-
 @routes.get("/packet/{packet_id}")
 async def packet(request):
     packet = await store.get_packet(int(request.match_info["packet_id"]))
     if not packet:
-        return web.Response(
-            status=404,
-        )
+        return web.Response(status=404)
+
+    node = await store.get_node(packet.from_node_id)
+    print_memory_usage()
     template = env.get_template("packet_index.html")
+
     return web.Response(
-        text=template.render(packet=Packet.from_model(packet)),
+        text=template.render(packet=Packet.from_model(packet), node=node),
         content_type="text/html",
     )
+
 
 
 async def graph_telemetry(node_id, payload_type, graph_config):
@@ -626,10 +449,6 @@ async def graph_telemetry(node_id, payload_type, graph_config):
         if 'palette' in ax_config:
             args['palette'] = ax_config['palette']
         sns.lineplot(data=ax_df, ax=ax, **args)
-        if i:
-            sns.move_legend(ax, "upper right")
-        else:
-            sns.move_legend(ax, "upper left")
 
     png = io.BytesIO()
     plt.savefig(png, dpi=100)
@@ -639,6 +458,7 @@ async def graph_telemetry(node_id, payload_type, graph_config):
         body=png.getvalue(),
         content_type="image/png",
     )
+
 
 
 @routes.get("/graph/power/{node_id}")
@@ -814,7 +634,7 @@ async def graph_neighbors(request):
     png = io.BytesIO()
     plt.savefig(png, dpi=100)
     plt.close()
-
+    print_memory_usage()
     return web.Response(
         body=png.getvalue(),
         content_type="image/png",
@@ -856,11 +676,11 @@ async def graph_neighbors2(request):
     df = DataFrame(data)
     fig = px.line(df, x="time", y="snr", color="node_name", markers=True)
     html = fig.to_html(full_html=True, include_plotlyjs='cdn')
+    print_memory_usage()
     return web.Response(
         text=html,
         content_type="text/html",
     )
-
 
 @routes.get("/graph/traceroute/{packet_id}")
 async def graph_traceroute(request):
@@ -963,6 +783,134 @@ async def graph_traceroute(request):
         body=graph.create_svg(),
         content_type="image/svg+xml",
     )
+
+
+
+
+@routes.get("/graph/traceroute2/{packet_id}")
+async def graph_traceroute2(request):
+    packet_id = int(request.match_info['packet_id'])
+    traceroutes = list(await store.get_traceroute(packet_id))
+
+    # Fetch the packet
+    packet = await store.get_packet(packet_id)
+    if not packet:
+        return web.Response(status=404)
+
+    node_ids = set()
+    for tr in traceroutes:
+        route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
+        node_ids.add(tr.gateway_node_id)
+        for node_id in route.route:
+            node_ids.add(node_id)
+    node_ids.add(packet.from_node_id)
+    node_ids.add(packet.to_node_id)
+
+    nodes = {}
+    async with asyncio.TaskGroup() as tg:
+        for node_id in node_ids:
+            nodes[node_id] = tg.create_task(store.get_node(node_id))
+
+    # Initialize graph for traceroute
+    graph = pydot.Dot('traceroute', graph_type="digraph")
+
+    paths = set()
+    node_color = {}
+    mqtt_nodes = set()
+    saw_reply = set()
+    dest = None
+    node_seen_time = {}
+    for tr in traceroutes:
+        if tr.done:
+            saw_reply.add(tr.gateway_node_id)
+        if tr.done and dest:
+            continue
+        route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
+        path = [packet.from_node_id]
+        path.extend(route.route)
+        if tr.done:
+            dest = packet.to_node_id
+            path.append(packet.to_node_id)
+        elif path[-1] != tr.gateway_node_id:
+            path.append(tr.gateway_node_id)
+
+        if not tr.done and tr.gateway_node_id not in node_seen_time and tr.import_time:
+            node_seen_time[path[-1]] = tr.import_time
+
+        mqtt_nodes.add(tr.gateway_node_id)
+        node_color[path[-1]] = '#' + hex(hash(tuple(path)))[3:9]
+        paths.add(tuple(path))
+
+    used_nodes = set()
+    for path in paths:
+        used_nodes.update(path)
+
+    import_times = [tr.import_time for tr in traceroutes if tr.import_time]
+    if import_times:
+        first_time = min(import_times)
+    else:
+        first_time = 0
+
+    # Prepare data for ECharts rendering
+    chart_nodes = []
+    chart_edges = []
+    for node_id in used_nodes:
+        node = await nodes[node_id]
+        if not node:
+            # Handle case where node is None
+            node_name = node_id_to_hex(node_id)
+            chart_nodes.append({
+                "name": str(node_id),
+                "value": node_name,
+                "symbol": 'rect',
+            })
+        else:
+            node_name = f'[{node.short_name}] {node.long_name}\n{node_id_to_hex(node_id)}\n{node.role}'
+            if node_id in node_seen_time:
+                ms = (node_seen_time[node_id] - first_time).total_seconds() * 1000
+                node_name += f'\n {ms:.2f}ms'
+            style = 'dashed'
+            if node_id == dest:
+                style = 'filled'
+            elif node_id in mqtt_nodes:
+                style = 'solid'
+
+            if node_id in saw_reply:
+                style += ', diagonals'
+
+            chart_nodes.append({
+                "name": str(node_id),
+                "value": node_name,
+                "symbol": 'rect',
+                "long_name": node.long_name,
+                "short_name": node.short_name,
+                "role": node.role,
+                "hw_model": node.hw_model,
+            })
+
+    # Create edges
+    for path in paths:
+        color = '#' + hex(hash(tuple(path)))[3:9]
+        for src, dest in zip(path, path[1:]):
+            chart_edges.append({
+                "source": str(src),
+                "target": str(dest),
+                "originalColor": color,
+            })
+
+    chart_data = {
+        "nodes": chart_nodes,
+        "edges": chart_edges,
+    }
+
+    template = env.get_template("traceroute.html")
+    # Render the page with the chart data
+    return web.Response(
+        text=template.render(chart_data=chart_data, packet_id=packet_id),
+        content_type="text/html",
+    )
+
+
 
 @routes.get("/graph/network")
 async def graph_network(request):
@@ -1118,404 +1066,13 @@ async def graph_network(request):
                 penwidth=1.85,
                 dir=edge_dir,
             ))
-
+    print_memory_usage()
     return web.Response(
         body=graph.create_svg(),
         content_type="image/svg+xml",
     )
 
 
-@routes.get("/stats")
-async def stats(request):
-    try:
-        # Add logging to track execution
-        total_packets = await store.get_total_packet_count()
-        total_nodes = await store.get_total_node_count()
-        total_packets_seen = await store.get_total_packet_seen_count()
-        total_nodes_longfast = await store.get_total_node_count_longfast()
-        total_nodes_mediumslow = await store.get_total_node_count_mediumslow()
-
-        # Render template
-        #print("Rendering template...")
-        template = env.get_template("stats.html")
-        return web.Response(
-            text=template.render(
-                total_packets=total_packets,
-                total_nodes=total_nodes,
-                total_packets_seen=total_packets_seen,
-                total_nodes_longfast=total_nodes_longfast,
-                total_nodes_mediumslow=total_nodes_mediumslow,
-            ),
-            content_type="text/html",
-        )
-    except Exception as e:
-        # Log and return error response
-        #print(f"Error in stats handler: {e}")
-        return web.Response(
-            text="An error occurred while processing your request.",
-            status=500,
-            content_type="text/plain",
-        )
-
-
-@routes.get("/graph/longfast")
-async def graph_network_longfast(request):
-    try:
-        root = request.query.get("root")
-        depth = int(request.query.get("depth", 5))
-        hours = int(request.query.get("hours", 24))
-        minutes = int(request.query.get("minutes", 0))
-
-        # Validation
-        if root and not root.isdigit():
-            return web.Response(status=400, text="Invalid root node ID.")
-        if depth < 1:
-            return web.Response(status=400, text="Depth must be at least 1.")
-
-        since = datetime.timedelta(hours=hours, minutes=minutes)
-
-        nodes = {}
-        node_ids = set()
-        traceroutes = []
-
-        # Fetch traceroutes
-        for tr in await store.get_traceroutes_longfast(since):
-            node_ids.add(tr.gateway_node_id)
-            node_ids.add(tr.packet.from_node_id)
-            node_ids.add(tr.packet.to_node_id)
-            route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
-            node_ids.update(route.route)
-
-            path = [tr.packet.from_node_id]
-            path.extend(route.route)
-            if tr.done:
-                path.append(tr.packet.to_node_id)
-            else:
-                if path[-1] != tr.gateway_node_id:
-                    path.append(tr.gateway_node_id)
-            traceroutes.append((tr, path))
-
-        edges = Counter()
-        edge_type = {}
-        used_nodes = set()
-
-        # Fetch MQTT neighbors
-        for ps, p in await store.get_mqtt_neighbors_longfast(since):
-            node_ids.add(ps.node_id)
-            node_ids.add(p.from_node_id)
-            used_nodes.add(ps.node_id)
-            used_nodes.add(p.from_node_id)
-            edges[(p.from_node_id, ps.node_id)] += 1
-            edge_type[(p.from_node_id, ps.node_id)] = 'sni'
-
-        # Fetch NeighborInfo packets
-        for packet in await store.get_packets_longfast(portnum=PortNum.NEIGHBORINFO_APP, since=since):
-            try:
-                _, neighbor_info = decode_payload.decode(packet)
-                node_ids.add(packet.from_node_id)
-                used_nodes.add(packet.from_node_id)
-                for node in neighbor_info.neighbors:
-                    node_ids.add(node.node_id)
-                    used_nodes.add(node.node_id)
-                    edges[(node.node_id, packet.from_node_id)] += 1
-                    edge_type[(node.node_id, packet.from_node_id)] = 'ni'
-            except Exception as e:
-                print(f"Error decoding NeighborInfo packet: {e}")
-
-        # Retrieve node details concurrently
-        async with asyncio.TaskGroup() as tg:
-            for node_id in node_ids:
-                nodes[node_id] = tg.create_task(store.get_node(node_id))
-
-        tr_done = set()
-        for tr, path in traceroutes:
-            if tr.done:
-                if tr.packet_id in tr_done:
-                    continue
-                else:
-                    tr_done.add(tr.packet_id)
-
-            for src, dest in zip(path, path[1:]):
-                used_nodes.add(src)
-                used_nodes.add(dest)
-                edges[(src, dest)] += 1
-                edge_type[(src, dest)] = 'tr'
-
-        # Helper to get node name
-        async def get_node_name(node_id):
-            try:
-                node = await nodes[node_id]
-                if node:
-                    return f'[{node.short_name}] {node.long_name}\n{node_id_to_hex(node_id)}'
-                return node_id_to_hex(node_id)
-            except Exception as e:
-                return f"Error retrieving node: {str(e)}"
-
-        # Filter nodes and edges if root is specified
-        if root:
-            new_used_nodes = set()
-            new_edges = Counter()
-            edge_map = {}
-            for src, dest in edges:
-                edge_map.setdefault(dest, []).append(src)
-
-            queue = [int(root)]
-            for _ in range(depth):
-                next_queue = []
-                for node in queue:
-                    new_used_nodes.add(node)
-                    for dest in edge_map.get(node, []):
-                        new_used_nodes.add(dest)
-                        new_edges[(dest, node)] += 1
-                        next_queue.append(dest)
-                queue = next_queue
-
-            used_nodes = new_used_nodes
-            edges = new_edges
-
-        # Create graph
-        graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="scale", model='subset', splines="true")
-        for node_id in used_nodes:
-            node = await nodes[node_id]
-            color = '#000000'
-            node_name = await get_node_name(node_id)
-            if node and node.role in ('ROUTER', 'ROUTER_CLIENT', 'REPEATER'):
-                color = '#0000FF'
-            #elif node and node.role == 'CLIENT_MUTE':
-            #   color = '#00FF00'
-            graph.add_node(pydot.Node(
-                str(node_id),
-                label=node_name,
-                shape='box',
-                color=color,
-                fontsize="10", width="0", height="0",
-                href=f"/graph/network?root={node_id}&amp;depth={depth-1}",
-            ))
-
-        # Adjust edge visualization
-        if edges:
-            max_edge_count = edges.most_common(1)[0][1]
-        else:
-            max_edge_count = 1
-
-        size_ratio = 2. / max_edge_count
-        edge_added = set()
-
-        for (src, dest), edge_count in edges.items():
-            size = max(size_ratio * edge_count, .25)
-            arrowsize = max(size_ratio * edge_count, .5)
-            if edge_type[(src, dest)] in ('ni'):
-                color = '#FF0000'
-            elif edge_type[(src, dest)] in ('sni'):
-                color = '#040fb3'
-            else:
-                color = '#000000'
-            edge_dir = "forward"
-            if (dest, src) in edges and edge_type[(src, dest)] == edge_type[(dest, src)]:
-                edge_dir = "both"
-                edge_added.add((dest, src))
-
-            if (src, dest) not in edge_added:
-                edge_added.add((src, dest))
-                graph.add_edge(pydot.Edge(
-                    str(src),
-                    str(dest),
-                    color=color,
-                    tooltip=f'{await get_node_name(src)} -> {await get_node_name(dest)}',
-                    penwidth=.5,
-                    dir=edge_dir,
-                    arrowsize=".5",
-                ))
-
-        return web.Response(
-            body=graph.create_svg(),
-            content_type="image/svg+xml",
-        )
-
-    except Exception as e:
-        print(f"Error in graph_network_longfast: {e}")
-        return web.Response(status=500, text="Internal Server Error")
-
-
-
-@routes.get("/graph/mediumslow")
-async def graph_network_mediumslow(request):
-    try:
-        root = request.query.get("root")
-        depth = int(request.query.get("depth", 3))
-        hours = int(request.query.get("hours", 24))
-        minutes = int(request.query.get("minutes", 0))
-
-        # Validation
-        if root and not root.isdigit():
-            return web.Response(status=400, text="Invalid root node ID.")
-        if depth < 1:
-            return web.Response(status=400, text="Depth must be at least 1.")
-
-        since = datetime.timedelta(hours=hours, minutes=minutes)
-
-        nodes = {}
-        node_ids = set()
-        traceroutes = []
-
-        # Fetch traceroutes
-        for tr in await store.get_traceroutes_mediumslow(since):
-            node_ids.add(tr.gateway_node_id)
-            node_ids.add(tr.packet.from_node_id)
-            node_ids.add(tr.packet.to_node_id)
-            route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
-            node_ids.update(route.route)
-
-            path = [tr.packet.from_node_id]
-            path.extend(route.route)
-            if tr.done:
-                path.append(tr.packet.to_node_id)
-            else:
-                if path[-1] != tr.gateway_node_id:
-                    path.append(tr.gateway_node_id)
-            traceroutes.append((tr, path))
-
-        edges = Counter()
-        edge_type = {}
-        used_nodes = set()
-
-        # Fetch MQTT neighbors
-        for ps, p in await store.get_mqtt_neighbors_mediumslow(since):
-            node_ids.add(ps.node_id)
-            node_ids.add(p.from_node_id)
-            used_nodes.add(ps.node_id)
-            used_nodes.add(p.from_node_id)
-            edges[(p.from_node_id, ps.node_id)] += 1
-            edge_type[(p.from_node_id, ps.node_id)] = 'sni'
-
-        # Fetch NeighborInfo packets
-        for packet in await store.get_packets_mediumslow(portnum=PortNum.NEIGHBORINFO_APP, since=since):
-            try:
-                _, neighbor_info = decode_payload.decode(packet)
-                node_ids.add(packet.from_node_id)
-                used_nodes.add(packet.from_node_id)
-                for node in neighbor_info.neighbors:
-                    node_ids.add(node.node_id)
-                    used_nodes.add(node.node_id)
-                    edges[(node.node_id, packet.from_node_id)] += 1
-                    edge_type[(node.node_id, packet.from_node_id)] = 'ni'
-            except Exception as e:
-                print(f"Error decoding NeighborInfo packet: {e}")
-
-        # Retrieve node details concurrently
-        async with asyncio.TaskGroup() as tg:
-            for node_id in node_ids:
-                nodes[node_id] = tg.create_task(store.get_node(node_id))
-
-        tr_done = set()
-        for tr, path in traceroutes:
-            if tr.done:
-                if tr.packet_id in tr_done:
-                    continue
-                else:
-                    tr_done.add(tr.packet_id)
-
-            for src, dest in zip(path, path[1:]):
-                used_nodes.add(src)
-                used_nodes.add(dest)
-                edges[(src, dest)] += 1
-                edge_type[(src, dest)] = 'tr'
-
-        # Helper to get node name
-        async def get_node_name(node_id):
-            try:
-                node = await nodes[node_id]
-                if node:
-                    return f'[{node.short_name}] {node.long_name}\n{node_id_to_hex(node_id)}'
-                return node_id_to_hex(node_id)
-            except Exception as e:
-                return f"Error retrieving node: {str(e)}"
-
-        # Filter nodes and edges if root is specified
-        if root:
-            new_used_nodes = set()
-            new_edges = Counter()
-            edge_map = {}
-            for src, dest in edges:
-                edge_map.setdefault(dest, []).append(src)
-
-            queue = [int(root)]
-            for _ in range(depth):
-                next_queue = []
-                for node in queue:
-                    new_used_nodes.add(node)
-                    for dest in edge_map.get(node, []):
-                        new_used_nodes.add(dest)
-                        new_edges[(dest, node)] += 1
-                        next_queue.append(dest)
-                queue = next_queue
-
-            used_nodes = new_used_nodes
-            edges = new_edges
-
-        # Create graph
-        graph = pydot.Dot('network', graph_type="digraph", layout="sfdp", overlap="scale", model='subset', esep="+5", splines="true", nodesep="2", ranksep="2")
-
-        for node_id in used_nodes:
-            node = await nodes[node_id]
-            color = '#000000'
-            node_name = await get_node_name(node_id)
-            if node and node.role in ('ROUTER', 'ROUTER_CLIENT', 'REPEATER'):
-                color = '#0000FF'
-            elif node and node.role == 'CLIENT_MUTE':
-                color = '#00FF00'
-            graph.add_node(pydot.Node(
-                str(node_id),
-                label=node_name,
-                shape='box',
-                color=color,
-                fontsize="10", width="0", height="0",
-                href=f"/graph/mediumslow?root={node_id}&amp;depth={depth-1}",
-            ))
-
-        # Adjust edge visualization
-        if edges:
-            max_edge_count = edges.most_common(1)[0][1]
-        else:
-            max_edge_count = 1
-
-        size_ratio = 2. / max_edge_count
-        edge_added = set()
-
-        for (src, dest), edge_count in edges.items():
-            size = max(size_ratio * edge_count, .25)
-            arrowsize = max(size_ratio * edge_count, .5)
-            if edge_type[(src, dest)] in ('ni'):
-                color = '#FF0000'
-            elif edge_type[(src, dest)] in ('sni'):
-                color = '#040fb3'
-            else:
-                color = '#000000'
-            edge_dir = "forward"
-            if (dest, src) in edges and edge_type[(src, dest)] == edge_type[(dest, src)]:
-                edge_dir = "both"
-                edge_added.add((dest, src))
-
-            if (src, dest) not in edge_added:
-                edge_added.add((src, dest))
-                graph.add_edge(pydot.Edge(
-                    str(src),
-                    str(dest),
-                    color=color,
-                    tooltip=f'{await get_node_name(src)} -> {await get_node_name(dest)}',
-                    penwidth=.5,
-                    dir=edge_dir,
-                    arrowsize=".5",
-                ))
-
-        return web.Response(
-            body=graph.create_svg(),
-            content_type="image/svg+xml",
-        )
-
-    except Exception as e:
-        print(f"Error in graph_network_longfast: {e}")
-        return web.Response(status=500, text="Internal Server Error")
 
 @routes.get("/nodelist")
 async def nodelist(request):
@@ -1528,7 +1085,7 @@ async def nodelist(request):
         #print(hw_model)
         nodes= await store.get_nodes(role,channel, hw_model)
         template = env.get_template("nodelist.html")
-
+        print_memory_usage()
         return web.Response(
             text=template.render(nodes=nodes),
             content_type="text/html",
@@ -1545,6 +1102,7 @@ async def nodelist(request):
 @routes.get("/net")
 async def net(request):
     try:
+        print_memory_usage()
         # Fetch packets for the given node ID and port number
         packets = await store.get_packets(
             node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=200
@@ -1586,6 +1144,7 @@ async def map(request):
     try:
         nodes= await store.get_nodes()
         template = env.get_template("map.html")
+        print_memory_usage()
         return web.Response(
             text=template.render(nodes=nodes),
             content_type="text/html",
@@ -1598,7 +1157,161 @@ async def map(request):
             content_type="text/plain",
         )
 
+
+# Print memory usage
+def print_memory_usage():
+    process = psutil.Process(os.getpid())
+    print(f"Memory Usage: {process.memory_info().rss / (1024 * 1024):.2f} MB")
+
+@routes.get("/stats")
+async def stats(request):
+    try:
+        total_packets = await store.get_total_packet_count()
+        total_nodes = await store.get_total_node_count()
+        total_packets_seen = await store.get_total_packet_seen_count()
+        total_nodes_longfast = await store.get_total_node_count_longfast()
+        total_nodes_mediumslow = await store.get_total_node_count_mediumslow()
+        print_memory_usage()
+        template = env.get_template("stats.html")
+        return web.Response(
+            text=template.render(
+                total_packets=total_packets,
+                total_nodes=total_nodes,
+                total_packets_seen=total_packets_seen,
+                total_nodes_longfast=total_nodes_longfast,
+                total_nodes_mediumslow=total_nodes_mediumslow,
+            ),
+            content_type="text/html",
+        )
+    except Exception as e:
+        return web.Response(
+            text="An error occurred while processing your request.",
+            status=500,
+            content_type="text/plain",
+        )
+
+
+@routes.get("/chat")
+async def chat(request):
+    try:
+        # Fetch packets for the given node ID and port number
+        packets = await store.get_packets(
+            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=100
+        )
+        #print(f"Fetched {len(packets)} packets.")
+
+        # Convert packets to UI packets
+        #print("Processing packets...")
+        ui_packets = [Packet.from_model(p) for p in packets]
+
+        # Filter packets
+        #print("Filtering packets...")
+        filtered_packets = [
+            p for p in ui_packets if not re.match(r"seq \d+$", p.payload)
+        ]
+
+        # Render template
+        #print("Rendering template...")
+        template = env.get_template("chat.html")
+        return web.Response(
+            text=template.render(packets=filtered_packets),
+            content_type="text/html",
+        )
+
+    except Exception as e:
+        # Log the error and return an appropriate response
+        #print(f"Error in chat handler: {e}")
+        return web.Response(
+            text="An error occurred while processing your request.",
+            status=500,
+            content_type="text/plain",
+        )
+
+
+# Assuming the route URL structure is /nodegraph/{channel}
+@routes.get("/nodegraph/{channel}")
+async def nodegraph(request):
+    channel = request.match_info.get('channel', 'LongFast')  # Default to 'MediumSlow' if no channel is provided
+    nodes = await store.get_nodes(channel=channel)  # Fetch nodes for the given channel
+    node_ids = set()
+    edges_set = set()  # Track unique edges
+    edge_type = {}  # Store type of each edge
+    used_nodes = set()  # This will track nodes involved in edges (including traceroutes)
+    since = datetime.timedelta(hours=48)
+    traceroutes = []
+
+    # Fetch traceroutes
+    for tr in await store.get_traceroutes(since):
+        node_ids.add(tr.gateway_node_id)
+        node_ids.add(tr.packet.from_node_id)
+        node_ids.add(tr.packet.to_node_id)
+        route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
+        node_ids.update(route.route)
+
+        path = [tr.packet.from_node_id]
+        path.extend(route.route)
+        if tr.done:
+            path.append(tr.packet.to_node_id)
+        else:
+            if path[-1] != tr.gateway_node_id:
+                path.append(tr.gateway_node_id)
+        traceroutes.append((tr, path))
+
+        # Add traceroute edges with their type and update used_nodes
+        for i in range(len(path) - 1):
+            edge_pair = (path[i], path[i + 1])
+            edges_set.add(edge_pair)
+            edge_type[edge_pair] = "traceroute"
+            used_nodes.add(path[i])  # Add all nodes in the traceroute path
+            used_nodes.add(path[i + 1])  # Add all nodes in the traceroute path
+
+    # Fetch NeighborInfo packets
+    for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, since=since):
+        try:
+            _, neighbor_info = decode_payload.decode(packet)
+            node_ids.add(packet.from_node_id)
+            used_nodes.add(packet.from_node_id)
+            for node in neighbor_info.neighbors:
+                node_ids.add(node.node_id)
+                used_nodes.add(node.node_id)
+
+                edge_pair = (node.node_id, packet.from_node_id)
+                if edge_pair not in edges_set:
+                    edges_set.add(edge_pair)
+                    edge_type[edge_pair] = "neighbor"
+        except Exception as e:
+            print(f"Error decoding NeighborInfo packet: {e}")
+
+    # Convert edges_set to a list of dicts with colors
+    edges = [
+        {
+            "from": frm,
+            "to": to,
+            "originalColor": "#ff5733" if edge_type[(frm, to)] == "traceroute" else "#3388ff",  # Red for traceroute, Blue for neighbor
+            "lineStyle": {
+                "color": "#ff5733" if edge_type[(frm, to)] == "traceroute" else "#3388ff",
+                "width": 2
+            }
+        }
+        for frm, to in edges_set
+    ]
+
+    # Filter nodes to only include those involved in edges (including traceroutes)
+    nodes_with_edges = [node for node in nodes if node.node_id in used_nodes]
+
+    template = env.get_template("nodegraph.html")
+    return web.Response(
+        text=template.render(
+            nodes=nodes_with_edges,
+            edges=edges,  # Pass edges with color info
+        ),
+        content_type="text/html",
+    )
+
+
+
 async def run_server(bind, port, tls_cert):
+    gc.set_threshold(10, 10, 10)
     app = web.Application()
     app.add_routes(routes)
     runner = web.AppRunner(app)
@@ -1611,6 +1324,7 @@ async def run_server(bind, port, tls_cert):
     for host in bind:
         site = web.TCPSite(runner, host, port, ssl_context=ssl_context)
         await site.start()
-
+    print_memory_usage()
     while True:
         await asyncio.sleep(3600)  # sleep forever
+

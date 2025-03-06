@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block head %}
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+{% endblock %}
+
+{% block body %}
+<div id="mynetwork" style="width: 100%; height: 600px;"></div>
+
+<script type="text/javascript">
+    var chart = echarts.init(document.getElementById('mynetwork'));
+
+    // Define the nodes and edges passed from the backend
+    var nodes = {{ chart_data['nodes'] | tojson }};
+    var edges = {{ chart_data['edges'] | tojson }};
+
+    var option = {
+        backgroundColor: '#ffffff',  // Set background color to white
+        tooltip: {},
+        series: [
+            {
+                type: 'graph',
+                layout: 'force',
+                data: nodes,
+                links: edges,
+                roam: true,
+                force: {
+                    repulsion: 500,
+                    edgeLength: [100, 200],
+                    gravity: 0.1
+                },
+                label: {
+                    show: true,
+                    position: 'inside',
+                    color: '#000',
+                    padding: [5, 10],
+                    formatter: function(params) { return params.data.value; },
+                    backgroundColor: '#f0f0f0',
+                    borderColor: '#999',
+                    borderWidth: 1,
+                    borderRadius: 5,
+                    z: 5  // Label z-index is now 5, to be below the edges
+                },
+                itemStyle: {
+                    normal: {
+                        borderColor: '#1E1E1E',
+                        borderWidth: 2,
+                    }
+                },
+                lineStyle: {
+                    width: 2,
+                    color: '#ccc', // Edge color
+                    curveness: 0.1, // Slight curve for edges
+                    type: 'solid',
+                    z: 10 // Edge lines have a higher z-index than the labels
+                },
+                edgeSymbol: ['arrow', 'arrow'],  // Both ends of the edge will have arrowheads
+                edgeSymbolSize: [8, 8], // Size of the arrows
+                z: 15  // Ensure edges (arrows) are on top of both the nodes and labels
+            }
+        ]
+    };
+
+    chart.setOption(option);
+</script>
+
+{% endblock %}
