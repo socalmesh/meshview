@@ -46,7 +46,7 @@ def load_config(file_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("meshview")
-    parser.add_argument("--config", help="Path to the configuration file.", default='config.ini')
+    parser.add_argument("--config", help="Path to the configuration file.", default="config.ini")
     args = parser.parse_args()
 
     config = load_config(args.config)

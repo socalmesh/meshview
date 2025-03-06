@@ -3,3 +3,5 @@ __pycache__/*
 meshview/__pycache__/*
 packets.db
 /table_details.py
+config.ini
+screenshots/*

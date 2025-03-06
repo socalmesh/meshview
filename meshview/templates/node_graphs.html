@@ -21,7 +21,7 @@
 <div class="tab-content">
       <div class="tab-pane fade show active" id="overview" role="tabpanel">
           <dl>
-               <dt>Power</dt>
+               <dt>Battery</dt>
                <dd>{{ graph("power") }}</dd>
           </dl>
           <dl>
@@ -30,7 +30,7 @@
           </dl>
       </div>
       <div class="tab-pane fade" id="neighbors" role="tabpanel">
-        <a role="button" class="btn btn-primary mb-3" href="/graph/network?root={{node_id}}&depth=2">Network Graph</a>
+        <a role="button" class="btn btn-primary mb-3" href="/graph/{{node.channel.lower()}}?root={{node_id}}&depth=2">Network Graph</a>
         <a style="display: block;" href="/graph/neighbors2/{{node_id}}"><img src="/graph/neighbors/{{node_id}}" height="200em" width="200em"/></a>
       </div>
       <div class="tab-pane fade" id="weather" role="tabpanel">
@@ -60,7 +60,10 @@
           </dl>
       </div>
       <div class="tab-pane fade" id="power" role="tabpanel">
-          {{ graph("power_metrics") }}
+          <dl>
+               <dt>Power Metrics</dt>
+               <dd>{{ graph("power_metrics") }}</dd>
+          </dl>
       </div>
 </div>
 
