@@ -20,10 +20,14 @@ from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshview import store
 from meshview import models
 from meshview import decode_payload
-import gc
+from meshview import database
 import psutil
+import gc
+import config
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
+# Start Database
+database.init_database(config.CONNECTION_STRING)
 
 # Optimize garbage collection frequency
 gc.set_threshold(100, 10, 10)
@@ -1329,21 +1333,27 @@ async def nodegraph(request):
 
 
 
-async def run_server(bind, port, tls_cert):
-    gc.set_threshold(10, 10, 10)
+@routes.get("/config")
+async def get_config(request):
+    return web.json_response({
+        "Server": config.SERVER,
+        "Title": config.TITLE
+    })
+
+
+async def run_server():
     app = web.Application()
     app.add_routes(routes)
     runner = web.AppRunner(app)
     await runner.setup()
-    if tls_cert:
+    if config.TLS_CERTS:
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(tls_cert)
+        ssl_context.load_cert_chain(config.TLS_CERTS)
     else:
         ssl_context = None
-    for host in bind:
-        site = web.TCPSite(runner, host, port, ssl_context=ssl_context)
+    for host in config.BIND:
+        site = web.TCPSite(runner, host, config.WEB_PORT, ssl_context=ssl_context)
         await site.start()
-    print_memory_usage()
     while True:
         await asyncio.sleep(3600)  # sleep forever
 
