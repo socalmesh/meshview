@@ -32,7 +32,6 @@ with open(os.path.join(os.path.dirname(__file__), '1x1.png'), 'rb') as png:
     empty_png = png.read()
 
 
-
 @dataclass
 class Packet:
     id: int
@@ -107,23 +106,6 @@ class UplinkedNode:
     hops: int
     snr: float
     rssi: float
-
-
-
-def generate_responce(request, body, raw_node_id="", node=None):
-    if "HX-Request" in request.headers:
-        return web.Response(text=body, content_type="text/html")
-
-    template = env.get_template("index.html")
-    return web.Response(
-        text=template.render(
-            is_hx_request="HX-Request" in request.headers,
-            raw_node_id=raw_node_id,
-            node_html=Markup(body),
-            node=node,
-        ),
-        content_type="text/html",
-    )
 
 
 async def build_trace(node_id):
@@ -268,6 +250,8 @@ async def node_match(request):
     return web.Response(
         text=template.render(
             node_options=node_options,
+            site_config = await store.get_site_config()
+
         ),
         content_type="text/html",
     )
@@ -280,6 +264,7 @@ async def packet_list(request):
         portnum = int(portnum)
     else:
         portnum = None
+
 
     async with asyncio.TaskGroup() as tg:
         node = tg.create_task(store.get_node(node_id))
@@ -301,6 +286,7 @@ async def packet_list(request):
             neighbors=neighbors,
             has_telemetry=await has_telemetry,
             query_string=request.query_string,
+            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )
@@ -356,6 +342,7 @@ async def packet_details(request):
             from_node_cord=from_node_cord,
             uplinked_nodes=uplinked_nodes,
             node=node,
+            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )
@@ -373,9 +360,11 @@ async def packet_details(request):
         text=template.render(
             packets=(Packet.from_model(p) for p in packets),
             portnum=portnum,
+            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )
+
 
 @routes.get("/packet/{packet_id}")
 async def packet(request):
@@ -388,7 +377,7 @@ async def packet(request):
     template = env.get_template("packet_index.html")
 
     return web.Response(
-        text=template.render(packet=Packet.from_model(packet), node=node),
+        text=template.render(packet=Packet.from_model(packet), site_config = await store.get_site_config()),
         content_type="text/html",
     )
 
@@ -1086,7 +1075,7 @@ async def nodelist(request):
         template = env.get_template("nodelist.html")
         print_memory_usage()
         return web.Response(
-            text=template.render(nodes=nodes),
+            text=template.render(nodes=nodes, site_config = await store.get_site_config()),
             content_type="text/html",
         )
     except Exception as e:
@@ -1122,7 +1111,7 @@ async def net(request):
         # Render template
         template = env.get_template("net.html")
         return web.Response(
-            text=template.render(packets=filtered_packets),
+            text=template.render(packets=filtered_packets, site_config = await store.get_site_config()),
             content_type="text/html",
         )
 
@@ -1145,7 +1134,7 @@ async def map(request):
         template = env.get_template("map.html")
         print_memory_usage()
         return web.Response(
-            text=template.render(nodes=nodes),
+            text=template.render(nodes=nodes, site_config = await store.get_site_config()),
             content_type="text/html",
         )
     except Exception as e:
@@ -1179,6 +1168,7 @@ async def stats(request):
                 total_packets_seen=total_packets_seen,
                 total_nodes_longfast=total_nodes_longfast,
                 total_nodes_mediumslow=total_nodes_mediumslow,
+                site_config = await store.get_site_config(),
             ),
             content_type="text/html",
         )
@@ -1199,12 +1189,12 @@ async def top(request):
             node_traffic = await store.get_node_traffic(int(node_id))
             print(node_traffic)
             template = env.get_template("node_traffic.html")  # Render a different template
-            html_content = template.render(traffic=node_traffic, node_id=node_id)
+            html_content = template.render(traffic=node_traffic, node_id=node_id, site_config = await store.get_site_config())
         else:
             # Otherwise, fetch top traffic nodes as usual
             top_nodes = await store.get_top_traffic_nodes()
             template = env.get_template("top.html")
-            html_content = template.render(nodes=top_nodes)
+            html_content = template.render(nodes=top_nodes, site_config = await store.get_site_config())
 
         return web.Response(
             text=html_content,
@@ -1242,7 +1232,7 @@ async def chat(request):
         #print("Rendering template...")
         template = env.get_template("chat.html")
         return web.Response(
-            text=template.render(packets=filtered_packets),
+            text=template.render(packets=filtered_packets, site_config = await store.get_site_config()),
             content_type="text/html",
         )
 
@@ -1332,6 +1322,7 @@ async def nodegraph(request):
         text=template.render(
             nodes=nodes_with_edges,
             edges=edges,  # Pass edges with color info
+            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )

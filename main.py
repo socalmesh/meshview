@@ -5,7 +5,7 @@ from meshview import mqtt_reader
 from meshview import database
 from meshview import mqtt_store
 from meshview import web
-import json
+
 
 
 async def load_database_from_mqtt(mqtt_server: str , mqtt_port: int, topic: list, mqtt_user: str | None = None, mqtt_passwd: str | None = None):
@@ -16,15 +16,8 @@ async def load_database_from_mqtt(mqtt_server: str , mqtt_port: int, topic: list
 async def main(config):
     database.init_database(config["database"]["connection_string"])
 
-    await database.create_tables()
-    mqtt_user = None
-    mqtt_passwd = None
-    if config["mqtt"]["username"] != "":
-        mqtt_user: str = config["mqtt"]["username"]
-    if config["mqtt"]["password"] != "":
-        mqtt_passwd: str = config["mqtt"]["password"]
-    mqtt_topics = json.loads(config["mqtt"]["topics"])
-
+    #await database.create_tables()
+    
     async with asyncio.TaskGroup() as tg:
         tg.create_task(
             web.run_server(
@@ -42,6 +35,7 @@ def load_config(file_path):
     # Convert to a dictionary for easier access
     config = {section: dict(config_parser.items(section)) for section in config_parser.sections()}
     return config
+
 
 
 if __name__ == '__main__':
