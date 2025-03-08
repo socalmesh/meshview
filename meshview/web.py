@@ -191,7 +191,6 @@ def generate_response(request, body, raw_node_id="", node=None):
             raw_node_id=raw_node_id,
             node_html=Markup(body),
             node=node,
-            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )
@@ -1190,7 +1189,7 @@ async def top(request):
             node_traffic = await store.get_node_traffic(int(node_id))
             print(node_traffic)
             template = env.get_template("node_traffic.html")  # Render a different template
-            html_content = template.render(traffic=node_traffic, node_id=node_id)
+            html_content = template.render(traffic=node_traffic, node_id=node_id, site_config = await store.get_site_config())
         else:
             # Otherwise, fetch top traffic nodes as usual
             top_nodes = await store.get_top_traffic_nodes()
@@ -1323,6 +1322,7 @@ async def nodegraph(request):
         text=template.render(
             nodes=nodes_with_edges,
             edges=edges,  # Pass edges with color info
+            site_config = await store.get_site_config(),
         ),
         content_type="text/html",
     )

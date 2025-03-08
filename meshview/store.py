@@ -318,6 +318,6 @@ async def get_site_config():
     async with database.async_session() as session:
        query = select(SiteConfig)
        result = await session.execute(query)
+       #print(result.scalar())
        site_config = result.scalars().all()[-1]
-       
     return site_config

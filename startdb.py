@@ -4,6 +4,7 @@ import configparser
 from meshview import mqtt_reader
 from meshview import mqtt_database
 from meshview import mqtt_store
+from meshview import models
 import json
 
 
@@ -23,12 +24,25 @@ async def main(config):
     if config["mqtt"]["password"] != "":
         mqtt_passwd: str = config["mqtt"]["password"]
     mqtt_topics = json.loads(config["mqtt"]["topics"])
+    
+    # Create database with site configuration
+    async with mqtt_database.async_session() as session:
+        print(config["site"]["domain"])
+        site_config = models.SiteConfig(
+            site_domain = config["site"]["domain"],
+            site_title = config["site"]["title"],
+            site_message = config["site"]["message"]
+        )
 
+        session.add(site_config)
+        await session.commit()
+        # print("Site configuration loaded to database")
+    
     async with asyncio.TaskGroup() as tg:
         tg.create_task(
             load_database_from_mqtt(config["mqtt"]["server"], int(config["mqtt"]["port"]), mqtt_topics, mqtt_user, mqtt_passwd)
         )
-
+    
 
 def load_config(file_path):
     """Load configuration from an INI-style text file."""
