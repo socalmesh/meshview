@@ -23,7 +23,7 @@ from meshview import decode_payload
 from meshview import database
 import psutil
 import gc
-import config
+from meshview import config
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
 # Start Database
