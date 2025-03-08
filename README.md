@@ -46,9 +46,14 @@ port = 8081
 tls_cert = 
 acme_challenge = 
 
+[site]
+domain = http://meshview.bayme.sh
+title = Bay Area Mesh
+message =
+
 [mqtt]
 server = mqtt.bayme.sh
-topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#"]
+topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#"] 
 port = 1883
 username = meshdev
 password = large4cats
@@ -72,5 +77,6 @@ Now you can hit http://localhost:8081/ ***(if you did not change the web server 
 
 You can specify the path to your `config.ini` file with the run command argument `--config`
 ``` bash
+./env/bin/python startdb.py --config /path/to/config.ini
 ./env/bin/python main.py --config /path/to/config.ini
 ```
