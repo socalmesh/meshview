@@ -21,7 +21,13 @@
 
 
 {% block body %}
-    <div class="container" hx-ext="sse" sse-connect="/chat_events" sse-swap="chat_packet" hx-swap="afterbegin">
+<script>
+    setTimeout(function() {
+        location.reload();
+    }, 30000); // 10 seconds
+</script>
+
+    <div class="container" >
         {% for packet in packets %}
         {% include 'chat_packet.html' %}
         {% else %}

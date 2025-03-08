@@ -1,5 +1,4 @@
 from datetime import datetime
-
 from sqlalchemy.orm import DeclarativeBase, foreign
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import mapped_column, relationship, Mapped

@@ -1,175 +1,9 @@
 import datetime
-
 from sqlalchemy import select, func
 from sqlalchemy.orm import lazyload
-from sqlalchemy import update
-from meshtastic.protobuf.config_pb2 import Config
-from meshtastic.protobuf.portnums_pb2 import PortNum
-from meshtastic.protobuf.mesh_pb2 import User, HardwareModel
 from meshview import database
-from meshview import decode_payload
 from meshview.models import Packet, PacketSeen, Node, Traceroute, SiteConfig
-from meshview import notify
-
-
-
-async def process_envelope(topic, env):
-
-    # Checking if the received packet is a MAP_REPORT
-    # Update the node table with the firmware version
-    if env.packet.decoded.portnum == PortNum.MAP_REPORT_APP:
-        # Extract the node ID from the packet (renamed from 'id' to 'node_id' to avoid conflicts with Python's built-in id function)
-        node_id = getattr(env.packet, "from")
-
-        # Decode the MAP report payload to extract the firmware version
-        map_report = decode_payload.decode_payload(PortNum.MAP_REPORT_APP, env.packet.decoded.payload)
-
-        # Establish an asynchronous database session
-        async with database.async_session() as session:
-            # Construct an SQLAlchemy update statement
-            stmt = (
-                update(Node)
-                .where(Node.node_id == node_id)  # Ensure correct column reference
-                .values(firmware=map_report.firmware_version)  # Assign new firmware value
-            )
-
-            # Execute the update statement asynchronously
-            await session.execute(stmt)
-
-            # Commit the changes to the database
-            await session.commit()
-
-    # This ignores any packet that does not have a ID
-    if not env.packet.id:
-        return
-
-    async with database.async_session() as session:
-        result = await session.execute(select(Packet).where(Packet.id == env.packet.id))
-        new_packet = False
-        packet = result.scalar_one_or_none()
-        if not packet:
-            new_packet = True
-            packet = Packet(
-                id=env.packet.id,
-                portnum=env.packet.decoded.portnum,
-                from_node_id=getattr(env.packet, "from"),
-                to_node_id=env.packet.to,
-                payload=env.packet.SerializeToString(),
-                # p.r. Here seems to be where the packet is imported on the Database and import time is set.
-                import_time=datetime.datetime.now(),
-                channel=env.channel_id,
-            )
-            session.add(packet)
-
-        result = await session.execute(
-            select(PacketSeen).where(
-                PacketSeen.packet_id == env.packet.id,
-                PacketSeen.node_id == int(env.gateway_id[1:], 16),
-                PacketSeen.rx_time == env.packet.rx_time,
-            )
-        )
-        seen = None
-        if not result.scalar_one_or_none():
-            seen = PacketSeen(
-                packet_id=env.packet.id,
-                node_id=int(env.gateway_id[1:], 16),
-                channel=env.channel_id,
-                rx_time=env.packet.rx_time,
-                rx_snr=env.packet.rx_snr,
-                rx_rssi=env.packet.rx_rssi,
-                hop_limit=env.packet.hop_limit,
-                hop_start=env.packet.hop_start,
-                topic=topic,
-                # p.r. Here seems to be where the packet is imported on the Database and import time is set.
-                import_time=datetime.datetime.now(),
-            )
-            session.add(seen)
-
-
-
-        if env.packet.decoded.portnum == PortNum.NODEINFO_APP:
-            user = decode_payload.decode_payload(
-                PortNum.NODEINFO_APP, env.packet.decoded.payload
-            )
-            if user:
-                result = await session.execute(select(Node).where(Node.id == user.id))
-                if user.id and user.id[0] == "!":
-                    try:
-                        node_id = int(user.id[1:], 16)
-                    except ValueError:
-                        node_id = None
-                        pass
-                else:
-                    node_id = None
-
-                try:
-                    hw_model = HardwareModel.Name(user.hw_model)
-                except ValueError:
-                    hw_model = "unknown"
-                try:
-                   role = Config.DeviceConfig.Role.Name(user.role)
-                except ValueError:
-                    role = "unknown"
-
-                if node := result.scalar_one_or_none():
-                    node.node_id = node_id
-                    node.long_name = user.long_name
-                    node.short_name = user.short_name
-                    node.hw_model = hw_model
-                    node.role = role
-                    node.last_update =datetime.datetime.now()
-
-                else:
-                    node = Node(
-                        id=user.id,
-                        node_id=node_id,
-                        long_name=user.long_name,
-                        short_name=user.short_name,
-                        hw_model=hw_model,
-                        role=role,
-                        channel=env.channel_id,
-                        # if need to update time of last update it may be here
-                    )
-                    session.add(node)
-
-        if env.packet.decoded.portnum == PortNum.POSITION_APP:
-            position = decode_payload.decode_payload(
-                PortNum.POSITION_APP, env.packet.decoded.payload
-            )
-            if position and position.latitude_i and position.longitude_i:
-                from_node_id = getattr(env.packet, 'from')
-                node = (await session.execute(select(Node).where(Node.node_id == from_node_id))).scalar_one_or_none()
-                if node:
-                    node.last_lat = position.latitude_i
-                    node.last_long = position.longitude_i
-                    session.add(node)
-
-        if env.packet.decoded.portnum == PortNum.TRACEROUTE_APP:
-            packet_id = None
-            if env.packet.decoded.want_response:
-                packet_id = env.packet.id
-            else:
-                result = await session.execute(select(Packet).where(Packet.id == env.packet.decoded.request_id))
-                if result.scalar_one_or_none():
-                    packet_id = env.packet.decoded.request_id
-            if packet_id is not None:
-                session.add(Traceroute(
-                    packet_id=packet_id,
-                    route=env.packet.decoded.payload,
-                    done=not env.packet.decoded.want_response,
-                    gateway_node_id=int(env.gateway_id[1:], 16),
-                    import_time=datetime.datetime.now(),
-                ))
-
-        await session.commit()
-        if new_packet:
-            await packet.awaitable_attrs.to_node
-            await packet.awaitable_attrs.from_node
-            notify.notify_packet(packet.to_node_id, packet)
-            notify.notify_packet(packet.from_node_id, packet)
-            notify.notify_packet(None, packet)
-        if seen:
-            notify.notify_uplinked(seen.node_id, packet)
+from sqlalchemy import text
 
 
 async def get_node(node_id):
@@ -189,7 +23,7 @@ async def get_fuzzy_nodes(query):
         return result.scalars()
 
 
-async def get_packets(node_id=None, portnum=None, since=None, limit=500, before=None, after=None):
+async def get_packets(node_id=None, portnum=None, since=None, limit=1000, before=None, after=None):
     async with database.async_session() as session:
         q = select(Packet)
 
@@ -209,7 +43,8 @@ async def get_packets(node_id=None, portnum=None, since=None, limit=500, before=
             q = q.limit(limit)
 
         result = await session.execute(q.order_by(Packet.import_time.desc()))
-        return result.scalars()
+        packets = list(result.scalars())  # Convert to list
+        return packets  # Return the list
 
 
 async def get_packets_from(node_id=None, portnum=None, since=None, limit=500):
@@ -300,140 +135,6 @@ async def get_mqtt_neighbors(since):
         )
         return result
 
-# In order to provide separate network graphs for LongFast and MediumSlow, I am duplicating the procedures.
-# 3 procedures are needed. These would have to be replicated for any other network that we may need to use graphs.
-#
-# get_traceroutes_longfast
-# get_packets_longfast
-# get_mqtt_neighbors_longfast
-#
-# p.r.
-# TODO # combine the duplicated funtions back to the original 3 by letting them take a second variable to specify channel name. 
-# The default value for channel (none) should cause these functioins to operate the same as they did before they were channel specific.
-# This change will make adding new channel specific graphs much easier in the future.
-#
-# Get Traceroute for LongFast only
-async def get_traceroutes_longfast(since):
-    async with database.async_session() as session:
-        result = await session.execute(
-                select(Traceroute)
-                .join(Packet)
-                .where(
-                (Traceroute.import_time > (datetime.datetime.now() - since))
-                & (Packet.channel == "LongFast")
-                )
-                .order_by(Traceroute.import_time)
-        )
-        return result.scalars()
-
-# Get MQTT Neighbors for LongFast only
-# p.r.
-async def get_mqtt_neighbors_longfast(since):
-    async with database.async_session() as session:
-        result = await session.execute(select(PacketSeen, Packet)
-            .join(Packet)
-            .where(
-                (PacketSeen.hop_limit == PacketSeen.hop_start)
-                & (PacketSeen.hop_start != 0)
-                & (Packet.channel == "LongFast")
-            )
-
-            .options(
-                lazyload(Packet.from_node),
-                lazyload(Packet.to_node),
-            )
-        )
-        return result
-
-# Get Packets for LongFast only
-# p.r.
-async def get_packets_longfast(node_id=None, portnum=None, since=None, limit=500, before=None, after=None):
-    async with database.async_session() as session:
-        q = select(Packet)
-
-        # Add condition for channel being "LongFast"
-        q = q.where(Packet.channel == "LongFast")
-
-        if node_id:
-            q = q.where(
-                (Packet.from_node_id == node_id) | (Packet.to_node_id == node_id)
-            )
-        if portnum:
-            q = q.where(Packet.portnum == portnum)
-        if since:
-            q = q.where(Packet.import_time > (datetime.datetime.now() - since))
-        if before:
-            q = q.where(Packet.import_time < before)
-        if after:
-            q = q.where(Packet.import_time > after)
-        if limit is not None:
-            q = q.limit(limit)
-
-        result = await session.execute(q.order_by(Packet.import_time.desc()))
-        return result.scalars()
-
-# Get Traceroute for mediumslow only
-# p.r.
-async def get_traceroutes_mediumslow(since):
-    async with database.async_session() as session:
-        result = await session.execute(
-                select(Traceroute)
-                .join(Packet)
-                .where(
-                (Traceroute.import_time > (datetime.datetime.now() - since))
-                & (Packet.channel == "MediumSlow")
-                )
-                .order_by(Traceroute.import_time)
-        )
-        return result.scalars()
-
-# Get MQTT Neighbors for mediumslow only
-# p.r.
-async def get_mqtt_neighbors_mediumslow(since):
-    async with database.async_session() as session:
-        result = await session.execute(select(PacketSeen, Packet)
-            .join(Packet)
-            .where(
-                (PacketSeen.hop_limit == PacketSeen.hop_start)
-                & (PacketSeen.hop_start != 0)
-                & (Packet.channel == "MediumSlow")
-            )
-
-            .options(
-                lazyload(Packet.from_node),
-                lazyload(Packet.to_node),
-            )
-        )
-        return result
-
-# Get Packets for MediumSlow only
-# p.r.
-async def get_packets_mediumslow(node_id=None, portnum=None, since=None, limit=500, before=None, after=None):
-    async with database.async_session() as session:
-        q = select(Packet)
-
-        # Add condition for channel being "MediumSlow"
-        q = q.where(Packet.channel == "MediumSlow")
-
-        if node_id:
-            q = q.where(
-                (Packet.from_node_id == node_id) | (Packet.to_node_id == node_id)
-            )
-        if portnum:
-            q = q.where(Packet.portnum == portnum)
-        if since:
-            q = q.where(Packet.import_time > (datetime.datetime.now() - since))
-        if before:
-            q = q.where(Packet.import_time < before)
-        if after:
-            q = q.where(Packet.import_time > after)
-        if limit is not None:
-            q = q.limit(limit)
-
-        result = await session.execute(q.order_by(Packet.import_time.desc()))
-        return result.scalars()
-
-
 
 # We count the total amount of packages
 # This is to be used by /stats in web.py
@@ -511,6 +212,63 @@ async def get_nodes_mediumslow():
         )
 
         return result.scalars()
+
+async def get_top_traffic_nodes():
+    async with database.async_session() as session:
+        result = await session.execute(text("""
+            SELECT 
+                n.node_id,
+                n.long_name,
+                n.role,
+                COUNT(p.id) AS packet_count
+            FROM 
+                packet p
+            JOIN 
+                node n
+            ON 
+                p.from_node_id = n.node_id
+            WHERE 
+                p.import_time >= DATETIME('now', '-1 day')
+            GROUP BY 
+                n.long_name, n.role
+            ORDER BY 
+                packet_count DESC
+            LIMIT 100;
+        """))
+
+        return result.fetchall()  # Returns a list of tuples
+
+async def get_node_traffic(node_id: int):
+    try:
+        async with database.async_session() as session:
+            result = await session.execute(
+                text("""
+                    SELECT 
+                        node.long_name, packet.portnum, 
+                        COUNT(*) AS packet_count
+                    FROM packet
+                    JOIN node ON packet.from_node_id = node.node_id OR packet.to_node_id = node.node_id
+                    WHERE node.node_id = :node_id 
+                    AND packet.import_time >= DATETIME('now', '-1 day') 
+                    GROUP BY packet.portnum
+                    ORDER BY packet_count DESC;
+                """), {"node_id": node_id}
+            )
+
+            # Map the result to include node.long_name and packet data
+            traffic_data = [{
+                "long_name": row[0],  # node.long_name
+                "portnum": row[1],    # packet.portnum
+                "packet_count": row[2]  # COUNT(*) as packet_count
+            } for row in result.all()]
+
+            return traffic_data
+
+    except Exception as e:
+        # Log the error or handle it as needed
+        print(f"Error fetching node traffic: {str(e)}")
+        return []
+
 
 
 async def get_nodes(role=None, channel=None, hw_model=None):

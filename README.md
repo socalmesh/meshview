@@ -58,10 +58,16 @@ connection_string = sqlite+aiosqlite:///packets.db
 ```
 
 ## Running Meshview
-
+Start the database connection.
+``` bash
+./env/bin/python startdb.py
+```
+Start the web server.
 ``` bash
 ./env/bin/python main.py
 ```
+
+
 Now you can hit http://localhost:8081/ ***(if you did not change the web server port )***
 
 You can specify the path to your `config.ini` file with the run command argument `--config`

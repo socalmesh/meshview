@@ -24,7 +24,7 @@
     <div class="container" > Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins so you do not have to rush.<br>
         The message format should be (LONG NAME) - (CITY YOU ARE IN) #BayMeshNet.<br><br>
  </div>
-    <div class="container" hx-ext="sse" sse-connect="/net_events" sse-swap="net_packet" hx-swap="afterbegin">
+    <div class="container">
         {% for packet in packets %}
         {% include 'chat_packet.html' %}
         {% else %}

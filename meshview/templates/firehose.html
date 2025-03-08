@@ -1,7 +1,71 @@
 {% extends "base.html" %}
 
 {% block body %}
-<div class="container" hx-ext="sse" sse-connect="/events{% if portnum %}?portnum={{portnum}}{% endif%}">
+
+<script>
+    let refreshInterval;
+
+    function updateURLWithPort() {
+        let selectedPort = document.querySelector('select[name="portnum"]').value;
+        let url = new URL(window.location.href);
+        url.searchParams.set('portnum', selectedPort);
+
+        // Save scroll position before refreshing
+        localStorage.setItem("scrollPosition", window.scrollY);
+
+        window.location.href = url.toString();
+    }
+
+    function startAutoRefresh() {
+        refreshInterval = setInterval(updateURLWithPort, 5000);
+        localStorage.setItem("autoRefresh", "true");
+        updateButtonState(true);
+    }
+
+    function stopAutoRefresh() {
+        clearInterval(refreshInterval);
+        localStorage.setItem("autoRefresh", "false");
+        updateButtonState(false);
+    }
+
+    function toggleAutoRefresh() {
+        let isEnabled = localStorage.getItem("autoRefresh") === "true";
+        if (isEnabled) {
+            stopAutoRefresh();
+        } else {
+            startAutoRefresh();
+        }
+    }
+
+    function updateButtonState(isEnabled) {
+        let button = document.getElementById("auto-refresh-button");
+        button.innerText = isEnabled ? "Disable Auto-Refresh" : "Enable Auto-Refresh";
+    }
+
+    function restoreScrollPosition() {
+        let scrollPosition = localStorage.getItem("scrollPosition");
+        if (scrollPosition !== null) {
+            window.scrollTo(0, parseInt(scrollPosition, 10));
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelector('select[name="portnum"]').addEventListener('change', updateURLWithPort);
+        document.getElementById("auto-refresh-button").addEventListener('click', toggleAutoRefresh);
+
+        // Restore auto-refresh state
+        let isEnabled = localStorage.getItem("autoRefresh") === "true";
+        updateButtonState(isEnabled);
+        if (isEnabled) {
+            startAutoRefresh();
+        }
+
+        // Restore scroll position
+        restoreScrollPosition();
+    });
+</script>
+
+<div class="container">
     <form class="row">
         {% set options = {
                 1: "Text Message",
@@ -9,31 +73,26 @@
                 4: "Node Info",
                 67: "Telemetry",
                 71: "Neighbor Info",
+                70: "Trace Route",
             }
         %}
         <select name="portnum" class="col-2 m-2">
-            <option
-                value = ""
-                {% if portnum not in options %}selected{% endif %}
-            >All</option>
+            <option value="" {% if portnum not in options %}selected{% endif %}>All</option>
             {% for value, name in options.items() %}
-            <option
-                value="{{value}}"
-                {% if value == portnum %}selected{% endif %}
-            >{{ name }}</option>
+            <option value="{{ value }}" {% if value == portnum %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
         </select>
-        <input type="Submit" value="Refresh" class="col-2 m-2"/>
+        <button type="button" id="auto-refresh-button" class="col-2 m-2 btn btn-primary">Enable Auto-Refresh</button>
     </form>
     <div class="row">
-        <div class="col-xs" id="packet_list" sse-swap="packet" hx-swap="afterbegin">
+        <div class="col-xs" id="packet_list">
             {% for packet in packets %}
-            {% include 'packet.html' %}
+                {% include 'packet.html' %}
             {% else %}
-            No packets found.
+                No packets found.
             {% endfor %}
         </div>
-        <!-- <div class="col-6 sticky-top" id="packet_details" style="height: 95vh; overflow: scroll"> -->
     </div>
 </div>
+
 {% endblock %}

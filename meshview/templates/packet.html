@@ -13,7 +13,6 @@
             {%- endif -%}
             )
         </span>
-        -&gt;
         <span {% if to_me %} class="fw-bold" {% endif %}>
             {{packet.to_node.long_name}}(
             {%- if not to_me -%}
@@ -29,8 +28,7 @@
     <div class="card-body">
         <div class="card-title">
         {{packet.id}}
-        <a href="/packet_details/{{packet.id}}" hx-target="#packet_details" hx-get="/packet_details/{{packet.id}}" hx-swap="innerHTML scroll:top">🔎</a>
-            <a href="/packet/{{packet.id}}">🔗</a>
+            <a href="/packet/{{packet.id}}">🔎</a>
         </div>
         <div class="card-text text-start">
             <dl>
@@ -41,7 +39,7 @@
                 <dt>payload</dt>
                 <dd>
                     {% if packet.pretty_payload %}
-                    <div>{{packet.pretty_payload}}<div>
+                    <div>{{packet.pretty_payload}}</div>
                     {% endif %}
                     {% if  packet.raw_mesh_packet.decoded and packet.raw_mesh_packet.decoded.portnum == 70 %}
                         <ul>
