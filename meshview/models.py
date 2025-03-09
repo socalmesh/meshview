@@ -33,7 +33,7 @@ class Packet(Base):
     )
     to_node_id: Mapped[int] = mapped_column(BigInteger,nullable=True)
     to_node: Mapped["Node"] = relationship(
-        primaryjoin="Packet.to_node_id == foreign(Node.node_id)", lazy="joined"
+        primaryjoin="Packet.to_node_id == foreign(Node.node_id)", lazy="joined", overlaps="from_node"
     )
     payload: Mapped[bytes] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
@@ -45,7 +45,7 @@ class PacketSeen(Base):
     packet_id = mapped_column(ForeignKey("packet.id"), primary_key=True)
     node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     node: Mapped["Node"] = relationship(
-        lazy="joined", primaryjoin="PacketSeen.node_id == foreign(Node.node_id)"
+        lazy="joined", primaryjoin="PacketSeen.node_id == foreign(Node.node_id)", overlaps="from_node,to_node"
     )
     rx_time: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     hop_limit: Mapped[int] = mapped_column(nullable=True)
@@ -68,10 +68,3 @@ class Traceroute(Base):
     done: Mapped[bool] = mapped_column(nullable=True)
     route: Mapped[bytes] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
-
-class SiteConfig(Base):
-    __tablename__="site_config"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    site_domain: Mapped[str] = mapped_column(nullable=False)
-    site_title: Mapped[str] = mapped_column(nullable=False)
-    site_message: Mapped[str] = mapped_column(nullable=True)

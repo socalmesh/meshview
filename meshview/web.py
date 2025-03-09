@@ -24,10 +24,13 @@ from meshview import database
 import psutil
 import gc
 from meshview import config
+import json
+
+CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
 # Start Database
-database.init_database(config.CONNECTION_STRING)
+database.init_database(CONFIG["database"]["connection_string"])
 
 # Optimize garbage collection frequency
 gc.set_threshold(100, 10, 10)
@@ -254,7 +257,7 @@ async def node_match(request):
     return web.Response(
         text=template.render(
             node_options=node_options,
-            site_config = await store.get_site_config()
+            site_config = CONFIG
 
         ),
         content_type="text/html",
@@ -290,7 +293,7 @@ async def packet_list(request):
             neighbors=neighbors,
             has_telemetry=await has_telemetry,
             query_string=request.query_string,
-            site_config = await store.get_site_config(),
+            site_config = CONFIG,
         ),
         content_type="text/html",
     )
@@ -346,7 +349,7 @@ async def packet_details(request):
             from_node_cord=from_node_cord,
             uplinked_nodes=uplinked_nodes,
             node=node,
-            site_config = await store.get_site_config(),
+            site_config = CONFIG,
         ),
         content_type="text/html",
     )
@@ -364,7 +367,7 @@ async def packet_details(request):
         text=template.render(
             packets=(Packet.from_model(p) for p in packets),
             portnum=portnum,
-            site_config = await store.get_site_config(),
+            site_config = CONFIG,
         ),
         content_type="text/html",
     )
@@ -381,7 +384,7 @@ async def packet(request):
     template = env.get_template("packet_index.html")
 
     return web.Response(
-        text=template.render(packet=Packet.from_model(packet), site_config = await store.get_site_config()),
+        text=template.render(packet=Packet.from_model(packet), site_config = CONFIG),
         content_type="text/html",
     )
 
@@ -1079,7 +1082,7 @@ async def nodelist(request):
         template = env.get_template("nodelist.html")
         print_memory_usage()
         return web.Response(
-            text=template.render(nodes=nodes, site_config = await store.get_site_config()),
+            text=template.render(nodes=nodes, site_config = CONFIG),
             content_type="text/html",
         )
     except Exception as e:
@@ -1115,7 +1118,7 @@ async def net(request):
         # Render template
         template = env.get_template("net.html")
         return web.Response(
-            text=template.render(packets=filtered_packets, site_config = await store.get_site_config()),
+            text=template.render(packets=filtered_packets, site_config = CONFIG),
             content_type="text/html",
         )
 
@@ -1138,7 +1141,7 @@ async def map(request):
         template = env.get_template("map.html")
         print_memory_usage()
         return web.Response(
-            text=template.render(nodes=nodes, site_config = await store.get_site_config()),
+            text=template.render(nodes=nodes, site_config = CONFIG),
             content_type="text/html",
         )
     except Exception as e:
@@ -1172,7 +1175,7 @@ async def stats(request):
                 total_packets_seen=total_packets_seen,
                 total_nodes_longfast=total_nodes_longfast,
                 total_nodes_mediumslow=total_nodes_mediumslow,
-                site_config = await store.get_site_config(),
+                site_config = CONFIG,
             ),
             content_type="text/html",
         )
@@ -1193,12 +1196,12 @@ async def top(request):
             node_traffic = await store.get_node_traffic(int(node_id))
             print(node_traffic)
             template = env.get_template("node_traffic.html")  # Render a different template
-            html_content = template.render(traffic=node_traffic, node_id=node_id, site_config = await store.get_site_config())
+            html_content = template.render(traffic=node_traffic, node_id=node_id, site_config = CONFIG)
         else:
             # Otherwise, fetch top traffic nodes as usual
             top_nodes = await store.get_top_traffic_nodes()
             template = env.get_template("top.html")
-            html_content = template.render(nodes=top_nodes, site_config = await store.get_site_config())
+            html_content = template.render(nodes=top_nodes, site_config = CONFIG)
 
         return web.Response(
             text=html_content,
@@ -1236,7 +1239,7 @@ async def chat(request):
         #print("Rendering template...")
         template = env.get_template("chat.html")
         return web.Response(
-            text=template.render(packets=filtered_packets, site_config = await store.get_site_config()),
+            text=template.render(packets=filtered_packets, site_config = CONFIG),
             content_type="text/html",
         )
 
@@ -1326,7 +1329,7 @@ async def nodegraph(request):
         text=template.render(
             nodes=nodes_with_edges,
             edges=edges,  # Pass edges with color info
-            site_config = await store.get_site_config(),
+            site_config = CONFIG,
         ),
         content_type="text/html",
     )
@@ -1336,8 +1339,10 @@ async def nodegraph(request):
 @routes.get("/config")
 async def get_config(request):
     return web.json_response({
-        "Server": config.SERVER,
-        "Title": config.TITLE
+        "Server": CONFIG["site"]["domain"],
+        "Title": CONFIG["site"]["title"],
+        "Message": CONFIG["site"]["message"],
+        "Topics": json.loads(CONFIG["mqtt"]["topics"])
     })
 
 
@@ -1346,13 +1351,13 @@ async def run_server():
     app.add_routes(routes)
     runner = web.AppRunner(app)
     await runner.setup()
-    if config.TLS_CERTS:
+    if CONFIG["server"]["tls_cert"]:
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(config.TLS_CERTS)
+        ssl_context.load_cert_chain(CONFIG["server"]["tls_cert"])
     else:
         ssl_context = None
-    for host in config.BIND:
-        site = web.TCPSite(runner, host, config.WEB_PORT, ssl_context=ssl_context)
+    for host in CONFIG["server"]["bind"]:
+        site = web.TCPSite(runner, host, CONFIG["server"]["port"], ssl_context=ssl_context)
         await site.start()
     while True:
         await asyncio.sleep(3600)  # sleep forever
