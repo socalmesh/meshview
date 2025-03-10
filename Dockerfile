@@ -12,6 +12,9 @@ WORKDIR /app
 # Copy the entire repository into the container (including submodules)
 COPY . .
 
+# Copy the config file explicitly
+COPY config.ini /app/config.ini
+
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
