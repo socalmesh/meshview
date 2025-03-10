@@ -26,4 +26,5 @@ EXPOSE 8000
 VOLUME /data
 
 # Start the database and then the application
-CMD ["sh", "-c", "python startdb.py && python main.py"]
+CMD ["sh", "-c", "python startdb.py --config /app/config.ini && python main.py --config /app/config.ini"]
+
