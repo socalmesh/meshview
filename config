@@ -1,6 +1,6 @@
 [server]
 bind = *
-port = 8081
+port = 8000
 tls_cert = 
 acme_challenge = 
 
