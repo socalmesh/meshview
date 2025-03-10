@@ -1,8 +1,13 @@
-# Use the official Python base image
-FROM python:3.11-alpine
+# Use the official Python base image with dependencies installed.
+FROM python:3.11-bookworm
 
-# Install system dependencies
-RUN apk add --no-cache graphviz
+# Install Graphviz
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    graphviz \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory
+WORKDIR /app
 
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
@@ -21,5 +26,4 @@ EXPOSE 8000
 VOLUME /data
 
 # Start the database and then the application
-CMD python startdb.py
-CMD python main.py
+CMD ["sh", "-c", "python startdb.py && python main.py"]
