@@ -27,9 +27,7 @@ EXPOSE 8000
 # Declare a volume for persistent storage
 VOLUME /data
 
-CMD sh -c '
-  echo "Waiting for database to be ready...";
-  while [ ! -f /app/packets.db ]; do sleep 2; done;
-  echo "Database is ready. Starting application...";
-  python main.py --config /app/config.ini
-'
+CMD ["sh", "-c", "echo 'Waiting for database to be ready...'; \
+  while [ ! -f /app/packets.db ]; do sleep 2; done; \
+  echo 'Database is ready. Starting application...'; \
+  python main.py --config /app/config.ini"]
