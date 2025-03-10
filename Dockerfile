@@ -1,20 +1,23 @@
 # Use the official Python base image with dependencies installed.
 FROM python:3.11-bookworm
 
-# Install Graphviz
+# Install required dependencies (Git, Graphviz)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application code to the container
+# Copy the entire repository into the container (including submodules)
 COPY . .
+
+# Ensure submodules are fully initialized
+RUN git submodule update --init --recursive
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Ensure the /data directory exists
 RUN mkdir -p /data
@@ -22,9 +25,8 @@ RUN mkdir -p /data
 # Expose the port the application listens on
 EXPOSE 8000
 
-#expose the endpoint to create a persistent database. Note this is not compatible with Azure Files SMB, only NFS. Not implemented currrently.
+# Declare a volume for persistent storage
 VOLUME /data
 
 # Start the database and then the application
 CMD ["sh", "-c", "python startdb.py --config /app/config.ini && python main.py --config /app/config.ini"]
-
