@@ -43,6 +43,15 @@
 {% endblock %}
 
 {% block body %}
+<div style="position: absolute; top: 10px; left: 10px; z-index: 10;">
+    <input type="text" id="node-search" placeholder="Search node..."
+           style="padding: 5px; border-radius: 5px; border: 1px solid #ccc;">
+    <button onclick="searchNode()"
+            style="padding: 5px 10px; margin-left: 5px; border-radius: 5px; border: 1px solid #ccc; background-color: #3388ff; color: white;">
+        Search
+    </button>
+</div>
+
 <div id="mynetwork"></div>
 
 <!-- Legend -->
@@ -59,48 +68,49 @@
     <b>Hardware Model: </b><span id="node-hw-model"></span>
 </div>
 
-<<script type="text/javascript">
+<script type="text/javascript">
     // Initialize chart
     var chart = echarts.init(document.getElementById('mynetwork'));
-
 
     var nodes = [
     {% for node in nodes %}
         {
-            name: '{{ node.node_id }}',
-            value: '{{ node.long_name | escape }}',
+            name: `{{ node.node_id }}`,
+            value: `{{ node.long_name | tojson }}`,
             symbol: 'rect',
-            symbolSize: [null, 40],
+            symbolSize: [5, 5],
             label: {
                 show: true,
                 position: 'inside',
                 color: '#000',
                 padding: [5, 10],
-                formatter: function(params) { return params.data.value; },
+                formatter: function(params) {
+                    // Remove quotes around the long_name
+                    return params.data.value.replace(/^"(.*)"$/, '$1'); // Remove surrounding quotes
+                },
                 backgroundColor: '#f0f0f0',
                 borderColor: '#999',
                 borderWidth: 1,
                 borderRadius: 5
             },
-            long_name: '{{ node.long_name | escape }}',  // Add long name
-            short_name: '{{ node.short_name | escape }}',  // Add short name
-            role: '{{ node.role | escape }}',  // Add role
-            hw_model: '{{ node.hw_model | escape }}'  // Add hardware model
+            long_name: `{{ node.long_name | tojson }}`,
+            short_name: `{{ node.short_name | tojson }}`,
+            role: `{{ node.role | tojson }}`,
+            hw_model: `{{ node.hw_model | tojson }}`
         }{% if not loop.last %},{% endif %}
     {% endfor %}
     ];
 
-    // Sample edge data (this will be passed from Python backend)
     var edges = [
     {% for edge in edges %}
         {
-            source: '{{ edge.from }}',
-            target: '{{ edge.to }}',
-            originalColor: '{{ edge.originalColor }}', // Store original color
+            source: `{{ edge.from }}`,
+            target: `{{ edge.to }}`,
+            originalColor: `{{ edge.originalColor }}`,
             lineStyle: {
-                color: '#d3d3d3', // Set all edges to light gray by default
-                width: 2, // Default width for all edges
-                opacity: 0.5 // Dim edges by default
+                color: '#d3d3d3',
+                width: 2,
+                opacity: 0.5
             }
         }{% if not loop.last %},{% endif %}
     {% endfor %}
@@ -110,19 +120,17 @@
         backgroundColor: 'white',
         tooltip: {
             formatter: function(params) {
-                // Only show long_name on hover
-                return params.data.long_name + ' - ' + params.data.short_name;
-
+                return (params.data.long_name || 'Unknown') + ' - ' + (params.data.short_name || 'Unknown');
             }
         },
         animationDurationUpdate: 1500,
         animationEasingUpdate: 'quinticInOut',
         legend: {
             data: ['Traceroute', 'NeighborInfo'],
-            selectedMode: false, // Disable item selection
+            selectedMode: false,
             left: 'center',
             bottom: '5%',
-            orient: 'vertical', // Stack legend vertically
+            orient: 'vertical',
             textStyle: {
                 fontSize: 12,
                 color: '#333'
@@ -158,33 +166,94 @@
         if (params.dataType === 'node') {
             var selectedNode = params.data.name;
 
-            // Update edges for the selected node: highlight connected edges
             var updatedEdges = edges.map(edge => {
                 if (edge.source === selectedNode || edge.target === selectedNode) {
                     return {
                         ...edge,
                         lineStyle: {
-                            color: edge.originalColor, // Use original color for selected edges (blue or red)
-                            width: 2, // Thinner width for highlighted edges
-                            opacity: 1 // Full opacity for selected edges
+                            color: edge.originalColor,
+                            width: 2,
+                            opacity: 1
                         }
                     };
                 } else {
-                    return edge; // Keep the non-selected edges in light gray
+                    return edge;
                 }
             });
 
-            // Update the chart with highlighted edges
             chart.setOption({
                 series: [{ links: updatedEdges }]
             });
 
-            // Update the node information panel
             document.getElementById('node-long-name').innerText = params.data.long_name;
             document.getElementById('node-short-name').innerText = params.data.short_name;
             document.getElementById('node-role').innerText = params.data.role;
             document.getElementById('node-hw-model').innerText = params.data.hw_model;
         }
     });
+
+    function searchNode() {
+        var searchQuery = document.getElementById('node-search').value.toLowerCase().trim();
+
+        if (!searchQuery) return;
+
+        var foundNode = nodes.find(node =>
+            node.name.toLowerCase().includes(searchQuery) ||
+            node.long_name.toLowerCase().includes(searchQuery) ||
+            node.short_name.toLowerCase().includes(searchQuery)
+        );
+
+        if (foundNode) {
+            // Update the node's label background color to light blue
+            chart.setOption({
+                series: [{
+                    data: nodes.map(node => ({
+                        ...node,
+                        label: {
+                            ...node.label,
+                            backgroundColor: node.name === foundNode.name ? '#add8e6' : node.label.backgroundColor
+                        }
+                    }))
+                }]
+            });
+
+            // Simulate node click behavior
+            var updatedEdges = edges.map(edge => {
+                if (edge.source === foundNode.name || edge.target === foundNode.name) {
+                    return {
+                        ...edge,
+                        lineStyle: {
+                            color: edge.originalColor,
+                            width: 2,
+                            opacity: 1
+                        }
+                    };
+                } else {
+                    return edge;
+                }
+            });
+
+            chart.setOption({
+                series: [{ links: updatedEdges }]
+            });
+
+            // Update the node info panel
+            document.getElementById('node-long-name').innerText = foundNode.long_name;
+            document.getElementById('node-short-name').innerText = foundNode.short_name;
+            document.getElementById('node-role').innerText = foundNode.role;
+            document.getElementById('node-hw-model').innerText = foundNode.hw_model;
+
+            // Recenter the graph on the found node
+            chart.dispatchAction({
+                type: 'moveTo',
+                seriesIndex: 0,
+                dataIndex: nodes.indexOf(foundNode),
+                zoom: 1.5 // Adjust zoom level as needed
+            });
+
+        } else {
+            alert("Node not found!");
+        }
+    }
 </script>
 {% endblock %}

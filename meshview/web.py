@@ -131,7 +131,6 @@ async def build_trace(node_id):
             trace.append((p.raw_payload.latitude_i * 1e-7, p.raw_payload.longitude_i * 1e-7))
             break
 
-    gc.collect()  # Force garbage collection
     return trace
 
 

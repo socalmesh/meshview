@@ -128,8 +128,8 @@
     });
 
     var bayAreaBounds = [
-        [37.0, -123.2],
-        [38.5, -121.5]
+        [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
+        [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
     ];
     map.fitBounds(bayAreaBounds);
 
