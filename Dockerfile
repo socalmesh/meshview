@@ -3,7 +3,6 @@ FROM python:3.11-bookworm
 
 # Install required dependencies (Git, Graphviz)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
     graphviz \
     && rm -rf /var/lib/apt/lists/*
 
@@ -12,9 +11,6 @@ WORKDIR /app
 
 # Copy the entire repository into the container (including submodules)
 COPY . .
-
-# Ensure submodules are fully initialized
-RUN git submodule update --init --recursive
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
