@@ -71,7 +71,7 @@ Start the web server.
 ``` bash
 ./env/bin/python main.py
 ```
-> [!INFO]
+> [!NOTE]
 > You can specify the path to your `config.ini` file with the run command argument `--config`
 > ``` bash
 >./env/bin/python startdb.py --config /path/to/config.ini
