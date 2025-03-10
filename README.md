@@ -35,7 +35,7 @@ Copy `sample.config.ini` to `config.ini`:
 ``` bash
 cp sample.config.ini config.ini
 ```
- Edit `config.ini` and change the MQTT server, and Web server settings as necsessary.
+ Edit `config.ini` and change the MQTT server, and Web server settings. 
  ```bash
  nano config.ini
  ``` 
@@ -71,12 +71,18 @@ Start the web server.
 ``` bash
 ./env/bin/python main.py
 ```
+> [!INFO]
+> You can specify the path to your `config.ini` file with the run command argument `--config`
+> ``` bash
+>./env/bin/python startdb.py --config /path/to/config.ini
+>./env/bin/python main.py --config /path/to/config.ini
+>```
+## Running Meshview with `mvrun.py`
+- `mvrun.py` starts `startdb.py` and `main.py` in their own subprocess threads and combines their terminal output.
+- `mvrun.py` accepts the `--config` run command.
 
+``` bash
+./env/bin/python mvrun.py
+```
 
 Now you can hit http://localhost:8081/ ***(if you did not change the web server port )***
-
-You can specify the path to your `config.ini` file with the run command argument `--config`
-``` bash
-./env/bin/python startdb.py --config /path/to/config.ini
-./env/bin/python main.py --config /path/to/config.ini
-```
