@@ -50,6 +50,11 @@ acme_challenge =
 domain = http://meshview.bayme.sh
 title = Bay Area Mesh
 message =
+# Map structure
+map_top_left_lat=39
+map_top_left_lon=-123
+map_bottom_right_lat=36
+map_bottom_right_lon=-121
 
 [mqtt]
 server = mqtt.bayme.sh
