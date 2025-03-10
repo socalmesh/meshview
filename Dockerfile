@@ -20,5 +20,6 @@ EXPOSE 8000
 #expose the endpoint to create a persistent database. Note this is not compatible with Azure Files SMB, only NFS. Not implemented currrently.
 VOLUME /data
 
-# Set the command to run the application
+# Start the database and then the application
+CMD python startdb.py
 CMD python main.py
