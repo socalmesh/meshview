@@ -49,8 +49,14 @@
 {% endblock %}
 
 {% block body %}
-    <section>
-        <h2 class="table-title">{{ traffic[0].long_name }} (last 24 hours)</h2>
+        <section>
+          <h2 class="table-title">
+        {% if traffic %}
+            {{ traffic[0].long_name }} (last 24 hours)
+        {% else %}
+            No Traffic Data Available
+        {% endif %}
+        </h2>
         <table class="traffic-table">
             <thead>
                 <tr>
@@ -78,10 +84,6 @@
                                 NEIGHBORINFO_APP
                             {% elif port.portnum == 73 %}
                                 MAP_REPORT_APP
-                            {% elif port.portnum == 0 %}
-                                UNKNOWN_APP
-                            {% elif port.portnum == 0 %}
-                                UNKNOWN_APP
                             {% elif port.portnum == 0 %}
                                 UNKNOWN_APP
                             {% else %}

@@ -13,7 +13,7 @@
         <div class="card-text text-start">
             <dl>
                 <dt>Import Time</dt>
-                <dd>{{seen.import_time.strftime('%-I:%M:%S %p - %d-%m-%Y')}}</dd>
+                <dd>{{seen.import_time.strftime('%-I:%M:%S %p - %m-%d-%Y')}}</dd>
                 <dt>rx_time</dt>
                 <dd>{{seen.rx_time|format_timestamp}}</dd>
                 <dt>hop_limit</dt>
@@ -36,7 +36,7 @@
 
 {% if map_center %}
 <script>
-    var details_map = L.map('details_map').setView({{ map_center | tojson }}, 12);
+    var details_map = L.map('details_map').setView({{ map_center | tojson }}, 10);
     var markers = L.featureGroup();
     markers.addTo(details_map);
 
@@ -102,7 +102,7 @@
     // Ensure markers are added before adjusting map bounds
     setTimeout(() => {
         if (markers.getLayers().length > 0) {
-            details_map.fitBounds(markers.getBounds().pad(0.1), { animate: true });
+            details_map.fitBounds(markers.getBounds().pad(0.3), { animate: true });
         }
     }, 500); // Delay to ensure markers load
 

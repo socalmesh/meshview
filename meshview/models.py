@@ -23,6 +23,14 @@ class Node(Base):
     channel: Mapped[str] = mapped_column(nullable=True)
     last_update: Mapped[datetime] = mapped_column(nullable=True)
 
+    def to_dict(self):
+        """Convert SQLAlchemy object to a dictionary, excluding last_update."""
+        return {
+            column.name: getattr(self, column.name)
+            for column in self.__table__.columns
+            if column.name != "last_update"  # Exclude last_update
+        }
+
 class Packet(Base):
     __tablename__ = "packet"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)

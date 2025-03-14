@@ -1093,6 +1093,32 @@ async def nodelist(request):
         )
 
 
+import traceback
+
+
+@routes.get("/api")
+async def api(request):
+    try:
+        role = request.query.get("role")
+        channel = request.query.get("channel")
+        hw_model = request.query.get("hw_model")
+
+        nodes = await store.get_nodes(role, channel, hw_model)
+
+        nodes_json = [node.to_dict() for node in nodes]
+        return web.json_response({"nodes": nodes_json})
+
+    except Exception as e:
+        import traceback
+        print("Error in /api endpoint:", str(e))
+        print(traceback.format_exc())
+        return web.Response(
+            text=f"An error occurred: {str(e)}",
+            status=500,
+            content_type="text/plain",
+        )
+
+
 @routes.get("/net")
 async def net(request):
     try:
@@ -1193,7 +1219,6 @@ async def top(request):
         if node_id:
             # If node_id is provided, fetch traffic data for the specific node
             node_traffic = await store.get_node_traffic(int(node_id))
-            print(node_traffic)
             template = env.get_template("node_traffic.html")  # Render a different template
             html_content = template.render(traffic=node_traffic, node_id=node_id, site_config = CONFIG)
         else:

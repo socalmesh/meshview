@@ -23,6 +23,12 @@
     div.tab-pane > dl {
         display: inline-block;
     }
+
+    /* Set the maximum width of the page to 900px */
+    .container {
+        max-width: 900px;
+        margin: 0 auto; /* Center the content horizontally */
+    }
 {% endblock %}
 
 {% block body %}
@@ -30,12 +36,7 @@
 {% include "search_form.html" %}
 
 <div id="node" class="container text-center">
-    <div class="container"
-         {% if node %}
-         hx-ext="sse"
-         sse-connect="/events?node_id={{node_id}}{% if portnum %}&portnum={{portnum}}{% endif %}"
-         {% endif %}
-    >
+    <div class="container">
         <div class="row">
             <div class="col mb-3">
                 <!-- Node Information Card -->
@@ -106,7 +107,7 @@
     const brightness = Math.round(((parseInt(text_color[0]) * 299) +
                       (parseInt(text_color[1]) * 587) +
                       (parseInt(text_color[2]) * 114)) / 1000);
-    
+
     if (brightness > 125) {
         var textColor = '#212529'
         node_color.style.color = textColor
@@ -229,7 +230,6 @@
     }, 200); // Slightly longer delay to ensure all elements are fully loaded
 
 </script>
-
 
 {% endif %}
 

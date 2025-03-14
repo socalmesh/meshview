@@ -1,4 +1,12 @@
 {% extends "base.html" %}
+{% block css %}
+
+    /* Set the maximum width of the page to 900px */
+    .container {
+        max-width: 900px;
+        margin: 0 auto; /* Center the content horizontally */
+    }
+{% endblock %}
 
 {% block body %}
 
@@ -82,7 +90,7 @@
             <option value="{{ value }}" {% if value == portnum %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
         </select>
-        <button type="button" id="auto-refresh-button" class="col-2 m-2 btn btn-primary">Enable Auto-Refresh</button>
+        <button type="button" id="auto-refresh-button">Enable Auto-Refresh</button>
     </form>
     <div class="row">
         <div class="col-xs" id="packet_list">
