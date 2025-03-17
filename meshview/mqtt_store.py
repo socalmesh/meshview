@@ -115,6 +115,7 @@ async def process_envelope(topic, env):
                     node.short_name = user.short_name
                     node.hw_model = hw_model
                     node.role = role
+                    node.channel = env.channel_id
                     node.last_update =datetime.datetime.now()
 
                 else:

@@ -36,7 +36,7 @@
 
 {% if map_center %}
 <script>
-    var details_map = L.map('details_map').setView({{ map_center | tojson }}, 10);
+    var details_map = L.map('details_map').setView({{ map_center | tojson }}, 12);
     var markers = L.featureGroup();
     markers.addTo(details_map);
 
@@ -55,7 +55,7 @@
     var fromNodeLatLng = L.latLng({{ from_node_cord | tojson }});
 
     var fromNode = L.circleMarker(fromNodeLatLng, {
-        radius: 8,
+        radius: 10,
         color: 'red',
         weight: 1,
         fillColor: 'red',
@@ -80,6 +80,7 @@
         // Calculate distance in miles
         var distanceMiles = getDistanceInMiles(fromNodeLatLng, uplinkNodeLatLng).toFixed(1);
 
+/*
         var node = L.circleMarker(uplinkNodeLatLng, {
             radius: 6,
             color: 'blue',
@@ -87,6 +88,17 @@
             fillColor: 'blue',
             fillOpacity: 0.4
         }).addTo(markers);
+*/
+
+		var node = L.marker(uplinkNodeLatLng, {
+		    icon: L.divIcon({
+		        className: 'text-icon',  // Custom class for styling
+        		html: '<div style="font-size: 12px; color: white; font-weight: bold; display: flex; justify-content: center; align-items: center; height: 16px; width: 16px; border-radius: 50%; background-color: blue; border: 1px solid blue;">{{u.hops}}</div>',
+		        iconSize: [16, 16],  // Size of the icon container
+		        iconAnchor: [8, 8]  // Anchoring the text to the center of the marker
+		    })
+		}).addTo(markers);
+		node.setZIndexOffset({{u.hops}}*-1);
 
         // Add a tooltip with node details and distance
         node.bindTooltip(`
@@ -97,12 +109,17 @@
             <b>Distance:</b> ${distanceMiles} miles <br/>
             <b>Coordinates:</b> [{{u.lat}}, {{u.long}}]
         `, { permanent: false, direction: 'top', opacity: 0.9 });
+
     {% endfor %}
+
+    if (markers.getLayers().length > 0) {
+        details_map.fitBounds(markers.getBounds().pad(0.1), { animate: true });
+    }
 
     // Ensure markers are added before adjusting map bounds
     setTimeout(() => {
         if (markers.getLayers().length > 0) {
-            details_map.fitBounds(markers.getBounds().pad(0.3), { animate: true });
+            details_map.fitBounds(markers.getBounds().pad(0.1), { animate: true });
         }
     }, 500); // Delay to ensure markers load
 
@@ -120,9 +137,9 @@
         div.style.textAlign = 'left'; /* Ensure left alignment */
         div.innerHTML = `
             <b>Legend</b><br>
-            <svg width="16" height="16">
-                <circle cx="8" cy="8" r="6" fill="blue" stroke="blue" stroke-width="1" fill-opacity="0.4"/>
-            </svg> Receiving Node<br>
+            <svg width="20" height="20">
+                <circle cx="8" cy="8" r="6" fill="blue" stroke="blue" stroke-width="1" fill-opacity="0.9"/>
+            </svg> Receiving Node (Number is hop count)<br>
             <svg width="20" height="20">
                 <circle cx="10" cy="10" r="8" fill="red" stroke="red" stroke-width="1" fill-opacity="0.4"/>
             </svg> Sending Node<br>
