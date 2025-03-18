@@ -13,7 +13,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from aiohttp import web
 from markupsafe import Markup
-from jinja2 import Environment, PackageLoader, select_autoescape
+from jinja2 import Environment, PackageLoader, select_autoescape, Undefined
 from google.protobuf import text_format
 from google.protobuf.message import Message
 from meshtastic.protobuf.portnums_pb2 import PortNum
@@ -165,6 +165,8 @@ async def build_neighbors(node_id):
 
 
 def node_id_to_hex(node_id):
+    if node_id is None or isinstance(node_id, Undefined):
+        return "Invalid node_id" # i... have no clue
     if node_id == 4294967295:
         return "^all"
     else:
