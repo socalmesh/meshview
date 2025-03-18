@@ -116,56 +116,55 @@
     {% endfor %}
     ];
 
-var option = {
-    backgroundColor: 'white',
-    tooltip: {
-    formatter: function(params) {
-        if (params.dataType === 'node') {
-            return (params.data.long_name || 'Unknown') + ' - ' + (params.data.short_name || 'Unknown');
-        } else {
-            return ''; // Hide tooltip for edges
-        }
-    }
-},
+    var option = {
+        backgroundColor: 'white',
+        tooltip: {
+            formatter: function(params) {
+                if (params.dataType === 'node') {
+                    return (params.data.long_name || 'Unknown') + ' - ' + (params.data.short_name || 'Unknown');
+                } else {
+                    return ''; // Hide tooltip for edges
+                }
+            }
+        },
 
-    animationDurationUpdate: 500,
-    animationEasingUpdate: 'quinticInOut',
-    legend: {
-        data: ['Traceroute', 'NeighborInfo'],
-        selectedMode: false,
-        left: 'center',
-        bottom: '5%',
-        orient: 'vertical',
-        textStyle: {
-            fontSize: 12,
-            color: '#333'
+        animationDuration: 0,  // Disable all animation
+        animationEasing: 'linear', // Make easing linear to avoid any animation effect
+        legend: {
+            data: ['Traceroute', 'NeighborInfo'],
+            selectedMode: false,
+            left: 'center',
+            bottom: '5%',
+            orient: 'vertical',
+            textStyle: {
+                fontSize: 12,
+                color: '#333'
+            },
+            itemWidth: 10,
+            itemHeight: 10,
+            padding: [5, 15]
         },
-        itemWidth: 10,
-        itemHeight: 10,
-        padding: [5, 15]
-    },
-series: [
-    {
-        type: 'graph',
-        layout: 'force',
-        data: nodes,
-        links: edges,
-        roam: true,
-        force: {
-            repulsion: 501,
-            edgeLength: [100, 200],
-            gravity: 0.05
-        },
-        lineStyle: {
-            width: 2,
-            curveness: 0
-        },
-        edgeLabel: { show: false }, // Hides edge labels
-        tooltip: { show: false } // Disables tooltips for edges
-    }
-]
-};
-
+        series: [
+            {
+                type: 'graph',
+                layout: 'force',
+                data: nodes,
+                links: edges,
+                roam: true,
+                force: {
+                    repulsion: 100, // Reduced repulsion for more static graph
+                    edgeLength: [100, 150], // Shorten edge length to keep nodes closer
+                    gravity: 0.03 // Lower gravity to prevent too much movement
+                },
+                lineStyle: {
+                    width: 2,
+                    curveness: 0
+                },
+                edgeLabel: { show: false }, // Hides edge labels
+                tooltip: { show: false } // Disables tooltips for edges
+            }
+        ]
+    };
 
     chart.setOption(option);
 
