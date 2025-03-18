@@ -53,7 +53,6 @@ async def process_envelope(topic, env):
                 from_node_id=getattr(env.packet, "from"),
                 to_node_id=env.packet.to,
                 payload=env.packet.SerializeToString(),
-                # p.r. Here seems to be where the packet is imported on the Database and import time is set.
                 import_time=datetime.datetime.now(),
                 channel=env.channel_id,
             )
@@ -78,7 +77,6 @@ async def process_envelope(topic, env):
                 hop_limit=env.packet.hop_limit,
                 hop_start=env.packet.hop_start,
                 topic=topic,
-                # p.r. Here seems to be where the packet is imported on the Database and import time is set.
                 import_time=datetime.datetime.now(),
             )
             session.add(seen)
@@ -127,7 +125,6 @@ async def process_envelope(topic, env):
                         hw_model=hw_model,
                         role=role,
                         channel=env.channel_id,
-                        # if need to update time of last update it may be here
                     )
                     session.add(node)
 
