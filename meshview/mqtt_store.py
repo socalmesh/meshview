@@ -81,52 +81,35 @@ async def process_envelope(topic, env):
             )
             session.add(seen)
 
-
-
         if env.packet.decoded.portnum == PortNum.NODEINFO_APP:
-            user = decode_payload.decode_payload(
-                PortNum.NODEINFO_APP, env.packet.decoded.payload
-            )
-            if user:
-                result = await session.execute(select(Node).where(Node.id == user.id))
-                if user.id and user.id[0] == "!":
-                    try:
-                        node_id = int(user.id[1:], 16)
-                    except ValueError:
-                        node_id = None
-                        pass
-                else:
-                    node_id = None
+            try:
+                user = decode_payload.decode_payload(PortNum.NODEINFO_APP, env.packet.decoded.payload)
+                if user and user.id:
+                    node_id = int(user.id[1:], 16) if user.id[0] == "!" else None
+                    hw_model = HardwareModel.Name(user.hw_model) if hasattr(HardwareModel, 'Name') else "unknown"
+                    role = Config.DeviceConfig.Role.Name(user.role) if hasattr(Config.DeviceConfig.Role,
+                                                                               'Name') else "unknown"
 
-                try:
-                    hw_model = HardwareModel.Name(user.hw_model)
-                except ValueError:
-                    hw_model = "unknown"
-                try:
-                   role = Config.DeviceConfig.Role.Name(user.role)
-                except ValueError:
-                    role = "unknown"
+                    node = (await session.execute(select(Node).where(Node.id == user.id))).scalar_one_or_none()
 
-                if node := result.scalar_one_or_none():
-                    node.node_id = node_id
-                    node.long_name = user.long_name
-                    node.short_name = user.short_name
-                    node.hw_model = hw_model
-                    node.role = role
-                    node.channel = env.channel_id
-                    node.last_update =datetime.datetime.now()
-
-                else:
-                    node = Node(
-                        id=user.id,
-                        node_id=node_id,
-                        long_name=user.long_name,
-                        short_name=user.short_name,
-                        hw_model=hw_model,
-                        role=role,
-                        channel=env.channel_id,
-                    )
-                    session.add(node)
+                    if node:
+                        node.node_id = node_id
+                        node.long_name = user.long_name
+                        node.short_name = user.short_name
+                        node.hw_model = hw_model
+                        node.role = role
+                        node.channel = env.channel_id
+                        node.last_update = datetime.datetime.now()
+                    else:
+                        node = Node(
+                            id=user.id, node_id=node_id,
+                            long_name=user.long_name, short_name=user.short_name,
+                            hw_model=hw_model, role=role, channel=env.channel_id,
+                            last_update=datetime.datetime.now(),
+                        )
+                        session.add(node)
+            except Exception as e:
+                print(f"Error processing NODEINFO_APP: {e}")
 
         if env.packet.decoded.portnum == PortNum.POSITION_APP:
             position = decode_payload.decode_payload(

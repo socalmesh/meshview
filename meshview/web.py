@@ -1127,7 +1127,7 @@ async def net(request):
         print_memory_usage()
         # Fetch packets for the given node ID and port number
         packets = await store.get_packets(
-            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=200
+            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=1000
         )
 
         # Convert packets to UI packets
