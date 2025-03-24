@@ -249,7 +249,7 @@ async def get_node_traffic(node_id: int):
                     FROM packet
                     JOIN node ON packet.from_node_id = node.node_id OR packet.to_node_id = node.node_id
                     WHERE node.node_id = :node_id 
-                    AND packet.import_time >= DATETIME('now', '-1 day') 
+                    AND packet.import_time >= DATETIME('now', 'localtime', '-1 day') 
                     GROUP BY packet.portnum
                     ORDER BY packet_count DESC;
                 """), {"node_id": node_id}
