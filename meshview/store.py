@@ -228,7 +228,7 @@ async def get_top_traffic_nodes():
             ON 
                 p.from_node_id = n.node_id
             WHERE 
-                p.import_time >= DATETIME('now', '-1 day')
+                p.import_time >= DATETIME('now', 'localtime', '-1 day')
             GROUP BY 
                 n.long_name, n.role
             ORDER BY 
