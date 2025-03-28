@@ -3,7 +3,7 @@
 This project watches a MQTT topic for meshtastic messages, imports them to a
 database and has a web UI to view them.
 
-An example of a currently running instace for the San Francisco Bay Area mesh runs at:
+Samples of a currently running instances:
 ``` bash 
 https://meshview.bayme.sh
 ```
