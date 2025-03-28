@@ -26,6 +26,8 @@ import gc
 from meshview import config
 import json
 
+from meshview.store import get_total_node_count
+
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
@@ -1191,8 +1193,8 @@ async def stats(request):
         total_packets = await store.get_total_packet_count()
         total_nodes = await store.get_total_node_count()
         total_packets_seen = await store.get_total_packet_seen_count()
-        total_nodes_longfast = await store.get_total_node_count_longfast()
-        total_nodes_mediumslow = await store.get_total_node_count_mediumslow()
+        total_nodes_longfast = await get_total_node_count("LongFast")
+        total_nodes_mediumslow = await get_total_node_count("MediumSlow")
         print_memory_usage()
         template = env.get_template("stats.html")
         return web.Response(
@@ -1208,7 +1210,7 @@ async def stats(request):
         )
     except Exception as e:
         return web.Response(
-            text="An error occurred while processing your request.",
+            text=f"An error occurred: {str(e)}",
             status=500,
             content_type="text/plain",
         )
