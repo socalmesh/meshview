@@ -10,9 +10,9 @@ Samples of a currently running instances:
 - https://view.azmsh.net/
 
 
-Requires **`python3.11`** or above.
-
 ## Preparing
+
+Requires **`python3.11`** or above.
 
 Clone the repo from github with:
 ``` bash 
