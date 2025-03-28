@@ -41,6 +41,10 @@
      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
      crossorigin=""></script>
 
+<div id="filter-container">
+    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
+</div>
+
 <script>
     var map = L.map('map');
 
@@ -65,7 +69,8 @@
             role: "{{ node.role | escape }}",
             last_update: "{{ node.last_update | escape }}",
             firmware: "{{ node.firmware | escape }}",
-            id: "{{ node.node_id }}"
+            id: "{{ node.node_id }}",
+            isRouter: "{{ 'router' in node.role.lower() }}"
         },
         {% endfor %}
     ];
@@ -84,25 +89,22 @@
         return seconds + "s";
     }
 
-    // Function to generate a unique color from a string (channel name)
     function hashToColor(str) {
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
             hash = str.charCodeAt(i) + ((hash << 5) - hash);
         }
-        let hue = hash % 360; // Keep hue in 0-360 range
-        return `hsl(${hue}, 80%, 50%)`; // Use HSL for vibrant colors
+        let hue = hash % 360;
+        return `hsl(${hue}, 80%, 50%)`;
     }
 
     nodes.forEach(function(node) {
         if (node.lat !== null && node.long !== null) {
             let category = node.channel;
-            let isRouter = node.role.toLowerCase().includes("router");
+            let isRouter = node.isRouter === "True"; // Convert from string
 
-            // Store the unique channel
             channels.add(category);
 
-            // Generate a unique color for the channel
             let color = hashToColor(category);
 
             let markerOptions = {
@@ -126,20 +128,18 @@
             marker.addTo(map);
 
             if (!markers[category]) markers[category] = [];
-            markers[category].push(marker);
+            markers[category].push({ marker, isRouter });
 
             bounds.extend(marker.getLatLng());
         }
     });
 
-    // Fit map to bounds
     var bayAreaBounds = [
         [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
         [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
     ];
     map.fitBounds(bayAreaBounds);
 
-    // Generate dynamic filters
     let filterContainer = document.getElementById("filter-container");
 
     channels.forEach(channel => {
@@ -154,11 +154,16 @@
     });
 
     function updateMarkers() {
+        let showRoutersOnly = document.getElementById("filter-routers-only").checked;
+
         channels.forEach(channel => {
             let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
             let isChecked = document.getElementById(filterId).checked;
 
-            markers[channel].forEach(m => isChecked ? map.addLayer(m) : map.removeLayer(m));
+            markers[channel].forEach(obj => {
+                let shouldShow = isChecked && (!showRoutersOnly || obj.isRouter);
+                shouldShow ? map.addLayer(obj.marker) : map.removeLayer(obj.marker);
+            });
         });
     }
 
