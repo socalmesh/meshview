@@ -3,7 +3,13 @@
 This project watches a MQTT topic for meshtastic messages, imports them to a
 database and has a web UI to view them.
 
-An example of a currently running instace for the San Francisco Bay Area mesh runs at https://meshview.bayme.sh
+An example of a currently running instace for the San Francisco Bay Area mesh runs at:
+``` bash 
+https://meshview.bayme.sh
+```
+``` bash 
+https://view.azmsh.net/
+```
 
 Requires **`python3.11`** or above.
 
