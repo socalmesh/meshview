@@ -4,12 +4,11 @@ This project watches a MQTT topic for meshtastic messages, imports them to a
 database and has a web UI to view them.
 
 Samples of a currently running instances:
-``` bash 
-https://meshview.bayme.sh
-```
-``` bash 
-https://view.azmsh.net/
-```
+ 
+- https://meshview.bayme.sh
+
+- https://view.azmsh.net/
+
 
 Requires **`python3.11`** or above.
 
