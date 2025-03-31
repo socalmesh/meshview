@@ -1,31 +1,32 @@
 import asyncio
+import datetime
+import gc
 import io
+import json
+import os
+import re
+import ssl
 from collections import Counter
 from dataclasses import dataclass
-import datetime
-import ssl
-import re
-import os
-import pydot
-from pandas import DataFrame
-import plotly.express as px
-import seaborn as sns
+import csv
 import matplotlib.pyplot as plt
+import plotly.express as px
+import psutil
+import pydot
+import seaborn as sns
 from aiohttp import web
-from markupsafe import Markup
-from jinja2 import Environment, PackageLoader, select_autoescape, Undefined
 from google.protobuf import text_format
 from google.protobuf.message import Message
-from meshtastic.protobuf.portnums_pb2 import PortNum
-from meshview import store
-from meshview import models
-from meshview import decode_payload
-from meshview import database
-import psutil
-import gc
-from meshview import config
-import json
+from jinja2 import Environment, PackageLoader, select_autoescape, Undefined
+from markupsafe import Markup
+from pandas import DataFrame
 
+from meshtastic.protobuf.portnums_pb2 import PortNum
+from meshview import config
+from meshview import database
+from meshview import decode_payload
+from meshview import models
+from meshview import store
 from meshview.store import get_total_node_count
 
 CONFIG = config.CONFIG
@@ -301,6 +302,30 @@ async def packet_list(request):
         content_type="text/html",
     )
 
+
+from aiohttp import web
+
+
+@routes.get("/packet_list_text/{node_id}")
+async def packet_list_text(request):
+    node_id = int(request.match_info["node_id"])
+    portnum = int(request.query.get("portnum")) if request.query.get("portnum") else None
+
+    async with asyncio.TaskGroup() as tg:
+        raw_packets = tg.create_task(store.get_packets(node_id, portnum, limit=200))
+
+    packets = [Packet.from_model(p) for p in await raw_packets]  # Convert generator to a list
+
+    # Convert packets to a plain text format with formatted import time and raw payload
+    text_data = "\n\n----------------------\n\n".join(
+        f"{packet.import_time.strftime('%-I:%M:%S %p - %m-%d-%Y')}\n{packet.raw_payload}"
+        for packet in packets
+    )
+
+    return web.Response(
+        text=text_data,
+        content_type="text/plain",
+    )
 
 
 # Updated code p.r.
@@ -1095,9 +1120,6 @@ async def nodelist(request):
             status=500,
             content_type="text/plain",
         )
-
-
-import traceback
 
 
 @routes.get("/api")
