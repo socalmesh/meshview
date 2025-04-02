@@ -16,7 +16,7 @@
 
 .search-container {
     position: absolute;
-    top: 10px;
+    bottom: 100px;
     left: 10px;
     z-index: 10;
     display: flex;
@@ -80,13 +80,13 @@
 {% endblock %}
 
 {% block body %}
+
+
+<div id="mynetwork"></div>
 <div class="search-container">
     <input type="text" id="node-search" placeholder="Search node...">
     <button onclick="searchNode()">Search</button>
 </div>
-
-<div id="mynetwork"></div>
-
 <div id="node-info">
     <b>Long Name:</b> <span id="node-long-name"></span><br>
     <b>Short Name:</b> <span id="node-short-name"></span><br>
