@@ -1,8 +1,4 @@
-Sure! Here's the **raw markdown source code** (the actual text in Markdown language) that you can copy and paste into a file like `README.md`:
 
----
-
-```markdown
 # Meshview
 ![node](screenshots/nodeinfo.png)
 
@@ -11,8 +7,9 @@ database and has a web UI to view them.
 
 Samples of currently running instances:
 
-- https://meshview.bayme.sh
-- https://view.azmsh.net/
+- https://meshview.bayme.sh   (SF Bay Area)
+- https://view.azmsh.net/   (Arizona)
+- https://socalmesh.w4hac.com/ (Southern California)
 
 ---
 
