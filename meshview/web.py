@@ -1160,10 +1160,10 @@ async def net(request):
         # Precompile regex for performance
         seq_pattern = re.compile(r"seq \d+$")
 
-        # Filter packets: exclude "seq \d+$" but include those containing "pablo-test"
+        # Filter packets: exclude "seq \d+$" but include those containing Tag
         filtered_packets = [
             p for p in ui_packets
-            if not seq_pattern.match(p.payload) and "baymeshnet" in p.payload.lower()
+            if not seq_pattern.match(p.payload) and CONFIG["site"]["net_tag"] in p.payload.lower()
         ]
 
         # Render template
