@@ -232,5 +232,3 @@ systemctl status meshview-web
 > sudo systemctl daemon-reload
 > ```
 
----
-```
