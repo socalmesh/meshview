@@ -93,6 +93,7 @@ map_bottom_right_lon=-121
 
 # Note about how your weekly mesh runs. time and tag used for the system to track.
 weekly_net_message= Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins. The message format should be (LONG NAME) - (CITY YOU ARE IN) #MeshNet.
+net_tag=#test
 
 # MQTT Server configuration 
 [mqtt]
@@ -131,6 +132,8 @@ Start the web server:
 > ./env/bin/python main.py --config /path/to/config.ini
 > ```
 
+Open in your browser: http://localhost:8081/
+
 ---
 
 ## Running Meshview with `mvrun.py`
@@ -142,13 +145,13 @@ Start the web server:
 ./env/bin/python mvrun.py
 ```
 
-Open in your browser: http://localhost:8081/
-
 ---
 
 ## Setting Up Systemd Services (Ubuntu)
 
 To run Meshview automatically on boot, create systemd services for `startdb.py` and `main.py`.
+> **NOTE**  
+> You need to change the "User" and "/path/to/meshview" for your instance of the code on each service.
 
 ### 1. Service for `startdb.py`
 
