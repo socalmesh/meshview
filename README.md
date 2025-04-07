@@ -10,6 +10,7 @@ Samples of currently running instances:
 - https://meshview.bayme.sh   (SF Bay Area)
 - https://view.azmsh.net/   (Arizona)
 - https://socalmesh.w4hac.com/ (Southern California)
+- https://meshview.chicagolandmesh.org/ (Chicago)
 
 ---
 
