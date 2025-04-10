@@ -171,29 +171,41 @@ async def get_total_node_count(channel: str = None) -> int:
 
 
 async def get_top_traffic_nodes():
-    async with database.async_session() as session:
-        result = await session.execute(text("""
-            SELECT 
-                n.node_id,
-                n.long_name,
-                n.role,
-                COUNT(p.id) AS packet_count
-            FROM 
-                packet p
-            JOIN 
-                node n
-            ON 
-                p.from_node_id = n.node_id
-            WHERE 
-                p.import_time >= DATETIME('now', 'localtime', '-1 day')
-            GROUP BY 
-                n.long_name, n.role
-            ORDER BY 
-                packet_count DESC
-            LIMIT 100;
-        """))
+    try:
+        async with database.async_session() as session:  # Assuming this is your DB session
+            result = await session.execute(text("""
+                SELECT 
+                    n.node_id,
+                    n.long_name,
+                    n.short_name,
+                    n.channel,
+                    COUNT(DISTINCT p.id) AS total_packets_sent,
+                    COUNT(ps.packet_id) AS total_times_seen
+                FROM node n
+                LEFT JOIN packet p ON n.node_id = p.from_node_id
+                    AND p.import_time >= DATETIME('now', '-24 hours')
+                LEFT JOIN packet_seen ps ON p.id = ps.packet_id
+                GROUP BY n.node_id, n.long_name, n.short_name
+                ORDER BY total_times_seen DESC;
+            """))
 
-        return result.fetchall()  # Returns a list of tuples
+            rows = result.fetchall()
+
+            nodes = [{
+                'node_id': row[0],
+                'long_name': row[1],
+                'short_name': row[2],
+                'channel': row[3],
+                'total_packets_sent': row[4],
+                'total_times_seen': row[5]
+            } for row in rows]
+            return nodes
+
+    except Exception as e:
+        print(f"Error retrieving top traffic nodes: {str(e)}")
+        return []
+
+
 
 async def get_node_traffic(node_id: int):
     try:
