@@ -186,6 +186,7 @@ async def get_top_traffic_nodes():
                     AND p.import_time >= DATETIME('now', '-24 hours')
                 LEFT JOIN packet_seen ps ON p.id = ps.packet_id
                 GROUP BY n.node_id, n.long_name, n.short_name
+                HAVING total_packets_sent > 0
                 ORDER BY total_times_seen DESC;
             """))
 
