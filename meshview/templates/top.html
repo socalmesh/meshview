@@ -100,10 +100,10 @@ h1 {
         <tbody>
           {% for node in nodes %}
             <tr>
-              <td><a href="/top?node_id={{ node.node_id }}">{{ node.long_name }}</a></td>
+              <td><a href="/packet_list/{{ node.node_id }}">{{ node.long_name }}</a></td>
               <td>{{ node.short_name }}</td>
               <td>{{ node.channel }}</td>
-              <td>{{ node.total_packets_sent }}</td>
+              <td><a href="/top?node_id={{ node.node_id }}">{{ node.total_packets_sent }}</a></td>
               <td>{{ node.total_times_seen }}</td>
             </tr>
           {% endfor %}
