@@ -89,13 +89,37 @@
         return seconds + "s";
     }
 
+    const palette = [
+        "#e6194b", // red
+        "#4363d8", // blue
+        "#f58231", // orange
+        "#911eb4", // purple
+        "#46f0f0", // cyan
+        "#f032e6", // magenta
+        "#bcf60c", // lime
+        "#fabebe", // pink
+        "#008080", // teal
+        "#e6beff", // lavender
+        "#9a6324", // brown
+        "#fffac8", // cream
+        "#800000", // maroon
+        "#aaffc3", // mint
+        "#808000", // olive
+        "#ffd8b1", // apricot
+        "#000075", // navy
+        "#808080"  // gray
+    ];
+
+    const colorMap = new Map();
+    let nextColorIndex = 0;
+
     function hashToColor(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        let hue = hash % 360;
-        return `hsl(${hue}, 80%, 50%)`;
+        if (colorMap.has(str)) return colorMap.get(str);
+
+        const color = palette[nextColorIndex % palette.length];
+        colorMap.set(str, color);
+        nextColorIndex++;
+        return color;
     }
 
     nodes.forEach(function(node) {
