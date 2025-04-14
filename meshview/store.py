@@ -183,7 +183,7 @@ async def get_top_traffic_nodes():
                     COUNT(ps.packet_id) AS total_times_seen
                 FROM node n
                 LEFT JOIN packet p ON n.node_id = p.from_node_id
-                    AND p.import_time >= DATETIME('now', '-24 hours')
+                    AND p.import_time >= DATETIME('now', 'localtime', '-24 hours')
                 LEFT JOIN packet_seen ps ON p.id = ps.packet_id
                 GROUP BY n.node_id, n.long_name, n.short_name
                 HAVING total_packets_sent > 0
