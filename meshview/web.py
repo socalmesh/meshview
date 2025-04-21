@@ -1198,7 +1198,6 @@ async def map(request):
         for node in nodes:
             if hasattr(node, "last_update") and isinstance(node.last_update, datetime.datetime):
                 node.last_update = node.last_update.isoformat()
-                print (node.last_update)
         template = env.get_template("map.html")
 
         return web.Response(
