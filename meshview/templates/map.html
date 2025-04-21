@@ -57,23 +57,23 @@
     var bounds = L.latLngBounds();
     var channels = new Set(); // Stores unique channels
 
-    var nodes = [
-        {% for node in nodes %}
-        {
-            lat: {{ node.last_lat / 10**7 if node.last_lat else "null" }},
-            long: {{ node.last_long / 10**7 if node.last_long else "null" }},
-            long_name: "{{ node.long_name | escape }}",
-            short_name: "{{ node.short_name | escape }}",
-            channel: "{{ node.channel | escape }}",
-            hw_model: "{{ node.hw_model | escape }}",
-            role: "{{ node.role | escape }}",
-            last_update: "{{ node.last_update | escape }}",
-            firmware: "{{ node.firmware | escape }}",
-            id: "{{ node.node_id }}",
-            isRouter: "{{ 'router' in node.role.lower() }}"
-        },
-        {% endfor %}
-    ];
+var nodes = [
+{% for node in nodes %}
+{
+    lat: {{ (node.last_lat / 10**7)|round(7) }},
+    long: {{ (node.last_long / 10**7)|round(7) if node.last_long is not none else "null" }},
+    long_name: {{ (node.long_name or "") | tojson }},
+    short_name: {{ (node.short_name or "") | tojson }},
+    channel: {{ (node.channel or "") | tojson }},
+    hw_model: {{ (node.hw_model or "") | tojson }},
+    role: {{ (node.role or "") | tojson }},
+    last_update: {{ node.last_update | default("", true) | tojson }},
+    firmware: {{ (node.firmware or "") | tojson }},
+    id: {{ (node.node_id or "") | tojson }},
+    isRouter: "{{ 'router' in node.role.lower() }}"
+}{{ "," if not loop.last else "" }}
+{% endfor %}
+];
 
     function timeAgo(date) {
         var now = new Date();

@@ -81,7 +81,12 @@ select {
 {% endblock %}
 
 {% block body %}
-<h1>Top Traffic Nodes</h1>
+<h1>Top Traffic Nodes (last 24 hours)</h1>
+
+<!-- Channel Filter Dropdown -->
+<select id="channelFilter">
+  <option value="all">All Channels</option>
+</select>
 
 <div id="stats">
   <p>This chart shows a bell curve (normal distribution) based on the total <strong>"Times Seen"</strong> values for all nodes. It helps visualize how frequently nodes are heard, relative to the average.</p>
@@ -89,10 +94,6 @@ select {
   <p><strong>Mean:</strong> <span id="mean"></span> - <strong>Standard Deviation:</strong> <span id="stdDev"></span></p>
 </div>
 
-<!-- Channel Filter Dropdown -->
-<select id="channelFilter">
-  <option value="all">All Channels</option>
-</select>
 
 <!-- Chart -->
 <div id="bellCurveChart"></div>

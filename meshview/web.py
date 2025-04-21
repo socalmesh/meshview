@@ -28,6 +28,7 @@ from meshview import decode_payload
 from meshview import models
 from meshview import store
 from meshview.store import get_total_node_count
+import traceback
 
 CONFIG = config.CONFIG
 
@@ -1188,20 +1189,31 @@ async def net(request):
 @routes.get("/map")
 async def map(request):
     try:
-        nodes= await store.get_nodes()
+        nodes = await store.get_nodes()
+
+        # Filter out nodes with no latitude
+        nodes = [node for node in nodes if node.last_lat is not None]
+
+        # Optional datetime formatting
+        for node in nodes:
+            if hasattr(node, "last_update") and isinstance(node.last_update, datetime.datetime):
+                node.last_update = node.last_update.isoformat()
+                print (node.last_update)
         template = env.get_template("map.html")
-        print_memory_usage()
+
         return web.Response(
-            text=template.render(nodes=nodes, site_config = CONFIG),
+            text=template.render(nodes=nodes, site_config=CONFIG),
             content_type="text/html",
         )
     except Exception as e:
-
+        import traceback
+        traceback.print_exc()
         return web.Response(
             text="An error occurred while processing your request.",
             status=500,
             content_type="text/plain",
         )
+
 
 
 # Print memory usage
