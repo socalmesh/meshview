@@ -335,7 +335,10 @@ async def packet_details(request):
     packet_id = int(request.match_info["packet_id"])
     packets_seen = list(await store.get_packets_seen(packet_id))
     packet = await store.get_packet(packet_id)
-    node= await store.get_node(packet.from_node_id)
+
+    node = None
+    if packet and packet.from_node_id:
+        node = await store.get_node(packet.from_node_id)
 
     from_node_cord = None
     if packet and packet.from_node and packet.from_node.last_lat:
