@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import gc
 import io
 import json
 import os
@@ -8,19 +7,16 @@ import re
 import ssl
 from collections import Counter
 from dataclasses import dataclass
-import csv
 import matplotlib.pyplot as plt
 import plotly.express as px
 import psutil
 import pydot
 import seaborn as sns
-from aiohttp import web
 from google.protobuf import text_format
 from google.protobuf.message import Message
 from jinja2 import Environment, PackageLoader, select_autoescape, Undefined
 from markupsafe import Markup
 from pandas import DataFrame
-
 from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshview import config
 from meshview import database
@@ -28,16 +24,13 @@ from meshview import decode_payload
 from meshview import models
 from meshview import store
 from meshview.store import get_total_node_count
-import traceback
+from aiohttp import web
 
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
 # Start Database
 database.init_database(CONFIG["database"]["connection_string"])
-
-# Optimize garbage collection frequency
-gc.set_threshold(100, 10, 10)
 
 with open(os.path.join(os.path.dirname(__file__), '1x1.png'), 'rb') as png:
     empty_png = png.read()
@@ -187,9 +180,10 @@ env.filters["node_id_to_hex"] = node_id_to_hex
 env.filters["format_timestamp"] = format_timestamp
 
 routes = web.RouteTableDef()
+# Make the Map the home page
 @routes.get("/")
 async def index(request):
-    raise web.HTTPFound(location="/map")  # Redirect to /home
+    raise web.HTTPFound(location="/map")
 
 
 def generate_response(request, body, raw_node_id="", node=None):
@@ -206,7 +200,6 @@ def generate_response(request, body, raw_node_id="", node=None):
         ),
         content_type="text/html",
     )
-    gc.collect()
     return response
 
 
@@ -247,7 +240,6 @@ async def node_search(request):
         text=template.render(nodes=fuzzy_nodes, query_string=request.query_string),
         content_type="text/html",
     )
-    gc.collect()
     return response
 
 
@@ -277,7 +269,6 @@ async def packet_list(request):
     else:
         portnum = None
 
-
     async with asyncio.TaskGroup() as tg:
         node = tg.create_task(store.get_node(node_id))
         raw_packets = tg.create_task(store.get_packets(node_id,portnum, limit=200))
@@ -302,9 +293,6 @@ async def packet_list(request):
         ),
         content_type="text/html",
     )
-
-
-from aiohttp import web
 
 
 @routes.get("/packet_list_text/{node_id}")
