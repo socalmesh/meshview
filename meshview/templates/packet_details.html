@@ -55,15 +55,15 @@
     var fromNodeLatLng = L.latLng({{ from_node_cord | tojson }});
 
     var fromNode = L.circleMarker(fromNodeLatLng, {
-        radius: 10,
+        radius: 8,
         color: 'red',
         weight: 1,
         fillColor: 'red',
-        fillOpacity: 0.4
+        fillOpacity: 1
     }).addTo(markers);
 
     // Add tooltip for the from_node_cord
-    fromNode.bindTooltip(`
+    fromNode.bindPopup(`
         Sent by:   <b>{{node.long_name}}</b><br/>
         <b>Short:</b> {{node.short_name}}<br/>
         <b>Channel:</b> {{node.channel}}<br/>
@@ -101,8 +101,9 @@
 		node.setZIndexOffset({{u.hops}}*-1);
 
         // Add a tooltip with node details and distance
-        node.bindTooltip(`
-            Seen by: <b>[{{ u.short_name }}] {{ u.long_name }}</b><br/>
+        node.bindPopup(`
+            Heard by: <b>{{u.long_name}}/b><br>
+            <b>[{{ u.short_name }}]</b><br/>
             <b>Hops:</b> {{ u.hops }}<br/>
             <b>SNR:</b> {{ u.snr }}<br/>
             <b>RSSI:</b> {{ u.rssi }}<br/>
