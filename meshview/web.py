@@ -1382,7 +1382,6 @@ async def nodegraph(request):
         content_type="text/html",
     )
 
-
 @routes.get("/config")
 async def get_config(request):
     try:
