@@ -25,7 +25,7 @@ from meshview import models
 from meshview import store
 from meshview.store import get_total_node_count
 from aiohttp import web
-
+SOFTWARE_RELEASE= "2.0.0"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
@@ -649,7 +649,6 @@ async def graph_neighbors(request):
     png = io.BytesIO()
     plt.savefig(png, dpi=100)
     plt.close()
-    print_memory_usage()
     return web.Response(
         body=png.getvalue(),
         content_type="image/png",
@@ -1384,15 +1383,21 @@ async def nodegraph(request):
     )
 
 
-
 @routes.get("/config")
 async def get_config(request):
-    return web.json_response({
-        "Server": CONFIG["site"]["domain"],
-        "Title": CONFIG["site"]["title"],
-        "Message": CONFIG["site"]["message"],
-        "Topics": json.loads(CONFIG["mqtt"]["topics"])
-    })
+    try:
+        site = CONFIG.get("site", {})
+        mqtt = CONFIG.get("mqtt", {})
+
+        return web.json_response({
+            "Server": site.get("domain", ""),
+            "Title": site.get("title", ""),
+            "Message": site.get("message", ""),
+            "Topics": json.loads(mqtt.get("topics", "[]")),
+            "Release": SOFTWARE_RELEASE
+        })
+    except (json.JSONDecodeError, TypeError):
+        return web.json_response({"error": "Invalid configuration format"}, status=500)
 
 
 async def run_server():
