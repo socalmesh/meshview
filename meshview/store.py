@@ -149,7 +149,7 @@ async def get_total_packet_seen_count():
     async with database.async_session() as session:
         q = select(func.count(PacketSeen.node_id))  # Use SQLAlchemy's func to count nodes
         result = await session.execute(q)
-        return result.scalar()  # Return the total count of seen packets
+        return result.scalar()  # Return the` total count of seen packets
 
 
 
@@ -172,7 +172,7 @@ async def get_total_node_count(channel: str = None) -> int:
 
 async def get_top_traffic_nodes():
     try:
-        async with database.async_session() as session:  # Assuming this is your DB session
+        async with database.async_session() as session:
             result = await session.execute(text("""
                 SELECT 
                     n.node_id,
@@ -219,7 +219,7 @@ async def get_node_traffic(node_id: int):
                     FROM packet
                     JOIN node ON packet.from_node_id = node.node_id
                     WHERE node.node_id = :node_id 
-                    AND packet.import_time >= DATETIME('now', 'localtime', '-1 day') 
+                    AND packet.import_time >= DATETIME('now', 'localtime', '-24 hours') 
                     GROUP BY packet.portnum
                     ORDER BY packet_count DESC;
                 """), {"node_id": node_id}
@@ -241,7 +241,7 @@ async def get_node_traffic(node_id: int):
 
 
 
-async def get_nodes(role=None, channel=None, hw_model=None):
+async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
     """
     Fetches nodes from the database based on optional filtering criteria.
 
@@ -267,6 +267,9 @@ async def get_nodes(role=None, channel=None, hw_model=None):
                 query = query.where(Node.channel == channel)
             if hw_model is not None:
                 query = query.where(Node.hw_model == hw_model)
+
+            if days_active is not None:
+                query = query.where(Node.last_update > datetime.datetime.now() - datetime.timedelta(days_active))
 
             # Exclude nodes where last_update is an empty string
             query = query.where(Node.last_update != "")

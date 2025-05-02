@@ -800,8 +800,6 @@ async def graph_traceroute(request):
     )
 
 
-
-
 @routes.get("/graph/traceroute2/{packet_id}")
 async def graph_traceroute2(request):
     packet_id = int(request.match_info['packet_id'])
@@ -1180,7 +1178,7 @@ async def net(request):
 @routes.get("/map")
 async def map(request):
     try:
-        nodes = await store.get_nodes()
+        nodes = await store.get_nodes(days_active=3)
 
         # Filter out nodes with no latitude
         nodes = [node for node in nodes if node.last_lat is not None]
