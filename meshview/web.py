@@ -1096,9 +1096,8 @@ async def nodelist(request):
         #print(channel)
         hw_model = request.query.get("hw_model")
         #print(hw_model)
-        nodes= await store.get_nodes(role,channel, hw_model)
+        nodes= await store.get_nodes(role,channel, hw_model, days_active=3)
         template = env.get_template("nodelist.html")
-        print_memory_usage()
         return web.Response(
             text=template.render(nodes=nodes, site_config = CONFIG),
             content_type="text/html",
