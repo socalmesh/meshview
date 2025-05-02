@@ -1382,7 +1382,7 @@ async def nodegraph(request):
         content_type="text/html",
     )
 
-
+# Show basic details about the site on the site
 @routes.get("/config")
 async def get_config(request):
     try:
