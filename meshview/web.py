@@ -1410,7 +1410,7 @@ async def run_server():
         ssl_context.load_cert_chain(CONFIG["server"]["tls_cert"])
     else:
         ssl_context = None
-    for host in CONFIG["server"]["bind"]:
+    if host := CONFIG["server"]["bind"]:
         site = web.TCPSite(runner, host, CONFIG["server"]["port"], ssl_context=ssl_context)
         await site.start()
     while True:
