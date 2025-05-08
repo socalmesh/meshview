@@ -1262,50 +1262,35 @@ async def top(request):
             content_type="text/plain",
         )
 
-
-
 @routes.get("/chat")
 async def chat(request):
     try:
-        # Fetch packets for the given node ID and port number
         packets = await store.get_packets(
             node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=100
         )
-        #print(f"Fetched {len(packets)} packets.")
 
-        # Convert packets to UI packets
-        #print("Processing packets...")
         ui_packets = [Packet.from_model(p) for p in packets]
-
-        # Filter packets
-        #print("Filtering packets...")
         filtered_packets = [
-            p for p in ui_packets if not re.match(r"seq \d+$", p.payload)
+            p for p in ui_packets if not re.fullmatch(r"seq \d+", p.payload)
         ]
-
-        # Render template
-        #print("Rendering template...")
+        #print("Example packet:", filtered_packets)
         template = env.get_template("chat.html")
         return web.Response(
-            text=template.render(packets=filtered_packets, site_config = CONFIG),
+            text=template.render(packets=filtered_packets, site_config=CONFIG),
             content_type="text/html",
         )
-
     except Exception as e:
-        # Log the error and return an appropriate response
-        #print(f"Error in chat handler: {e}")
+        print("Error in /chat:", e)
         return web.Response(
             text="An error occurred while processing your request.",
             status=500,
             content_type="text/plain",
         )
 
-
-# Assuming the route URL structure is /nodegraph/{channel}
-@routes.get("/nodegraph/{channel}")
+# Assuming the route URL structure is /nodegraph
+@routes.get("/nodegraph")
 async def nodegraph(request):
-    channel = request.match_info.get('channel', 'LongFast')  # Default to 'MediumSlow' if no channel is provided
-    nodes = await store.get_nodes(channel=channel)  # Fetch nodes for the given channel
+    nodes = await store.get_nodes(days_active=3)  # Fetch nodes for the given channel
     node_ids = set()
     edges_set = set()  # Track unique edges
     edge_type = {}  # Store type of each edge

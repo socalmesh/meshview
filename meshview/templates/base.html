@@ -39,9 +39,7 @@
             {% if site_config["site"]["nodes"] == "True" %}<a href="/nodelist">Nodes</a>&nbsp;-&nbsp;{% endif %}
             {% if site_config["site"]["conversations"] == "True" %}<a href="/chat">Conversations</a>&nbsp;-&nbsp;{% endif %}
             {% if site_config["site"]["everything"] == "True" %}<a href="/firehose">See <strong>everything</strong></a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["graph_lf"] == "True" %} Mesh Graph: <a href="/nodegraph/LongFast">LF</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["graph_ms"] == "True" %}<a href="/nodegraph/MediumSlow">MS</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["graph_mf"] == "True" %}<a href="/nodegraph/MediumFast">MF</a>&nbsp;-&nbsp;{% endif %}
+            {% if site_config["site"]["graphs"] == "True" %}<a href="/nodegraph">Mesh Graphs</a>&nbsp;-&nbsp;{% endif %}
             {% if site_config["site"]["net"] == "True" %}<a href="/net">Weekly Net</a>&nbsp;-&nbsp;{% endif %}
             {% if site_config["site"]["map"] == "True" %}<a href="/map">Map</a>&nbsp;-&nbsp;{% endif %}
             {% if site_config["site"]["stats"] == "True" %}<a href="/stats">Stats</a>&nbsp;-&nbsp;{% endif %}
