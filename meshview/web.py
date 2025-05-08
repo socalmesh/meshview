@@ -25,7 +25,7 @@ from meshview import models
 from meshview import store
 from meshview.store import get_total_node_count
 from aiohttp import web
-SOFTWARE_RELEASE= "2.0.0"
+SOFTWARE_RELEASE= "2.0.1"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
