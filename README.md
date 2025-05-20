@@ -11,6 +11,7 @@ Samples of currently running instances:
 - https://view.azmsh.net/   (Arizona)
 - https://socalmesh.w4hac.com/ (Southern California)
 - https://meshview.mt.gt (Canadaverse)
+- https://meshview.meshtastic.es (Spain)
 
 ---
 
