@@ -414,7 +414,7 @@ async def graph_power_json(request):
         ],
     )
 
-@routes.get("/graph/chutil_json/{node_id}")
+@routes.get("/graph/utilization_json/{node_id}")
 async def graph_chutil_json(request):
     return await graph_telemetry_json(
         int(request.match_info['node_id']),
