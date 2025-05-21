@@ -1,3 +1,4 @@
+<!-- Macro -->
 {% macro graph(name) %}
 <div id="{{name}}Chart" style="width: 100%; height: 100%;"></div>
 {% endmacro %}
@@ -55,31 +56,40 @@ document.addEventListener("DOMContentLoaded", function () {
   let currentChart = null;
   let currentChartName = null;
   let currentChartData = null;
+  let fullChart = null;
 
-  async function loadChart(name) {
+  async function loadChart(name, targetDiv) {
     currentChartName = name;
-    const chartDiv = document.getElementById(`${name}Chart`);
+    const chartDiv = document.getElementById(targetDiv);
     if (!chartDiv) return;
 
     try {
       const resp = await fetch(`/graph/${name}_json/{{ node_id }}`);
       if (!resp.ok) throw new Error(`Failed to load data for ${name}`);
       const data = await resp.json();
-      currentChartData = data;
 
-      if (!currentChart) {
-        currentChart = echarts.init(chartDiv);
-      } else if (currentChart.getDom() !== chartDiv) {
-        currentChart.dispose();
-        currentChart = echarts.init(chartDiv);
-      }
+      // Reverse to go left-to-right
+      data.timestamps.reverse();
+      data.series.forEach(s => s.data.reverse());
 
-      currentChart.setOption({
+      // Format timestamps as MM-DD-YY
+      const formattedDates = data.timestamps.map(t => {
+        const d = new Date(t);
+        return `${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}-${d.getFullYear().toString().slice(-2)}`;
+      });
+
+      currentChartData = {
+        ...data,
+        timestamps: formattedDates
+      };
+
+      const chart = echarts.init(chartDiv);
+      chart.setOption({
         tooltip: { trigger: 'axis' },
         xAxis: {
           type: 'category',
-          data: data.timestamps,
-          axisLabel: { color: '#fff' },
+          data: formattedDates,
+          axisLabel: { color: '#fff', rotate: 45 },
         },
         yAxis: {
           type: 'value',
@@ -91,38 +101,46 @@ document.addEventListener("DOMContentLoaded", function () {
           data: s.data,
           smooth: true,
           connectNulls: true,
+          showSymbol: false,
         })),
         legend: { textStyle: { color: '#fff' } }
       });
+
+      return chart;
     } catch (err) {
       console.error(err);
       currentChartData = null;
       currentChartName = null;
+      return null;
     }
   }
 
-  // Load first tab chart initially
+  // Load the first chart
   const firstTabBtn = document.querySelector('.nav-tabs button.nav-link.active');
   if (firstTabBtn) {
-    loadChart(firstTabBtn.textContent.toLowerCase());
+    const name = firstTabBtn.textContent.toLowerCase();
+    const chartId = `${name}Chart`;
+    loadChart(name, chartId).then(chart => currentChart = chart);
   }
 
-  // Listen for tab changes to load charts
+  // Tab change event
   document.querySelectorAll('.nav-tabs button.nav-link').forEach(button => {
     button.addEventListener('shown.bs.tab', event => {
-      const tabName = event.target.textContent.toLowerCase();
-      loadChart(tabName);
+      const name = event.target.textContent.toLowerCase();
+      const chartId = `${name}Chart`;
+      loadChart(name, chartId).then(chart => currentChart = chart);
     });
   });
 
-  // Download CSV button handler for current chart
+  // Download CSV button
   document.getElementById('downloadCsvBtn').addEventListener('click', () => {
     if (!currentChartData || !currentChartName) {
       alert("Chart data not loaded yet.");
       return;
     }
+
     const { timestamps, series } = currentChartData;
-    let csv = 'Time,' + series.map(s => s.name).join(',') + '\n';
+    let csv = 'Date,' + series.map(s => s.name).join(',') + '\n';
 
     for (let i = 0; i < timestamps.length; i++) {
       const row = [timestamps[i]];
@@ -141,15 +159,12 @@ document.addEventListener("DOMContentLoaded", function () {
     URL.revokeObjectURL(url);
   });
 
-  // Expand modal logic
-  const fullChartContainer = document.getElementById('fullChartContainer');
-  let fullChart = null;
-  const modal = document.getElementById('fullChartModal');
-  modal.addEventListener('shown.bs.modal', () => {
+  // Expand chart modal
+  document.getElementById('fullChartModal').addEventListener('shown.bs.modal', () => {
     if (!currentChartData || !currentChartName) return;
 
     if (!fullChart) {
-      fullChart = echarts.init(fullChartContainer);
+      fullChart = echarts.init(document.getElementById('fullChartContainer'));
     }
 
     fullChart.setOption({
@@ -158,7 +173,7 @@ document.addEventListener("DOMContentLoaded", function () {
       xAxis: {
         type: 'category',
         data: currentChartData.timestamps,
-        axisLabel: { color: '#fff' },
+        axisLabel: { color: '#fff', rotate: 45 },
       },
       yAxis: {
         type: 'value',
@@ -170,6 +185,7 @@ document.addEventListener("DOMContentLoaded", function () {
         data: s.data,
         smooth: true,
         connectNulls: true,
+        showSymbol: false,
       })),
       legend: { textStyle: { color: '#fff' } }
     });
@@ -179,6 +195,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window.addEventListener('resize', () => {
     if (fullChart) fullChart.resize();
+    if (currentChart) currentChart.resize();
   });
 });
 </script>
