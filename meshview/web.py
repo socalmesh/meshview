@@ -1,17 +1,12 @@
 import asyncio
 import datetime
-import io
 import json
 import os
 import re
 import ssl
 from collections import Counter
 from dataclasses import dataclass
-import matplotlib.pyplot as plt
-import plotly.express as px
-import psutil
 import pydot
-import seaborn as sns
 from google.protobuf import text_format
 from google.protobuf.message import Message
 from jinja2 import Environment, PackageLoader, select_autoescape, Undefined
@@ -25,7 +20,7 @@ from meshview import models
 from meshview import store
 from meshview.store import get_total_node_count
 from aiohttp import web
-SOFTWARE_RELEASE= "2.0.1"
+SOFTWARE_RELEASE= "2.0.2"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
