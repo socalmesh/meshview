@@ -599,6 +599,126 @@ async def graph_power_metrics(request):
         ],
     )
 
+@routes.get("/graph/power_json/{node_id}")
+async def graph_power_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'device_metrics',
+        [
+            {'label': 'battery level', 'fields': ['battery_level']},
+            {'label': 'voltage', 'fields': ['voltage'], 'palette': 'Set2'},
+        ],
+    )
+
+@routes.get("/graph/chutil_json/{node_id}")
+async def graph_chutil_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'device_metrics',
+        [{'label': 'utilization', 'fields': ['channel_utilization', 'air_util_tx']}],
+    )
+
+@routes.get("/graph/wind_speed_json/{node_id}")
+async def graph_wind_speed_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [{'label': 'wind speed m/s', 'fields': ['wind_speed']}],
+    )
+
+@routes.get("/graph/wind_direction_json/{node_id}")
+async def graph_wind_direction_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [{'label': 'wind direction', 'fields': ['wind_direction']}],
+    )
+
+@routes.get("/graph/temperature_json/{node_id}")
+async def graph_temperature_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [{'label': 'temperature C', 'fields': ['temperature']}],
+    )
+
+@routes.get("/graph/humidity_json/{node_id}")
+async def graph_humidity_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [{'label': 'humidity', 'fields': ['relative_humidity']}],
+    )
+
+@routes.get("/graph/pressure_json/{node_id}")
+async def graph_pressure_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [{'label': 'barometric pressure', 'fields': ['barometric_pressure']}],
+    )
+
+@routes.get("/graph/iaq_json/{node_id}")
+async def graph_iaq_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'environment_metrics',
+        [{'label': 'IAQ', 'fields': ['iaq']}],
+    )
+
+@routes.get("/graph/power_metrics_json/{node_id}")
+async def graph_power_metrics_json(request):
+    return await graph_telemetry_json(
+        int(request.match_info['node_id']),
+        'power_metrics',
+        [
+            {'label': 'voltage', 'fields': ['ch1_voltage', 'ch2_voltage', 'ch3_voltage']},
+            {'label': 'current', 'fields': ['ch1_current', 'ch2_current', 'ch3_current'], 'palette': 'Set2'},
+        ],
+    )
+
+
+async def graph_telemetry_json(node_id, payload_type, graph_config):
+    data = {'date': []}
+    fields = []
+    for c in graph_config:
+        fields.extend(c['fields'])
+
+    for field in fields:
+        data[field] = []
+
+    for p in await store.get_packets_from(node_id, PortNum.TELEMETRY_APP):
+        _, payload = decode_payload.decode(p)
+        if not payload or not payload.HasField(payload_type):
+            continue
+        data_field = getattr(payload, payload_type)
+        timestamp = p.import_time
+        data['date'].append(timestamp.isoformat())  # For JSON/ECharts
+        for field in fields:
+            data[field].append(getattr(data_field, field, None))
+
+    if not data['date']:
+        return web.json_response({'timestamps': [], 'series': []}, status=404)
+
+    df = DataFrame(data)
+
+    series = []
+    for conf in graph_config:
+        for field in conf['fields']:
+            series.append({
+                'name': f"{conf['label']} - {field}" if len(conf['fields']) > 1 else conf['label'],
+                'data': df[field].tolist()
+            })
+
+    return web.json_response({
+        'timestamps': df['date'].tolist(),
+        'series': series,
+    })
+
+
+
+
+
 @routes.get("/graph/neighbors_json/{node_id}")
 async def graph_neighbors_json(request):
     import datetime

@@ -1,88 +1,38 @@
 {% macro graph(name) %}
-<a href="/graph/{{name}}/{{node_id}}">
-    <img src="/graph/{{name}}/{{node_id}}" height="200" width="200" alt="{{ name }} graph"/>
-</a>
+<div id="{{name}}Chart" style="width: 100%; height: 100%;"></div>
 {% endmacro %}
 
-<ul class="nav nav-tabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#neighbors" type="button" role="tab">Neighbors</button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#weather" type="button" role="tab">Environment</button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#power" type="button" role="tab">Power</button>
-    </li>
-</ul>
-
-<div class="tab-content mt-3">
-    <div class="tab-pane fade show active" id="overview" role="tabpanel">
-        <dl>
-            <dt>Battery</dt>
-            <dd>{{ graph("power") }}</dd>
-        </dl>
-        <dl>
-            <dt>ChUtil</dt>
-            <dd>{{ graph("chutil") }}</dd>
-        </dl>
-    </div>
-
-    <div class="tab-pane fade" id="neighbors" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="text-white">Neighbor SNR</h5>
-            <div>
-                <button class="btn btn-sm btn-outline-light me-2" id="downloadCsvBtn">Download CSV</button>
-                <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#fullChartModal">Expand</button>
-            </div>
-        </div>
-        <div id="neighborChart" style="width: 100%; height: 400px;"></div>
-        <noscript>
-            <a href="/graph/neighbors2/{{node_id}}">
-                <img src="/graph/neighbors/{{node_id}}" width="200" height="200" alt="Neighbor SNR Graph"/>
-            </a>
-        </noscript>
-    </div>
-
-    <div class="tab-pane fade" id="weather" role="tabpanel">
-        <dl>
-            <dt>Temperature</dt>
-            <dd>{{ graph("temperature") }}</dd>
-        </dl>
-        <dl>
-            <dt>Humidity</dt>
-            <dd>{{ graph("humidity") }}</dd>
-        </dl>
-        <dl>
-            <dt>Pressure</dt>
-            <dd>{{ graph("pressure") }}</dd>
-        </dl>
-        <dl>
-            <dt>Indoor Air Quality</dt>
-            <dd>{{ graph("iaq") }}</dd>
-        </dl>
-        <dl>
-            <dt>Wind Speed</dt>
-            <dd>{{ graph("wind_speed") }}</dd>
-        </dl>
-        <dl>
-            <dt>Wind Direction</dt>
-            <dd>{{ graph("wind_direction") }}</dd>
-        </dl>
-    </div>
-
-    <div class="tab-pane fade" id="power" role="tabpanel">
-        <dl>
-            <dt>Power Metrics</dt>
-            <dd>{{ graph("power_metrics") }}</dd>
-        </dl>
-    </div>
+<!-- Buttons for Download CSV and Expand Modal -->
+<div class="d-flex justify-content-end mb-2">
+  <button class="btn btn-sm btn-outline-light me-2" id="downloadCsvBtn">Download CSV</button>
+  <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#fullChartModal">Expand</button>
 </div>
 
-<!-- Fullscreen Modal -->
+<!-- Tabs -->
+<ul class="nav nav-tabs" role="tablist">
+  {% for name in [
+      "power", "chutil", "temperature", "humidity", "pressure",
+      "iaq", "wind_speed", "wind_direction", "power_metrics", "neighbors"
+  ] %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if loop.first %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#{{name}}Tab" type="button" role="tab">{{ name | capitalize }}</button>
+  </li>
+  {% endfor %}
+</ul>
+
+<!-- Tab content -->
+<div class="tab-content mt-3" style="height: 50vh;">
+  {% for name in [
+      "power", "chutil", "temperature", "humidity", "pressure",
+      "iaq", "wind_speed", "wind_direction", "power_metrics", "neighbors"
+  ] %}
+  <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{name}}Tab" role="tabpanel" style="height: 100%;">
+    {{ graph(name) | safe }}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Fullscreen Modal for graphs -->
 <div class="modal fade" id="fullChartModal" tabindex="-1" aria-labelledby="fullChartModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-fullscreen">
     <div class="modal-content bg-dark text-white">
@@ -90,8 +40,8 @@
         <h5 class="modal-title" id="fullChartModalLabel">Full Graph</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <div id="fullNeighborChart" style="width: 100%; height: 100%;"></div>
+      <div class="modal-body" style="height: 100vh;">
+        <div id="fullChartContainer" style="width: 100%; height: 100%;"></div>
       </div>
     </div>
   </div>
@@ -102,104 +52,133 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const tab = document.querySelector('button[data-bs-target="#neighbors"]');
-    const chartContainer = document.getElementById('neighborChart');
-    const fullChartContainer = document.getElementById('fullNeighborChart');
-    let neighborChartData = null;
+  let currentChart = null;
+  let currentChartName = null;
+  let currentChartData = null;
 
-    tab.addEventListener('shown.bs.tab', function () {
-        if (chartContainer.dataset.loaded) return;
+  async function loadChart(name) {
+    currentChartName = name;
+    const chartDiv = document.getElementById(`${name}Chart`);
+    if (!chartDiv) return;
 
-        fetch("/graph/neighbors_json/{{ node_id }}")
-            .then(res => res.json())
-            .then(json => {
-                neighborChartData = json;
+    try {
+      const resp = await fetch(`/graph/${name}_json/{{ node_id }}`);
+      if (!resp.ok) throw new Error(`Failed to load data for ${name}`);
+      const data = await resp.json();
+      currentChartData = data;
 
-                const option = getChartOption(json);
-                const chart = echarts.init(chartContainer);
-                chart.setOption(option);
-                chartContainer.dataset.loaded = "true";
+      if (!currentChart) {
+        currentChart = echarts.init(chartDiv);
+      } else if (currentChart.getDom() !== chartDiv) {
+        currentChart.dispose();
+        currentChart = echarts.init(chartDiv);
+      }
 
-                // Modal chart
-                const modal = document.getElementById('fullChartModal');
-                modal.addEventListener('shown.bs.modal', () => {
-                    const fullChart = echarts.init(fullChartContainer);
-                    fullChart.setOption(option);
-                    fullChart.resize();
-                });
-            })
-            .catch(err => {
-                chartContainer.innerText = "Failed to load graph.";
-                console.error(err);
-            });
+      currentChart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: {
+          type: 'category',
+          data: data.timestamps,
+          axisLabel: { color: '#fff' },
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: { color: '#fff' },
+        },
+        series: data.series.map(s => ({
+          name: s.name,
+          type: 'line',
+          data: s.data,
+          smooth: true,
+          connectNulls: true,
+        })),
+        legend: { textStyle: { color: '#fff' } }
+      });
+    } catch (err) {
+      console.error(err);
+      currentChartData = null;
+      currentChartName = null;
+    }
+  }
+
+  // Load first tab chart initially
+  const firstTabBtn = document.querySelector('.nav-tabs button.nav-link.active');
+  if (firstTabBtn) {
+    loadChart(firstTabBtn.textContent.toLowerCase());
+  }
+
+  // Listen for tab changes to load charts
+  document.querySelectorAll('.nav-tabs button.nav-link').forEach(button => {
+    button.addEventListener('shown.bs.tab', event => {
+      const tabName = event.target.textContent.toLowerCase();
+      loadChart(tabName);
     });
+  });
 
-    function getChartOption(json) {
-        return {
-            title: {
-                text: 'Neighbor SNR over Time',
-                textStyle: { color: '#ffffff' }
-            },
-            tooltip: {
-                trigger: 'axis',
-            },
-            legend: {
-                type: 'scroll',
-                top: 30,
-                textStyle: { color: '#ffffff' }
-            },
-            grid: {
-                left: '5%',
-                right: '5%',
-                bottom: '10%',
-                containLabel: true
-            },
-            xAxis: {
-                type: 'category',
-                data: json.timestamps,
-                name: 'Time',
-                axisLabel: { rotate: 45, color: '#ffffff' },
-                nameTextStyle: { color: '#ffffff' }
-            },
-            yAxis: {
-                type: 'value',
-                name: 'SNR',
-                axisLabel: { color: '#ffffff' },
-                nameTextStyle: { color: '#ffffff' }
-            },
-            series: json.series.map(s => ({
-                name: s.name,
-                type: 'line',
-                data: s.data,
-                connectNulls: true,
-                showSymbol: false,
-                smooth: true
-            }))
-        };
+  // Download CSV button handler for current chart
+  document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+    if (!currentChartData || !currentChartName) {
+      alert("Chart data not loaded yet.");
+      return;
+    }
+    const { timestamps, series } = currentChartData;
+    let csv = 'Time,' + series.map(s => s.name).join(',') + '\n';
+
+    for (let i = 0; i < timestamps.length; i++) {
+      const row = [timestamps[i]];
+      for (const s of series) {
+        row.push(s.data[i] != null ? s.data[i] : '');
+      }
+      csv += row.join(',') + '\n';
     }
 
-    // Download CSV logic
-    document.getElementById('downloadCsvBtn').addEventListener('click', function () {
-        if (!neighborChartData) return alert("Chart data not loaded yet.");
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentChartName}_{{ node_id }}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
-        const { timestamps, series } = neighborChartData;
-        let csv = 'Time,' + series.map(s => s.name).join(',') + '\n';
+  // Expand modal logic
+  const fullChartContainer = document.getElementById('fullChartContainer');
+  let fullChart = null;
+  const modal = document.getElementById('fullChartModal');
+  modal.addEventListener('shown.bs.modal', () => {
+    if (!currentChartData || !currentChartName) return;
 
-        for (let i = 0; i < timestamps.length; i++) {
-            const row = [timestamps[i]];
-            for (const s of series) {
-                row.push(s.data[i] != null ? s.data[i] : '');
-            }
-            csv += row.join(',') + '\n';
-        }
+    if (!fullChart) {
+      fullChart = echarts.init(fullChartContainer);
+    }
 
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `neighbor_snr_{{ node_id }}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+    fullChart.setOption({
+      title: { text: currentChartName.charAt(0).toUpperCase() + currentChartName.slice(1), textStyle: { color: '#fff' } },
+      tooltip: { trigger: 'axis' },
+      xAxis: {
+        type: 'category',
+        data: currentChartData.timestamps,
+        axisLabel: { color: '#fff' },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#fff' },
+      },
+      series: currentChartData.series.map(s => ({
+        name: s.name,
+        type: 'line',
+        data: s.data,
+        smooth: true,
+        connectNulls: true,
+      })),
+      legend: { textStyle: { color: '#fff' } }
     });
+
+    fullChart.resize();
+  });
+
+  window.addEventListener('resize', () => {
+    if (fullChart) fullChart.resize();
+  });
 });
 </script>
