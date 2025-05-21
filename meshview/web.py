@@ -29,12 +29,12 @@ SOFTWARE_RELEASE= "2.0.1"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
+
 # Start Database
 database.init_database(CONFIG["database"]["connection_string"])
 
 with open(os.path.join(os.path.dirname(__file__), '1x1.png'), 'rb') as png:
     empty_png = png.read()
-
 
 @dataclass
 class Packet:
@@ -160,7 +160,6 @@ async def build_neighbors(node_id):
     return list(neighbors.values())  # Return a list of dictionaries
 
 
-
 def node_id_to_hex(node_id):
     if node_id is None or isinstance(node_id, Undefined):
         return "Invalid node_id" # i... have no clue
@@ -241,7 +240,6 @@ async def node_search(request):
         content_type="text/html",
     )
     return response
-
 
 @routes.get("/node_match")
 async def node_match(request):
@@ -381,7 +379,6 @@ async def packet_details(request):
     if portnum:
         portnum = int(portnum)
     packets = await store.get_packets(portnum=portnum, limit=20)
-    print_memory_usage()
     template = env.get_template("firehose.html")
     return web.Response(
         text=template.render(
@@ -392,7 +389,6 @@ async def packet_details(request):
         content_type="text/html",
     )
 
-
 @routes.get("/packet/{packet_id}")
 async def packet(request):
     packet = await store.get_packet(int(request.match_info["packet_id"]))
@@ -400,14 +396,12 @@ async def packet(request):
         return web.Response(status=404)
 
     node = await store.get_node(packet.from_node_id)
-    print_memory_usage()
     template = env.get_template("packet_index.html")
 
     return web.Response(
         text=template.render(packet=Packet.from_model(packet), site_config = CONFIG),
         content_type="text/html",
     )
-
 
 
 async def graph_telemetry(node_id, payload_type, graph_config):
@@ -473,7 +467,6 @@ async def graph_telemetry(node_id, payload_type, graph_config):
         body=png.getvalue(),
         content_type="image/png",
     )
-
 
 
 @routes.get("/graph/power/{node_id}")
@@ -606,95 +599,46 @@ async def graph_power_metrics(request):
         ],
     )
 
+@routes.get("/graph/neighbors_json/{node_id}")
+async def graph_neighbors_json(request):
+    import datetime
+    from pandas import DataFrame
 
-@routes.get("/graph/neighbors/{node_id}")
-async def graph_neighbors(request):
+    node_id = int(request.match_info['node_id'])
     oldest = datetime.datetime.now() - datetime.timedelta(days=4)
 
     data = {}
-    dates =[]
-    for p in await store.get_packets_from(int(request.match_info['node_id']), PortNum.NEIGHBORINFO_APP):
+    dates = []
+    for p in await store.get_packets_from(node_id, PortNum.NEIGHBORINFO_APP):
         _, payload = decode_payload.decode(p)
         if not payload:
             continue
         if p.import_time < oldest:
             break
 
-        dates.append(p.import_time)
+        dates.append(p.import_time.isoformat())  # format for JSON
         for v in data.values():
             v.append(None)
 
         for n in payload.neighbors:
             data.setdefault(n.node_id, [None] * len(dates))[-1] = n.snr
 
+    # Resolve node short names
     nodes = {}
     async with asyncio.TaskGroup() as tg:
-        for node_id in data:
-            nodes[node_id] = tg.create_task(store.get_node(node_id))
+        for nid in data:
+            nodes[nid] = tg.create_task(store.get_node(nid))
 
-    data_by_short_name = {}
-    for node_id, data in data.items():
+    series = []
+    for node_id, snrs in data.items():
         node = await nodes[node_id]
-        if node:
-            data_by_short_name[node.short_name] = data
-        else:
-            data_by_short_name[node_id_to_hex(node_id)] = data
+        name = node.short_name if node else node_id_to_hex(node_id)
+        series.append({"name": name, "data": snrs})
 
-    fig, ax1 = plt.subplots(figsize=(5, 5))
-    ax1.set_xlabel('time')
-    ax1.set_ylabel('SNR')
-    df = DataFrame(data_by_short_name, index=dates)
-    sns.lineplot(data=df)
-
-    png = io.BytesIO()
-    plt.savefig(png, dpi=100)
-    plt.close()
-    return web.Response(
-        body=png.getvalue(),
-        content_type="image/png",
-    )
-
-@routes.get("/graph/neighbors2/{node_id}")
-async def graph_neighbors2(request):
-    oldest = datetime.datetime.now() - datetime.timedelta(days=30)
-
-    data = []
-    node_ids = set()
-    for p in await store.get_packets_from(int(request.match_info['node_id']), PortNum.NEIGHBORINFO_APP):
-        _, payload = decode_payload.decode(p)
-        if not payload:
-            continue
-        if p.import_time < oldest:
-            break
-
-        for n in payload.neighbors:
-            node_ids.add(n.node_id)
-            data.append({
-                'time': p.import_time,
-                'snr': n.snr,
-                'node_id': n.node_id,
-            })
-
-    nodes = {}
-    async with asyncio.TaskGroup() as tg:
-        for node_id in node_ids:
-            nodes[node_id] = tg.create_task(store.get_node(node_id))
-
-    for d in data:
-        node = await nodes[d['node_id']]
-        if node:
-            d['node_name'] = node.short_name
-        else:
-            d['node_name'] = node_id_to_hex(node_id)
-
-    df = DataFrame(data)
-    fig = px.line(df, x="time", y="snr", color="node_name", markers=True)
-    html = fig.to_html(full_html=True, include_plotlyjs='cdn')
-    print_memory_usage()
-    return web.Response(
-        text=html,
-        content_type="text/html",
-    )
+    return web.json_response({
+        "timestamps": dates,
+        "series": series,
+    })
 
 @routes.get("/graph/traceroute/{packet_id}")
 async def graph_traceroute(request):
@@ -1078,7 +1022,6 @@ async def graph_network(request):
                 penwidth=1.85,
                 dir=edge_dir,
             ))
-    print_memory_usage()
     return web.Response(
         body=graph.create_svg(),
         content_type="image/svg+xml",
@@ -1136,7 +1079,6 @@ async def api(request):
 @routes.get("/net")
 async def net(request):
     try:
-        print_memory_usage()
         # Fetch packets for the given node ID and port number
         packets = await store.get_packets(
             node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=1000
@@ -1200,13 +1142,6 @@ async def map(request):
             content_type="text/plain",
         )
 
-
-
-# Print memory usage
-def print_memory_usage():
-    process = psutil.Process(os.getpid())
-    print(f"Memory Usage: {process.memory_info().rss / (1024 * 1024):.2f} MB")
-
 @routes.get("/stats")
 async def stats(request):
     try:
@@ -1215,7 +1150,6 @@ async def stats(request):
         total_packets_seen = await store.get_total_packet_seen_count()
         total_nodes_longfast = await get_total_node_count("LongFast")
         total_nodes_mediumslow = await get_total_node_count("MediumSlow")
-        print_memory_usage()
         template = env.get_template("stats.html")
         return web.Response(
             text=template.render(
@@ -1378,6 +1312,7 @@ async def get_config(request):
             "Server": site.get("domain", ""),
             "Title": site.get("title", ""),
             "Message": site.get("message", ""),
+            "MQTT Server": mqtt.get("server", ""),
             "Topics": json.loads(mqtt.get("topics", "[]")),
             "Release": SOFTWARE_RELEASE
         })
@@ -1400,4 +1335,3 @@ async def run_server():
         await site.start()
     while True:
         await asyncio.sleep(3600)  # sleep forever
-

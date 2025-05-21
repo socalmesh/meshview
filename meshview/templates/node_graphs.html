@@ -1,68 +1,170 @@
 {% macro graph(name) %}
-<a href="/graph/{{name}}/{{node_id}}"><img src="/graph/{{name}}/{{node_id}}" height="200em" width="200em"/></a>
+<a href="/graph/{{name}}/{{node_id}}">
+    <img src="/graph/{{name}}/{{node_id}}" height="200" width="200" alt="{{ name }} graph"/>
+</a>
 {% endmacro %}
 
-
+<!-- Tabs -->
 <ul class="nav nav-tabs" role="tablist">
     <li class="nav-item" role="presentation">
-         <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
     </li>
-    <li>
-         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#neighbors" type="button" role="tab" >Neighbors</button>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#neighbors" type="button" role="tab">Neighbors</button>
     </li>
-    <li>
-         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#weather" type="button" role="tab" >Environment</button>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#weather" type="button" role="tab">Environment</button>
     </li>
-    <li>
-         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#power" type="button" role="tab" >Power</button>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#power" type="button" role="tab">Power</button>
     </li>
 </ul>
 
-<div class="tab-content">
-      <div class="tab-pane fade show active" id="overview" role="tabpanel">
-          <dl>
-               <dt>Battery</dt>
-               <dd>{{ graph("power") }}</dd>
-          </dl>
-          <dl>
-               <dt>ChUtil</dt>
-               <dd>{{ graph("chutil") }}</dd>
-          </dl>
-      </div>
-      <div class="tab-pane fade" id="neighbors" role="tabpanel">
-        <a style="display: block;" href="/graph/neighbors2/{{node_id}}"><img src="/graph/neighbors/{{node_id}}" height="200em" width="200em"/></a>
-      </div>
-      <div class="tab-pane fade" id="weather" role="tabpanel">
-          <dl>
-               <dt>Temperature</dt>
-               <dd>{{ graph("temperature") }}</dd> 
-          </dl>
-          <dl>   
-               <dt>Humidity</dt>
-               <dd>{{ graph("humidity") }}</dd>
-          </dl>
-          <dl>   
-               <dt>Pressure</dt>
-               <dd>{{ graph("pressure") }}</dd>
-          </dl>
-          <dl>
-               <dt>Indoor Air Quality</dt>
-               <dd>{{ graph("iaq") }}</dd>
-          </dl>
-          <dl>
-               <dt>Wind Speed</dt>
-               <dd>{{ graph("wind_speed") }}</dd>
-          </dl>
-          <dl>
-               <dt>Wind Direction</dt>
-               <dd>{{ graph("wind_direction") }}</dd>
-          </dl>
-      </div>
-      <div class="tab-pane fade" id="power" role="tabpanel">
-          <dl>
-               <dt>Power Metrics</dt>
-               <dd>{{ graph("power_metrics") }}</dd>
-          </dl>
-      </div>
+<!-- Tab Content -->
+<div class="tab-content mt-3">
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+        <dl>
+            <dt>Battery</dt>
+            <dd>{{ graph("power") }}</dd>
+        </dl>
+        <dl>
+            <dt>ChUtil</dt>
+            <dd>{{ graph("chutil") }}</dd>
+        </dl>
+    </div>
+
+    <div class="tab-pane fade" id="neighbors" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="text-white">Neighbor SNR</h5>
+            <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#fullChartModal">
+                Expand
+            </button>
+        </div>
+        <div id="neighborChart" style="width: 100%; height: 400px;"></div>
+        <noscript>
+            <a href="/graph/neighbors2/{{node_id}}">
+                <img src="/graph/neighbors/{{node_id}}" width="200" height="200" alt="Neighbor SNR Graph"/>
+            </a>
+        </noscript>
+    </div>
+
+    <div class="tab-pane fade" id="weather" role="tabpanel">
+        <dl><dt>Temperature</dt><dd>{{ graph("temperature") }}</dd></dl>
+        <dl><dt>Humidity</dt><dd>{{ graph("humidity") }}</dd></dl>
+        <dl><dt>Pressure</dt><dd>{{ graph("pressure") }}</dd></dl>
+        <dl><dt>Indoor Air Quality</dt><dd>{{ graph("iaq") }}</dd></dl>
+        <dl><dt>Wind Speed</dt><dd>{{ graph("wind_speed") }}</dd></dl>
+        <dl><dt>Wind Direction</dt><dd>{{ graph("wind_direction") }}</dd></dl>
+    </div>
+
+    <div class="tab-pane fade" id="power" role="tabpanel">
+        <dl><dt>Power Metrics</dt><dd>{{ graph("power_metrics") }}</dd></dl>
+    </div>
 </div>
 
+<!-- Fullscreen Modal for Neighbor Chart -->
+<div class="modal fade" id="fullChartModal" tabindex="-1" aria-labelledby="fullChartModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content bg-dark">
+      <div class="modal-header">
+        <h5 class="modal-title text-white" id="fullChartModalLabel">Full Neighbor SNR Chart</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="fullNeighborChart" style="width: 100%; height: 100%;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ECharts Library -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+<!-- JavaScript -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const neighborTab = document.querySelector('button[data-bs-target="#neighbors"]');
+    neighborTab.addEventListener('shown.bs.tab', function () {
+        const chartContainer = document.getElementById('neighborChart');
+        if (chartContainer.dataset.loaded) return;
+
+        fetch("/graph/neighbors_json/{{ node_id }}")
+            .then(res => res.json())
+            .then(json => {
+                const chart = echarts.init(chartContainer);
+                chart.setOption({
+                    title: { text: 'Neighbor SNR over Time', textStyle: { color: '#ffffff' }},
+                    tooltip: { trigger: 'axis' },
+                    legend: { type: 'scroll', top: 30, textStyle: { color: '#ffffff' }},
+                    grid: { left: 60, right: 30, bottom: 80, top: 60, containLabel: true },
+                    xAxis: {
+                        type: 'category',
+                        data: json.timestamps,
+                        name: 'Time',
+                        axisLabel: { rotate: 45, color: '#ffffff' },
+                        nameTextStyle: { color: '#ffffff' }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: 'SNR',
+                        axisLabel: { color: '#ffffff' },
+                        nameTextStyle: { color: '#ffffff' }
+                    },
+                    series: json.series.map(s => ({
+                        name: s.name,
+                        type: 'line',
+                        data: s.data,
+                        connectNulls: true,
+                        showSymbol: false,
+                        smooth: true
+                    }))
+                });
+                chartContainer.dataset.loaded = "true";
+            })
+            .catch(err => {
+                chartContainer.innerText = "Failed to load graph.";
+                console.error(err);
+            });
+    });
+
+    // Fullscreen chart loader
+    document.getElementById('fullChartModal').addEventListener('shown.bs.modal', function () {
+        const container = document.getElementById('fullNeighborChart');
+        container.innerHTML = ''; // clear
+
+        fetch("/graph/neighbors_json/{{ node_id }}")
+            .then(res => res.json())
+            .then(json => {
+                const chart = echarts.init(container);
+                chart.setOption({
+                    title: { text: 'Neighbor SNR over Time', textStyle: { color: '#ffffff' }},
+                    tooltip: { trigger: 'axis' },
+                    legend: { type: 'scroll', top: 30, textStyle: { color: '#ffffff' }},
+                    grid: { left: 60, right: 30, bottom: 80, top: 60, containLabel: true },
+                    xAxis: {
+                        type: 'category',
+                        data: json.timestamps,
+                        name: 'Time',
+                        axisLabel: { rotate: 45, color: '#ffffff' },
+                        nameTextStyle: { color: '#ffffff' }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: 'SNR',
+                        axisLabel: { color: '#ffffff' },
+                        nameTextStyle: { color: '#ffffff' }
+                    },
+                    series: json.series.map(s => ({
+                        name: s.name,
+                        type: 'line',
+                        data: s.data,
+                        connectNulls: true,
+                        showSymbol: false,
+                        smooth: true
+                    }))
+                });
+                window.addEventListener('resize', () => chart.resize());
+            });
+    });
+});
+</script>
