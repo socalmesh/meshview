@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+from datetime import timedelta
 import json
 import os
 import re
@@ -20,7 +21,10 @@ from meshview import models
 from meshview import store
 from meshview.store import get_total_node_count
 from aiohttp import web
-SOFTWARE_RELEASE= "2.0.2"
+import re
+
+SEQ_REGEX = re.compile(r"seq \d+")
+SOFTWARE_RELEASE= "2.0.3"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
@@ -383,6 +387,55 @@ async def packet_details(request):
         ),
         content_type="text/html",
     )
+
+@routes.get("/firehose/updates")
+async def firehose_updates(request):
+    try:
+        last_time_str = request.query.get("last_time", None)
+        if last_time_str:
+            try:
+                last_time = datetime.datetime.fromisoformat(last_time_str)
+            except Exception as e:
+                print(f"Failed to parse last_time '{last_time_str}': {e}")
+                last_time = datetime.datetime.min
+        else:
+            last_time = datetime.datetime.min
+
+        portnum = request.query.get("portnum")
+        if portnum is not None and portnum != "":
+            portnum = int(portnum)
+        else:
+            portnum = None
+
+        packets = await store.get_packets(
+            portnum=portnum,
+            limit=20,
+        )
+        ui_packets = [Packet.from_model(p) for p in packets]
+
+        # Filter packets newer than last_time
+        new_packets = [p for p in ui_packets if p.import_time > last_time]
+
+        template = env.get_template("packet.html")
+        # Replace YOUR_NODE_ID with your current node ID (integer)
+        YOUR_NODE_ID = 0x12345678  # example, replace with actual
+
+        rendered_packets = [template.render(packet=p, node_id=YOUR_NODE_ID) for p in new_packets]
+
+        response = {
+            "packets": rendered_packets,
+        }
+
+        if new_packets:
+            latest_import_time = max(p.import_time for p in new_packets)
+            response["latest_import_time"] = latest_import_time.isoformat()
+
+        return web.json_response(response)
+
+    except Exception as e:
+        print("Error in /firehose/updates:", e)
+        return web.json_response({"error": "Failed to fetch updates"}, status=500)
+
 
 @routes.get("/packet/{packet_id}")
 async def packet(request):
@@ -1000,7 +1053,7 @@ async def net(request):
     try:
         # Fetch packets for the given node ID and port number
         packets = await store.get_packets(
-            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, limit=1000
+            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, since=timedelta(days=3)
         )
 
         # Convert packets to UI packets
@@ -1139,6 +1192,51 @@ async def chat(request):
             status=500,
             content_type="text/plain",
         )
+@routes.get("/chat/updates")
+async def chat_updates(request):
+    try:
+        last_time_str = request.query.get("last_time", None)
+        if last_time_str:
+            try:
+                last_time = datetime.datetime.fromisoformat(last_time_str)
+            except Exception as e:
+                print(f"Failed to parse last_time '{last_time_str}': {e}")
+                last_time = datetime.datetime.min
+        else:
+            last_time = datetime.datetime.min
+
+        packets = await store.get_packets(
+            node_id=0xFFFFFFFF,
+            portnum=PortNum.TEXT_MESSAGE_APP,
+            limit=5,
+        )
+        ui_packets = [Packet.from_model(p) for p in packets]
+        filtered_packets = [p for p in ui_packets if not SEQ_REGEX.fullmatch(p.payload)]
+        new_packets = [p for p in filtered_packets if p.import_time > last_time]
+
+        packets_data = [{
+            "id": p.id,
+            "import_time": p.import_time.isoformat(),
+            "channel": p.from_node.channel if p.from_node else "",
+            "from_node_id": p.from_node_id,
+            "long_name": p.from_node.long_name if p.from_node else "",
+            "payload": p.payload,
+        } for p in new_packets]
+
+        response = {
+            "packets": packets_data
+        }
+
+        if new_packets:
+            latest_import_time = max(p.import_time for p in new_packets)
+            response["latest_import_time"] = latest_import_time.isoformat()
+
+        return web.json_response(response)
+
+    except Exception as e:
+        print("Error in /chat/updates:", e)
+        return web.json_response({"error": "Failed to fetch updates"}, status=500)
+
 
 # Assuming the route URL structure is /nodegraph
 @routes.get("/nodegraph")

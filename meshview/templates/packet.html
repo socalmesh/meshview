@@ -5,7 +5,7 @@
         <span {% if from_me %} class="fw-bold" {% endif %}>
             {{packet.from_node.long_name}}(
             {%- if not from_me -%}
-            <a hx-target="#node" href="/node_search?q={{packet.from_node_id|node_id_to_hex}}">
+            <a href="/node_search?q={{packet.from_node_id|node_id_to_hex}}">
             {%- endif -%}
             {{packet.from_node_id|node_id_to_hex}}
             {%- if not from_me -%}

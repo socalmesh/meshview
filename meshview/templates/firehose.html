@@ -1,80 +1,33 @@
 {% extends "base.html" %}
-{% block css %}
 
-    /* Set the maximum width of the page to 900px */
+{% block css %}
     .container {
         max-width: 900px;
-        margin: 0 auto; /* Center the content horizontally */
+        margin: 0 auto;
+    }
+
+    .packet-fade-in {
+        animation: fadeIn 0.5s ease forwards;
+        opacity: 0;
+    }
+
+    @keyframes fadeIn {
+        to {
+            opacity: 1;
+        }
+    }
+
+    #pause-button {
+        white-space: nowrap;
+        padding: 2px 8px;
+        font-size: 0.85rem;
     }
 {% endblock %}
 
 {% block body %}
 
-<script>
-    let refreshInterval;
-
-    function updateURLWithPort() {
-        let selectedPort = document.querySelector('select[name="portnum"]').value;
-        let url = new URL(window.location.href);
-        url.searchParams.set('portnum', selectedPort);
-
-        // Save scroll position before refreshing
-        localStorage.setItem("scrollPosition", window.scrollY);
-
-        window.location.href = url.toString();
-    }
-
-    function startAutoRefresh() {
-        refreshInterval = setInterval(updateURLWithPort, 5000);
-        localStorage.setItem("autoRefresh", "true");
-        updateButtonState(true);
-    }
-
-    function stopAutoRefresh() {
-        clearInterval(refreshInterval);
-        localStorage.setItem("autoRefresh", "false");
-        updateButtonState(false);
-    }
-
-    function toggleAutoRefresh() {
-        let isEnabled = localStorage.getItem("autoRefresh") === "true";
-        if (isEnabled) {
-            stopAutoRefresh();
-        } else {
-            startAutoRefresh();
-        }
-    }
-
-    function updateButtonState(isEnabled) {
-        let button = document.getElementById("auto-refresh-button");
-        button.innerText = isEnabled ? "Disable Auto-Refresh" : "Enable Auto-Refresh";
-    }
-
-    function restoreScrollPosition() {
-        let scrollPosition = localStorage.getItem("scrollPosition");
-        if (scrollPosition !== null) {
-            window.scrollTo(0, parseInt(scrollPosition, 10));
-        }
-    }
-
-    document.addEventListener("DOMContentLoaded", function () {
-        document.querySelector('select[name="portnum"]').addEventListener('change', updateURLWithPort);
-        document.getElementById("auto-refresh-button").addEventListener('click', toggleAutoRefresh);
-
-        // Restore auto-refresh state
-        let isEnabled = localStorage.getItem("autoRefresh") === "true";
-        updateButtonState(isEnabled);
-        if (isEnabled) {
-            startAutoRefresh();
-        }
-
-        // Restore scroll position
-        restoreScrollPosition();
-    });
-</script>
-
 <div class="container">
-    <form class="row">
+    <form class="d-flex align-items-center justify-content-between mb-2">
         {% set options = {
                 1: "Text Message",
                 3: "Position",
@@ -84,14 +37,16 @@
                 70: "Trace Route",
             }
         %}
-        <select name="portnum" class="col-2 m-2">
+        <select name="portnum" class="form-select form-select-sm w-auto">
             <option value="" {% if portnum not in options %}selected{% endif %}>All</option>
             {% for value, name in options.items() %}
             <option value="{{ value }}" {% if value == portnum %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
         </select>
-        <button type="button" id="auto-refresh-button">Enable Auto-Refresh</button>
+
+        <button type="button" id="pause-button" class="btn btn-sm btn-outline-secondary">Pause</button>
     </form>
+
     <div class="row">
         <div class="col-xs" id="packet_list">
             {% for packet in packets %}
@@ -102,5 +57,62 @@
         </div>
     </div>
 </div>
+
+<script>
+let lastTime = null;
+let portnum = "{{ portnum if portnum is not none else '' }}";
+let updatesPaused = false;
+
+function fetchUpdates() {
+    if (updatesPaused) return;
+
+    const url = new URL("/firehose/updates", window.location.origin);
+    if (lastTime) url.searchParams.set("last_time", lastTime);
+    if (portnum) url.searchParams.set("portnum", portnum);
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (data.packets && data.packets.length > 0) {
+                lastTime = data.latest_import_time;
+                const list = document.getElementById("packet_list");
+
+                for (const html of data.packets.reverse()) {
+                    list.insertAdjacentHTML("afterbegin", html);
+                    const firstChild = list.firstElementChild;
+                    if (firstChild) {
+                        firstChild.classList.add("packet-fade-in");
+                        firstChild.addEventListener("animationend", () => {
+                            firstChild.classList.remove("packet-fade-in");
+                        }, { once: true });
+                    }
+                }
+            }
+        })
+        .catch(err => {
+            console.error("Update fetch failed:", err);
+        });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const pauseBtn = document.getElementById("pause-button");
+
+    document.querySelector('select[name="portnum"]').addEventListener("change", (e) => {
+        const selected = e.target.value;
+        const url = new URL(window.location.href);
+        url.searchParams.set("portnum", selected);
+        window.location.href = url;
+    });
+
+    pauseBtn.addEventListener("click", () => {
+        updatesPaused = !updatesPaused;
+        pauseBtn.textContent = updatesPaused ? "Resume" : "Pause";
+    });
+
+    // Start fetching updates
+    fetchUpdates();
+    setInterval(fetchUpdates, 1000);
+});
+</script>
 
 {% endblock %}

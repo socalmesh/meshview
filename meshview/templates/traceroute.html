@@ -1,67 +1,94 @@
-{% extends "base.html" %}
-
 {% block head %}
-    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
 {% endblock %}
 
 {% block body %}
-<div id="mynetwork" style="width: 100%; height: 600px;"></div>
+<div id="mynetwork" style="width: 100%; height: 800px;"></div>
 
 <script type="text/javascript">
-    var chart = echarts.init(document.getElementById('mynetwork'));
+    const chart = echarts.init(document.getElementById('mynetwork'));
 
-    // Define the nodes and edges passed from the backend
-    var nodes = {{ chart_data['nodes'] | tojson }};
-    var edges = {{ chart_data['edges'] | tojson }};
+    const rawNodes = {{ chart_data['nodes'] | tojson }};
+    const rawEdges = {{ chart_data['edges'] | tojson }};
 
-    var option = {
-        backgroundColor: '#ffffff',  // Set background color to white
-        tooltip: {},
-        series: [
-            {
-                type: 'graph',
-                layout: 'force',
-                data: nodes,
-                links: edges,
-                roam: true,
-                force: {
-                    repulsion: 500,
-                    edgeLength: [100, 200],
-                    gravity: 0.1
+    // Build DAG layout
+    const layers = {};
+    const nodeDepth = {};
+
+    // Organize nodes into layers by hop count
+    for (const edge of rawEdges) {
+        const { source, target } = edge;
+        if (!(source in nodeDepth)) nodeDepth[source] = 0;
+        const nextDepth = nodeDepth[source] + 1;
+        nodeDepth[target] = Math.max(nodeDepth[target] || 0, nextDepth);
+    }
+
+    for (const node of rawNodes) {
+        const depth = nodeDepth[node.name] || 0;
+        if (!(depth in layers)) layers[depth] = [];
+        layers[depth].push(node);
+    }
+
+    // Position nodes manually
+    const chartNodes = [];
+    const layerKeys = Object.keys(layers).sort((a, b) => +a - +b);
+    const verticalSpacing = 100;
+    const horizontalSpacing = 180;
+
+    layerKeys.forEach((depth, layerIndex) => {
+        const layer = layers[depth];
+        const y = layerIndex * verticalSpacing;
+        const xStart = -(layer.length - 1) * horizontalSpacing / 2;
+        layer.forEach((node, i) => {
+            chartNodes.push({
+                ...node,
+                x: xStart + i * horizontalSpacing,
+                y: y,
+                itemStyle: {
+                    color: '#dddddd',
+                    borderColor: '#222',
+                    borderWidth: 2,
                 },
                 label: {
                     show: true,
                     position: 'inside',
                     color: '#000',
-                    padding: [5, 10],
-                    formatter: function(params) { return params.data.value; },
-                    backgroundColor: '#f0f0f0',
-                    borderColor: '#999',
-                    borderWidth: 1,
-                    borderRadius: 5,
-                    z: 5  // Label z-index is now 5, to be below the edges
+                    fontSize: 12,
+                    formatter: node.short_name || node.name,
                 },
-                itemStyle: {
-                    normal: {
-                        borderColor: '#1E1E1E',
-                        borderWidth: 2,
-                    }
-                },
-                lineStyle: {
-                    width: 2,
-                    color: '#ccc', // Edge color
-                    curveness: 0.1, // Slight curve for edges
-                    type: 'solid',
-                    z: 10 // Edge lines have a higher z-index than the labels
-                },
-                edgeSymbol: ['arrow', 'arrow'],  // Both ends of the edge will have arrowheads
-                edgeSymbolSize: [8, 8], // Size of the arrows
-                z: 15  // Ensure edges (arrows) are on top of both the nodes and labels
-            }
-        ]
+            });
+        });
+    });
+
+    const chartEdges = rawEdges.map(edge => ({
+        source: edge.source,
+        target: edge.target,
+        lineStyle: {
+            color: edge.originalColor || '#ccc',
+            width: 2,
+            type: 'solid',
+        },
+    }));
+
+    const option = {
+        backgroundColor: '#fff',
+        tooltip: {},
+        animation: false,
+        series: [{
+            type: 'graph',
+            layout: 'none',
+            coordinateSystem: null,
+            data: chartNodes,
+            links: chartEdges,
+            roam: true,
+            edgeSymbol: ['none', 'arrow'],
+            edgeSymbolSize: [0, 10],
+            lineStyle: {
+                curveness: 0,
+            },
+        }],
     };
 
     chart.setOption(option);
 </script>
-
 {% endblock %}
