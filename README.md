@@ -8,10 +8,11 @@ database and has a web UI to view them.
 Samples of currently running instances:
 
 - https://meshview.bayme.sh   (SF Bay Area)
-- https://view.azmsh.net/   (Arizona)
-- https://socalmesh.w4hac.com/ (Southern California)
+- https://nyme.sh   (New York)
+- https://socalmesh.w4hac.com  (Southern California)
 - https://meshview.mt.gt (Canadaverse)
 - https://meshview.meshtastic.es (Spain)
+- https://view.azmsh.net  (Arizona)
 
 ---
 
@@ -79,9 +80,7 @@ message = Real time data from around the bay area and beyond.
 nodes=True
 conversations=True
 everything=True
-graph_lf=True
-graph_ms=True
-graph_mf=False
+graphs=True
 stats=True
 net=True
 map=True
@@ -94,10 +93,10 @@ map_bottom_right_lat=36
 map_bottom_right_lon=-121
 
 # Note about how your weekly mesh runs. time and tag used for the system to track.
-weekly_net_message= Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins. The message format should be (LONG NAME) - (CITY YOU ARE IN) #MeshNet.
-net_tag=#test
+weekly_net_message= Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins. The message format should be (LONG NAME) - (CITY YOU ARE IN) #BayMeshNet.
+net_tag=#BayMeshNet
 
-# MQTT Server configuration 
+# MQTT Server configuration
 [mqtt]
 server = mqtt.bayme.sh
 topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#", "msh/US/CA/sacvalley" ]
@@ -105,7 +104,7 @@ port = 1883
 username = meshdev
 password = large4cats
 
-# Database configuration 
+# Database configuration
 [database]
 connection_string = sqlite+aiosqlite:///packets.db
 ```
