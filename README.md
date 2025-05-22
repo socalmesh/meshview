@@ -8,10 +8,11 @@ database and has a web UI to view them.
 Samples of currently running instances:
 
 - https://meshview.bayme.sh   (SF Bay Area)
-- https://view.azmsh.net/   (Arizona)
-- https://socalmesh.w4hac.com/ (Southern California)
+- https://nyme.sh   (New York)
+- https://socalmesh.w4hac.com  (Southern California)
 - https://meshview.mt.gt (Canadaverse)
 - https://meshview.meshtastic.es (Spain)
+- https://view.azmsh.net  (Arizona)
 
 ---
 
