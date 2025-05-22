@@ -409,7 +409,7 @@ async def firehose_updates(request):
 
         packets = await store.get_packets(
             portnum=portnum,
-            limit=20,
+            limit=10,
         )
         ui_packets = [Packet.from_model(p) for p in packets]
 
