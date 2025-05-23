@@ -568,9 +568,6 @@ async def graph_telemetry_json(node_id, payload_type, graph_config):
     })
 
 
-
-
-
 @routes.get("/graph/neighbors_json/{node_id}")
 async def graph_neighbors_json(request):
     import datetime
