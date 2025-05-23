@@ -314,7 +314,6 @@ async def packet_list_text(request):
     )
 
 
-# Updated code p.r.
 @routes.get("/packet_details/{packet_id}")
 async def packet_details(request):
     packet_id = int(request.match_info["packet_id"])
