@@ -1020,27 +1020,36 @@ async def nodelist(request):
             content_type="text/plain",
         )
 
-
 @routes.get("/api")
 async def api(request):
     try:
+        # Extract optional query parameters
         role = request.query.get("role")
         channel = request.query.get("channel")
         hw_model = request.query.get("hw_model")
 
+        # Fetch filtered nodes
         nodes = await store.get_nodes(role, channel, hw_model)
 
+        # Convert node objects to dictionaries for JSON output
         nodes_json = [node.to_dict() for node in nodes]
-        return web.json_response({"nodes": nodes_json})
+
+        # Return a pretty-printed JSON response
+        return web.json_response(
+            {"nodes": nodes_json},
+            dumps=lambda obj: json.dumps(obj, indent=2)  # Pretty print for development
+        )
 
     except Exception as e:
-        import traceback
+        # Log error and stack trace to console
         print("Error in /api endpoint:", str(e))
         print(traceback.format_exc())
+
+        # Return a plain-text error response
         return web.Response(
             text=f"An error occurred: {str(e)}",
             status=500,
-            content_type="text/plain",
+            content_type="text/plain"
         )
 
 
