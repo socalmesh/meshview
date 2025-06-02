@@ -17,7 +17,7 @@ def init_database(database_connection_string, read_only=False):
             database_connection_string += "?mode=ro"
             kwargs["connect_args"] = {"uri": True}
         else:
-            kwargs["connect_args"] = {"timeout": 15}
+            kwargs["connect_args"] = {"timeout": 60}
     else:
         kwargs["pool_size"] = 20
         kwargs["max_overflow"] = 50
