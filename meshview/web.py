@@ -1020,8 +1020,8 @@ async def nodelist(request):
             content_type="text/plain",
         )
 
-@routes.get("/api")
-async def api(request):
+@routes.get("/api/nodes")
+async def api_nodes(request):
     try:
         # Extract optional query parameters
         role = request.query.get("role")
@@ -1043,9 +1043,43 @@ async def api(request):
     except Exception as e:
         # Log error and stack trace to console
         print("Error in /api endpoint:", str(e))
-        print(traceback.format_exc())
 
         # Return a plain-text error response
+        return web.Response(
+            text=f"An error occurred: {str(e)}",
+            status=500,
+            content_type="text/plain"
+        )
+
+@routes.get("/api/packets")
+async def api_packets(request):
+    try:
+        node_id = request.query.get("node_id")
+        packets = await store.get_packets(node_id)
+
+        packets_json = [
+            {
+                "id": packet.id,
+                "from_node_id": packet.from_node_id,
+                "from_node": packet.from_node.long_name if packet.from_node else None,
+                "to_node_id": packet.to_node_id,
+                "to_node": packet.to_node.long_name if packet.to_node else None,
+                "portnum": packet.portnum,
+                "payload": packet.payload,
+                "import_time": packet.import_time.isoformat(),
+            }
+            for packet in packets
+        ]
+
+        return web.json_response(
+            {"packets": packets_json},
+            dumps=lambda obj: json.dumps(obj, indent=2)
+        )
+
+    except Exception as e:
+        print("Error in /api/packets endpoint:", str(e))
+
+
         return web.Response(
             text=f"An error occurred: {str(e)}",
             status=500,
@@ -1125,16 +1159,12 @@ async def stats(request):
         total_packets = await store.get_total_packet_count()
         total_nodes = await store.get_total_node_count()
         total_packets_seen = await store.get_total_packet_seen_count()
-        total_nodes_longfast = await get_total_node_count("LongFast")
-        total_nodes_mediumslow = await get_total_node_count("MediumSlow")
         template = env.get_template("stats.html")
         return web.Response(
             text=template.render(
                 total_packets=total_packets,
                 total_nodes=total_nodes,
                 total_packets_seen=total_packets_seen,
-                total_nodes_longfast=total_nodes_longfast,
-                total_nodes_mediumslow=total_nodes_mediumslow,
                 site_config = CONFIG,
             ),
             content_type="text/html",
