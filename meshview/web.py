@@ -3,7 +3,6 @@ import datetime
 from datetime import timedelta
 import json
 import os
-import re
 import ssl
 from collections import Counter
 from dataclasses import dataclass
