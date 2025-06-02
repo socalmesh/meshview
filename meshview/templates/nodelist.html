@@ -67,32 +67,6 @@ tr:nth-child(odd) {
     margin-left: auto;
     margin-right: auto;
 }
-
-.pagination {
-    display: flex;
-    justify-content: center;
-    margin-top: 1em;
-    gap: 6px;
-}
-
-.pagination li {
-    list-style: none;
-}
-
-.pagination li a {
-    color: white;
-    background-color: #333;
-    padding: 6px 12px;
-    text-decoration: none;
-    border-radius: 4px;
-    border: 1px solid #555;
-    font-size: 14px;
-}
-
-.pagination li.active a {
-    background-color: #007bff;
-    border-color: #007bff;
-}
 {% endblock %}
 
 {% block body %}
@@ -163,9 +137,6 @@ tr:nth-child(odd) {
                     {% endfor %}
                 </tbody>
             </table>
-
-            <!-- Pagination Controls -->
-            <div class="pagination"></div>
         {% else %}
             <p>No nodes found.</p>
         {% endif %}
@@ -180,11 +151,7 @@ tr:nth-child(odd) {
                 valueNames: [
                     "long_name", "short_name", "hw_model", "firmware", "role",
                     "last_lat", "last_long", "channel", { name: "last_update", attr: "data-timestamp" }
-                ],
-                page: 50,
-                pagination: {
-                    paginationClass: "pagination"
-                }
+                ]
             };
 
             nodeList = new List("node-list", options);
@@ -230,7 +197,9 @@ tr:nth-child(odd) {
                     var cells = row.querySelectorAll("td");
                     if (cells.length > 0) {
                         var rowData = [];
-                        cells.forEach(cell => rowData.push(cell.innerText));
+                        cells.forEach(cell => {
+                            rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
+                        });
                         csvContent.push(rowData.join(","));
                     }
                 }
