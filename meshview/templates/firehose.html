@@ -36,13 +36,6 @@
                 70: "Trace Route",
             }
         %}
-        <select name="portnum" class="form-select form-select-sm w-auto">
-            <option value="" {% if portnum not in options %}selected{% endif %}>All</option>
-            {% for value, name in options.items() %}
-            <option value="{{ value }}" {% if value == portnum %}selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-        </select>
-
         <button type="button" id="pause-button" class="btn btn-sm btn-outline-secondary">Pause</button>
     </form>
 
