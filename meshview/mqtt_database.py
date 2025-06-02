@@ -7,7 +7,6 @@ def init_database(database_connection_string):
     if not database_connection_string.startswith('sqlite'):
         kwargs['pool_size'] = 20
         kwargs['max_overflow'] = 50
-    print (**kwargs)
     engine = create_async_engine(database_connection_string, echo=False, connect_args={"timeout": 15})
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 

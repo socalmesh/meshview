@@ -33,7 +33,6 @@ async def get_topic_envelopes(mqtt_server, mqtt_port, topics, mqtt_user, mqtt_pa
                 mqtt_server, port=mqtt_port , username=mqtt_user, password=mqtt_passwd , identifier=identifier,
             ) as client:
                 for topic in topics:
-                    print(topic)
                     await client.subscribe(topic)
                 async for msg in client.messages:
                     try:

@@ -24,7 +24,7 @@ from aiohttp import web
 import re
 
 SEQ_REGEX = re.compile(r"seq \d+")
-SOFTWARE_RELEASE= "2.0.3"
+SOFTWARE_RELEASE= "2.0.3.060325"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
@@ -133,7 +133,7 @@ async def build_trace(node_id):
 async def build_neighbors(node_id):
     packets = await store.get_packets_from(node_id, PortNum.NEIGHBORINFO_APP, limit=1)
     packet = packets.first()
-    print(packet)
+
     if not packet:
         return []
 
@@ -1001,11 +1001,8 @@ async def graph_network(request):
 async def nodelist(request):
     try:
         role = request.query.get("role")
-        #print(role)
         channel = request.query.get("channel")
-        #print(channel)
         hw_model = request.query.get("hw_model")
-        #print(hw_model)
         nodes= await store.get_nodes(role,channel, hw_model, days_active=3)
         template = env.get_template("nodelist.html")
         return web.Response(
@@ -1145,8 +1142,6 @@ async def map(request):
             content_type="text/html",
         )
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return web.Response(
             text="An error occurred while processing your request.",
             status=500,
@@ -1214,7 +1209,6 @@ async def chat(request):
         filtered_packets = [
             p for p in ui_packets if not re.fullmatch(r"seq \d+", p.payload)
         ]
-        #print("Example packet:", filtered_packets)
         template = env.get_template("chat.html")
         return web.Response(
             text=template.render(packets=filtered_packets, site_config=CONFIG),

@@ -2,8 +2,6 @@ from meshview import models
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
-
-
 engine = None
 async_session = None
 
@@ -23,8 +21,6 @@ def init_database(database_connection_string, read_only=False):
     else:
         kwargs["pool_size"] = 20
         kwargs["max_overflow"] = 50
-
-    print("Database connection settings:", kwargs)  # Debugging output
 
     engine = create_async_engine(database_connection_string, **kwargs)
     async_session = async_sessionmaker( bind=engine,
