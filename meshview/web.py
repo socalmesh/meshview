@@ -235,6 +235,7 @@ async def node_search(request):
     template = env.get_template("search.html")
     response = web.Response(
         text=template.render(nodes=fuzzy_nodes, query_string=request.query_string),
+        site_config=CONFIG,
         content_type="text/html",
     )
     return response
