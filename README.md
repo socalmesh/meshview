@@ -65,49 +65,80 @@ nano config.ini
 Example:
 
 ```ini
-# Server Details
+# -------------------------
+# Server Configuration
+# -------------------------
 [server]
+# The address to bind the server to. Use * to listen on all interfaces.
 bind = *
+
+# Port to run the web server on.
 port = 8081
+
+# Path to TLS certificate (leave blank to disable HTTPS).
 tls_cert =
+
+# Path for the ACME challenge if using Let's Encrypt.
 acme_challenge =
 
-# Site Details
+
+# -------------------------
+# Site Appearance & Behavior
+# -------------------------
 [site]
-domain = https://www.bayme.sh
+# The domain name of your site.
+domain =
+
+# Site title to show in the browser title bar and headers.
 title = Bay Area Mesh
+
+# A brief message shown on the homepage.
 message = Real time data from around the bay area and beyond.
 
-# Quick links enablement on site
-nodes=True
-conversations=True
-everything=True
-graphs=True
-stats=True
-net=True
-map=True
-top=True
+# Enable or disable site features (as strings: "True" or "False").
+nodes = True
+conversations = True
+everything = True
+graphs = True
+stats = True
+net = True
+map = True
+top = True
 
-# Map structure
-map_top_left_lat=39
-map_top_left_lon=-123
-map_bottom_right_lat=36
-map_bottom_right_lon=-121
+# Map boundaries (used for the map view).
+map_top_left_lat = 39
+map_top_left_lon = -123
+map_bottom_right_lat = 36
+map_bottom_right_lon = -121
 
-# Note about how your weekly mesh runs. time and tag used for the system to track.
-weekly_net_message= Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins. The message format should be (LONG NAME) - (CITY YOU ARE IN) #BayMeshNet.
-net_tag=#BayMeshNet
+# Weekly net details
+weekly_net_message = Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins. The message format should be (LONG NAME) - (CITY YOU ARE IN) #BayMeshNet.
+net_tag = #BayMeshNet
 
-# MQTT Server configuration
+
+# -------------------------
+# MQTT Broker Configuration
+# -------------------------
 [mqtt]
+# MQTT server hostname or IP.
 server = mqtt.bayme.sh
-topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#", "msh/US/CA/sacvalley" ]
+
+# Topics to subscribe to (as JSON-like list, but still a string).
+topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#", "msh/US/CA/sacvalley"]
+
+# Port used by MQTT (typically 1883 for unencrypted).
 port = 1883
+
+# MQTT username and password.
 username = meshdev
 password = large4cats
 
-# Database configuration
+
+# -------------------------
+# Database Configuration
+# -------------------------
 [database]
+# SQLAlchemy connection string. This one uses SQLite with asyncio support.
 connection_string = sqlite+aiosqlite:///packets.db
 ```
 
