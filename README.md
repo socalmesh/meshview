@@ -2,8 +2,21 @@
 # Meshview
 ![Start Page](screenshots/animated.gif)
 
-This project watches a MQTT topic for meshtastic messages, imports them to a
-database and has a web UI to view them.
+The project serves as a real-time monitoring and diagnostic tool for the Meshtastic mesh network. It provides detailed insights into the network's activity, including message traffic, node positions, and telemetry data.
+
+### Key Features
+
+* **Live Data Visualization**: Users can view real-time data from the mesh network, including text messages, GPS positions, and node information.
+
+* **Interactive Map**: The site offers an interactive map displaying the locations of active nodes, helping users identify network coverage areas.
+
+* **Mesh Graphs**: Visual representations of the network's structure and connectivity are available, illustrating how nodes are interconnected.
+
+* **Packet Analysis**: Detailed information on individual data packets transmitted within the network can be accessed, including payload content and transmission paths.
+
+* **Node Statistics**: Users can explore statistics related to network traffic, such as top contributors and message volumes.
+
+This tool is particularly useful for enthusiasts and participants of the Bay Area Meshtastic community, offering a comprehensive overview of the network's performance and facilitating troubleshooting and optimization efforts.
 
 Samples of currently running instances:
 
