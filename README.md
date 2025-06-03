@@ -16,8 +16,6 @@ The project serves as a real-time monitoring and diagnostic tool for the Meshtas
 
 * **Node Statistics**: Users can explore statistics related to network traffic, such as top contributors and message volumes.
 
-This tool is particularly useful for enthusiasts and participants of the Bay Area Meshtastic community, offering a comprehensive overview of the network's performance and facilitating troubleshooting and optimization efforts.
-
 Samples of currently running instances:
 
 - https://meshview.bayme.sh   (SF Bay Area)
