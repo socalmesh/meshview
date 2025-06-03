@@ -124,7 +124,7 @@ net_tag = #BayMeshNet
 server = mqtt.bayme.sh
 
 # Topics to subscribe to (as JSON-like list, but still a string).
-topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#", "msh/US/CA/sacvalley"]
+topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#", "msh/US/CA/sacvalley/#"]
 
 # Port used by MQTT (typically 1883 for unencrypted).
 port = 1883
