@@ -35,16 +35,17 @@
     <body>
         <br><div style="text-align:center"><strong>{{ site_config["site"]["title"] }} {{ site_config["site"]["domain"] }}</strong></div>
         <div style="text-align: center;">{{ site_config["site"]["message"] }}</div>
-        <div style="text-align:center">Quick Links:&nbsp;&nbsp;
-            {% if site_config["site"]["nodes"] == "True" %}<a href="/nodelist">Nodes</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["conversations"] == "True" %}<a href="/chat">Conversations</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["everything"] == "True" %}<a href="/firehose">See <strong>everything</strong></a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["graphs"] == "True" %}<a href="/nodegraph">Mesh Graphs</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["net"] == "True" %}<a href="/net">Weekly Net</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["map"] == "True" %}<a href="/map">Map</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["stats"] == "True" %}<a href="/stats">Stats</a>&nbsp;-&nbsp;{% endif %}
-            {% if site_config["site"]["top"] == "True" %}<a href="/top">Top Traffic</a>{% endif %}
-        </div>
+<div style="text-align:center">Quick Links:&nbsp;&nbsp;
+    {% if site_config["site"].get("nodes") == "True" %}<a href="/nodelist">Nodes</a>&nbsp;-&nbsp;{% endif %}
+    {% if site_config["site"].get("conversations") == "True" %}<a href="/chat">Conversations</a>&nbsp;-&nbsp;{% endif %}
+    {% if site_config["site"].get("everything") == "True" %}<a href="/firehose">See <strong>everything</strong></a>&nbsp;-&nbsp;{% endif %}
+    {% if site_config["site"].get("graphs") == "True" %}<a href="/nodegraph">Mesh Graphs</a>&nbsp;-&nbsp;{% endif %}
+    {% if site_config["site"].get("net") == "True" %}<a href="/net">Weekly Net</a>&nbsp;-&nbsp;{% endif %}
+    {% if site_config["site"].get("map") == "True" %}<a href="/map">Map</a>&nbsp;-&nbsp;{% endif %}
+    {% if site_config["site"].get("stats") == "True" %}<a href="/stats">Stats</a>&nbsp;-&nbsp;{% endif %}
+    {% if site_config["site"].get("top") == "True" %}<a href="/top">Top Traffic</a>{% endif %}
+</div>
+
         {% include "search_form.html" %}
         {% block body %}
         {% endblock %}
