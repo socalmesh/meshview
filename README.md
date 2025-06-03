@@ -1,6 +1,6 @@
 
 # Meshview
-![Start Page](screenshots/initial_page.png)
+![Start Page](screenshots/animated.gif)
 
 This project watches a MQTT topic for meshtastic messages, imports them to a
 database and has a web UI to view them.
