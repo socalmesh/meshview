@@ -16,23 +16,46 @@ async def process_envelope(topic, env):
     # Checking if the received packet is a MAP_REPORT
     # Update the node table with the firmware version
     if env.packet.decoded.portnum == PortNum.MAP_REPORT_APP:
-        # Extract the node ID from the packet (renamed from 'id' to 'node_id' to avoid conflicts with Python's built-in id function)
+        # Extract the node ID from the packet and format the user ID
         node_id = getattr(env.packet, "from")
+        user_id = f"!{node_id:0{8}x}"
 
-        # Decode the MAP report payload to extract the firmware version
+        # Decode the MAP report payload
         map_report = decode_payload.decode_payload(PortNum.MAP_REPORT_APP, env.packet.decoded.payload)
 
         # Establish an asynchronous database session
         async with mqtt_database.async_session() as session:
-            # Construct an SQLAlchemy update statement
-            stmt = (
-                update(Node)
-                .where(Node.node_id == node_id)  # Ensure correct column reference
-                .values(firmware=map_report.firmware_version)  # Assign new firmware value
-            )
+            try:
+                hw_model = HardwareModel.Name(map_report.hw_model) if hasattr(HardwareModel, 'Name') else "unknown"
+                role = Config.DeviceConfig.Role.Name(map_report.role) if hasattr(Config.DeviceConfig.Role,
+                                                                           'Name') else "unknown"
+                node = (await session.execute(select(Node).where(Node.node_id == node_id))).scalar_one_or_none()
 
-            # Execute the update statement asynchronously
-            await session.execute(stmt)
+                # Some nodes might have uplink disabled for the default channel
+                # and only be sending map reports, so check if it exists yet
+                if node:
+                    node.node_id = node_id
+                    node.long_name = map_report.long_name
+                    node.short_name = map_report.short_name
+                    node.hw_model = hw_model
+                    node.role = role
+                    node.channel = env.channel_id
+                    node.last_lat = map_report.latitude_i
+                    node.last_long = map_report.longitude_i
+                    node.firmware = map_report.firmware_version
+                    node.last_update = datetime.datetime.now()
+                else:
+                    node = Node(
+                        id=user_id, node_id=node_id,
+                        long_name=map_report.long_name, short_name=map_report.short_name,
+                        hw_model=hw_model, role=role, channel=env.channel_id,
+                        firmware=map_report.firmware_version,
+                        last_lat=map_report.latitude_i, last_long=map_report.longitude_i,
+                        last_update=datetime.datetime.now(),
+                    )
+                    session.add(node)
+            except Exception as e:
+                print(f"Error processing MAP_REPORT_APP: {e}")
 
             # Commit the changes to the database
             await session.commit()
