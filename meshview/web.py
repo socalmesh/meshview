@@ -23,7 +23,7 @@ from aiohttp import web
 import re
 
 SEQ_REGEX = re.compile(r"seq \d+")
-SOFTWARE_RELEASE= "2.0.3.060325"
+SOFTWARE_RELEASE= "2.0.3.060525"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
@@ -287,6 +287,7 @@ async def packet_list(request):
             has_telemetry=await has_telemetry,
             query_string=request.query_string,
             site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
         content_type="text/html",
     )
@@ -366,6 +367,7 @@ async def packet_details(request):
             uplinked_nodes=uplinked_nodes,
             node=node,
             site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
         content_type="text/html",
     )
@@ -383,6 +385,7 @@ async def packet_details(request):
             packets=(Packet.from_model(p) for p in packets),
             portnum=portnum,
             site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
         content_type="text/html",
     )
@@ -446,7 +449,11 @@ async def packet(request):
     template = env.get_template("packet_index.html")
 
     return web.Response(
-        text=template.render(packet=Packet.from_model(packet), site_config = CONFIG),
+        text=template.render(
+            packet=Packet.from_model(packet),
+            site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE
+        ),
         content_type="text/html",
     )
 
@@ -1006,7 +1013,11 @@ async def nodelist(request):
         nodes= await store.get_nodes(role,channel, hw_model, days_active=3)
         template = env.get_template("nodelist.html")
         return web.Response(
-            text=template.render(nodes=nodes, site_config = CONFIG),
+            text=template.render(
+                nodes=nodes,
+                site_config = CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE
+            ),
             content_type="text/html",
         )
     except Exception as e:
@@ -1107,7 +1118,11 @@ async def net(request):
         # Render template
         template = env.get_template("net.html")
         return web.Response(
-            text=template.render(packets=filtered_packets, site_config = CONFIG),
+            text=template.render(
+                packets=filtered_packets,
+                site_config = CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE
+            ),
             content_type="text/html",
         )
 
@@ -1138,7 +1153,10 @@ async def map(request):
         template = env.get_template("map.html")
 
         return web.Response(
-            text=template.render(nodes=nodes, site_config=CONFIG),
+            text=template.render(
+                nodes=nodes,
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE),
             content_type="text/html",
         )
     except Exception as e:
@@ -1161,6 +1179,7 @@ async def stats(request):
                 total_nodes=total_nodes,
                 total_packets_seen=total_packets_seen,
                 site_config = CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
             ),
             content_type="text/html",
         )
@@ -1185,7 +1204,11 @@ async def top(request):
             # Otherwise, fetch top traffic nodes as usual
             top_nodes = await store.get_top_traffic_nodes()
             template = env.get_template("top.html")
-            html_content = template.render(nodes=top_nodes, site_config = CONFIG)
+            html_content = template.render(
+                nodes=top_nodes,
+                site_config = CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE
+            )
 
         return web.Response(
             text=html_content,
@@ -1211,7 +1234,11 @@ async def chat(request):
         ]
         template = env.get_template("chat.html")
         return web.Response(
-            text=template.render(packets=filtered_packets, site_config=CONFIG),
+            text=template.render(
+                packets=filtered_packets,
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE
+            ),
             content_type="text/html",
         )
     except Exception as e:
@@ -1343,6 +1370,7 @@ async def nodegraph(request):
             nodes=nodes_with_edges,
             edges=edges,  # Pass edges with color info
             site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
         content_type="text/html",
     )

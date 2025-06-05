@@ -4,6 +4,13 @@
 
 The project serves as a real-time monitoring and diagnostic tool for the Meshtastic mesh network. It provides detailed insights into the network's activity, including message traffic, node positions, and telemetry data.
 
+### Version 2.0.3 update
+* Moved more graphs to eCharts.
+* Addedd smooth updating for "Conversations" and "See everything" sections.
+* Now you can turn on and off "Quick Links".
+* Network graphs are now dynamically generated depending on your mesh and the presets in use.
+* Download node's packet information for the last 3 days to .csv file.
+* Display distance traveled by packet.
 ### Key Features
 
 * **Live Data Visualization**: Users can view real-time data from the mesh network, including text messages, GPS positions, and node information.
