@@ -286,8 +286,9 @@ sudo systemctl daemon-reload
 ```
 
 ## 5. Database Maintenance
-#### Create and save bash script below. Name it cleanup.sh
-#### Make it executable.(modify /path/to/file/ to the correct path)
+Create and save bash script below. 
+Name it cleanup.sh
+Make it executable.(modify /path/to/file/ to the correct path)
 ```bash
  #!/bin/bash
 
@@ -318,12 +319,13 @@ sudo systemctl start meshview-web.service
 echo "Database cleanup completed on $(date)"
 
 ```
-#### Schedule running the script on a regular basis. In t his example it runs every noght at 2:00am
+chedule running the script on a regular basis. 
+In this example it runs every night at 2:00am
 Open scheduler
 ```bash
 sudo crontab -e
 ```
-#### Add schedule to the bottom of the file (modify /path/to/file/ to the correct path)
+Add schedule to the bottom of the file (modify /path/to/file/ to the correct path)
 ```bash
 0 2 * * * /path/to/file/cleanup.sh >> /path/to/file/cleanup.log 2>&1
 ```
