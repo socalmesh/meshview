@@ -18,9 +18,9 @@ from meshview import database
 from meshview import decode_payload
 from meshview import models
 from meshview import store
-from meshview.store import get_total_node_count
 from aiohttp import web
 import re
+import traceback
 
 SEQ_REGEX = re.compile(r"seq \d+")
 SOFTWARE_RELEASE= "2.0.3.060625"
@@ -261,40 +261,65 @@ async def node_match(request):
         content_type="text/html",
     )
 
-
 @routes.get("/packet_list/{node_id}")
 async def packet_list(request):
-    node_id = int(request.match_info["node_id"])
-    if portnum := request.query.get("portnum"):
-        portnum = int(portnum)
-    else:
-        portnum = None
+    try:
+        # Parse and validate node_id
+        try:
+            node_id = int(request.match_info["node_id"])
+        except (KeyError, ValueError):
+            return web.Response(status=400, text="Invalid or missing node ID")
 
-    async with asyncio.TaskGroup() as tg:
-        node = tg.create_task(store.get_node(node_id))
-        raw_packets = tg.create_task(store.get_packets(node_id,portnum, limit=200))
-        trace = tg.create_task(build_trace(node_id))
-        neighbors = await tg.create_task(build_neighbors(node_id))
-        has_telemetry = tg.create_task(store.has_packets(node_id, PortNum.TELEMETRY_APP))
+        # Parse and validate portnum (optional)
+        portnum = request.query.get("portnum")
+        try:
+            portnum = int(portnum) if portnum else None
+        except ValueError:
+            return web.Response(status=400, text="Invalid portnum value")
 
-    packets = [Packet.from_model(p) for p in await raw_packets]  # Convert generator to a list
-    template = env.get_template("node.html")
-    return web.Response(
-        text=template.render(
+        # Run tasks concurrently
+        async with asyncio.TaskGroup() as tg:
+            node_task = tg.create_task(store.get_node(node_id))
+            raw_packets_task = tg.create_task(store.get_packets(node_id, portnum, limit=200))
+            trace_task = tg.create_task(build_trace(node_id))
+            neighbors_task = tg.create_task(build_neighbors(node_id))
+            has_telemetry_task = tg.create_task(store.has_packets(node_id, PortNum.TELEMETRY_APP))
+
+        # Await task results
+        node = await node_task
+        packets = [Packet.from_model(p) for p in await raw_packets_task]
+        trace = await trace_task
+        neighbors = await neighbors_task
+        has_telemetry = await has_telemetry_task
+
+        if node is None:
+            return web.Response(status=404, text="Node not found")
+
+        # Render template
+        template = env.get_template("node.html")
+        html = template.render(
             raw_node_id=node_id_to_hex(node_id),
             node_id=node_id,
-            node=await node,
+            node=node,
             portnum=portnum,
             packets=packets,
-            trace=await trace,
+            trace=trace,
             neighbors=neighbors,
-            has_telemetry=await has_telemetry,
+            has_telemetry=has_telemetry,
             query_string=request.query_string,
-            site_config = CONFIG,
+            site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
-        ),
-        content_type="text/html",
-    )
+        )
+        return web.Response(text=html, content_type="text/html")
+
+    except asyncio.CancelledError:
+        raise  # Let TaskGroup cancellation propagate correctly
+
+    except Exception as e:
+        # Log full traceback for diagnostics
+        traceback.print_exc()
+        return web.Response(status=500, text="Internal server error")
+
 
 
 @routes.get("/packet_list_text/{node_id}")
