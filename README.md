@@ -285,8 +285,8 @@ After editing `.service` files, always run:
 sudo systemctl daemon-reload
 ```
 
-### 5. Database Maintenance
-Run a script to keep the database small and fast.(modify /path/to/file/ to the correct path)
+## 5. Database Maintenance
+### Create and save bash script below. Make it executable.(modify /path/to/file/ to the correct path)
 ```bash
  #!/bin/bash
 
@@ -317,7 +317,7 @@ sudo systemctl start meshview-web.service
 echo "Database cleanup completed on $(date)"
 
 ```
-Schedule running the script on a regular basis. In t his example it runs every noght at 2:00am
+### Schedule running the script on a regular basis. In t his example it runs every noght at 2:00am
 Open scheduler
 ```bash
 sudo crontab -e
