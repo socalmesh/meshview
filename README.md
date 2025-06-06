@@ -312,15 +312,17 @@ EOF
 # Start DB service
 #echo "Start services..."
 sudo systemctl start meshview-db.service
-#sudo systemctl start meshview-web.service
+sudo systemctl start meshview-web.service
 
 echo "Database cleanup completed on $(date)"
 
 ```
 Schedule running the script on a regular basis. In t his example it runs every noght at 2:00am
+Open scheduler
 ```bash
 sudo crontab -e
 ```
+Add schedule to the bottom of the file
 ```bash
 0 2 * * * /path/to/file/cleanup.sh >> /path/to/file/cleanup.log 2>&1
 ```
