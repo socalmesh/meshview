@@ -23,7 +23,7 @@ from aiohttp import web
 import re
 
 SEQ_REGEX = re.compile(r"seq \d+")
-SOFTWARE_RELEASE= "2.0.3.060525"
+SOFTWARE_RELEASE= "2.0.3.060625"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
@@ -202,27 +202,28 @@ def generate_response(request, body, raw_node_id="", node=None):
 
 @routes.get("/node_search")
 async def node_search(request):
-    if not "q" in request.query or not request.query["q"]:
-        return web.Response(text="Bad node id")
+    def parse_int(value, base=10):
+        try:
+            return int(value, base)
+        except ValueError:
+            return None
 
-    raw_node_id = request.query["q"]
+    q = request.query.get("q")
+    if not q:
+        return web.Response(text="Bad node id", status=400, content_type="text/plain")
+
     node_id = None
+    fuzzy_nodes = []
 
-    if raw_node_id == "^all":
+    if q == "^all":
         node_id = 0xFFFFFFFF
-    elif raw_node_id[0] == "!":
-        try:
-            node_id = int(raw_node_id[1:], 16)
-        except ValueError:
-            pass
+    elif q.startswith("!"):
+        node_id = parse_int(q[1:], 16)
     else:
-        try:
-            node_id = int(raw_node_id)
-        except ValueError:
-            pass
+        node_id = parse_int(q)
 
     if node_id is None:
-        fuzzy_nodes = list(await store.get_fuzzy_nodes(raw_node_id))
+        fuzzy_nodes = list(await store.get_fuzzy_nodes(q))
         if len(fuzzy_nodes) == 1:
             node_id = fuzzy_nodes[0].node_id
 
@@ -233,7 +234,7 @@ async def node_search(request):
         )
 
     template = env.get_template("search.html")
-    response = web.Response(
+    return web.Response(
         text=template.render(
             nodes=fuzzy_nodes,
             query_string=request.query_string,
@@ -241,7 +242,7 @@ async def node_search(request):
         ),
         content_type="text/html",
     )
-    return response
+
 
 @routes.get("/node_match")
 async def node_match(request):
