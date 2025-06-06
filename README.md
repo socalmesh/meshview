@@ -28,11 +28,11 @@ Samples of currently running instances:
 - https://meshview.bayme.sh   (SF Bay Area)
 - https://meshview.nyme.sh/   (New York)
 - https://map.wpamesh.net/ (Western Pennsylvania)
-- https://socalmesh.w4hac.com  (Southern California)
 - https://meshview.chicagolandmesh.org/ (Chicago)
 - https://meshview.mt.gt (Canadaverse)
 - https://meshview.meshtastic.es (Spain)
 - https://view.mtnme.sh/ (North Georgia / East Tennessee)
+- https://socalmesh.w4hac.com  (Southern California)
 - https://view.azmsh.net  (Arizona)
 
 ---
