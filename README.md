@@ -286,7 +286,7 @@ sudo systemctl daemon-reload
 ```
 
 ### 5. Database Maintenance
-Run a script to keep the database small and fast.
+Run a script to keep the database small and fast.(modify /path/to/file/ to the correct path)
 ```bash
  #!/bin/bash
 
@@ -322,7 +322,7 @@ Open scheduler
 ```bash
 sudo crontab -e
 ```
-Add schedule to the bottom of the file
+Add schedule to the bottom of the file (modify /path/to/file/ to the correct path)
 ```bash
 0 2 * * * /path/to/file/cleanup.sh >> /path/to/file/cleanup.log 2>&1
 ```
