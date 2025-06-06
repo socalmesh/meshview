@@ -4,7 +4,7 @@
 
 The project serves as a real-time monitoring and diagnostic tool for the Meshtastic mesh network. It provides detailed insights into the network's activity, including message traffic, node positions, and telemetry data.
 
-### Version 2.0.3 update
+### Version 2.0.3 update - June 2025
 * Moved more graphs to eCharts.
 * Addedd smooth updating for "Conversations" and "See everything" sections.
 * Now you can turn on and off "Quick Links".
