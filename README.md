@@ -278,10 +278,51 @@ systemctl status meshview-db
 systemctl status meshview-web
 ```
 
-> **TIP**  
-> After editing `.service` files, always run:
->
-> ```bash
-> sudo systemctl daemon-reload
-> ```
+**TIP**  
+After editing `.service` files, always run:
+
+```bash
+sudo systemctl daemon-reload
+```
+
+### 5. Database Maintenance
+Run a script to keep the database small and fast.
+```bash
+ #!/bin/bash
+
+DB_FILE="/path/to/file/packets.db"
+
+
+# Stopt DB service
+#echo "Stop services..."
+sudo systemctl stop meshview-db.service
+sudo systemctl stop meshview-web.service
+
+sleep 5
+echo "Run cleanup..."
+# Run cleanup queries
+sqlite3 "$DB_FILE" <<EOF 
+DELETE FROM packet WHERE import_time < datetime('now', '-14 day');
+DELETE FROM packet_seen WHERE import_time < datetime('now', '-14 day');
+DELETE FROM traceroute WHERE import_time < datetime('now', '-14 day');
+DELETE FROM node WHERE last_update < datetime('now', '-14 day') OR last_update IS NULL OR last_update = '';
+VACUUM;
+EOF
+
+# Start DB service
+#echo "Start services..."
+sudo systemctl start meshview-db.service
+#sudo systemctl start meshview-web.service
+
+echo "Database cleanup completed on $(date)"
+
+```
+Schedule running the script on a regular basis. In t his example it runs every noght at 2:00am
+```bash
+sudo crontab -e
+```
+```bash
+0 2 * * * /path/to/file/cleanup.sh >> /path/to/file/cleanup.log 2>&1
+```
+
 
