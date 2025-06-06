@@ -286,7 +286,8 @@ sudo systemctl daemon-reload
 ```
 
 ## 5. Database Maintenance
-### Create and save bash script below. Make it executable.(modify /path/to/file/ to the correct path)
+### Create and save bash script below. Name it cleanup.sh
+### Make it executable.(modify /path/to/file/ to the correct path)
 ```bash
  #!/bin/bash
 
