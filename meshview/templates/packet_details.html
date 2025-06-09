@@ -36,7 +36,7 @@
 
 {% if map_center %}
 <script>
-    var details_map = L.map('details_map').setView({{ map_center | tojson }}, 12);
+    var details_map = L.map('details_map').setView({{ map_center | tojson }}, 8);
     var markers = L.featureGroup();
     markers.addTo(details_map);
 
