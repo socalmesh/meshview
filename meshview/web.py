@@ -977,19 +977,26 @@ async def graph_network(request):
                       ranksep="1")
 
     for node_id in used_nodes:
-        node = await nodes[node_id]
+        node_future = nodes.get(node_id)
+        if not node_future:
+            # You could log a warning here if needed
+            continue
+
+        node = await node_future
         color = '#000000'
         node_name = await get_node_name(node_id)
+
         if node and node.role in ('ROUTER', 'ROUTER_CLIENT', 'REPEATER'):
             color = '#0000FF'
         elif node and node.role == 'CLIENT_MUTE':
             color = '#00FF00'
+
         graph.add_node(pydot.Node(
             str(node_id),
             label=node_name,
             shape='box',
             color=color,
-            href=f"/graph/network?root={node_id}&amp;depth={depth-1}",
+            href=f"/graph/network?root={node_id}&amp;depth={depth - 1}",
         ))
 
     if edges:

@@ -37,7 +37,7 @@ Samples of currently running instances:
 
 ---
 
-## Preparing
+## Installing
 
 Requires **`python3.11`** or above.
 
@@ -295,8 +295,7 @@ sudo systemctl daemon-reload
 DB_FILE="/path/to/file/packets.db"
 
 
-# Stopt DB service
-#echo "Stop services..."
+# Stop DB service
 sudo systemctl stop meshview-db.service
 sudo systemctl stop meshview-web.service
 
@@ -312,7 +311,6 @@ VACUUM;
 EOF
 
 # Start DB service
-#echo "Start services..."
 sudo systemctl start meshview-db.service
 sudo systemctl start meshview-web.service
 
