@@ -23,7 +23,7 @@ import re
 import traceback
 
 SEQ_REGEX = re.compile(r"seq \d+")
-SOFTWARE_RELEASE= "2.0.3.060625"
+SOFTWARE_RELEASE= "2.0.3.06-12-25"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
