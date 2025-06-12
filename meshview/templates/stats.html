@@ -1,24 +1,28 @@
 {% extends "base.html" %}
 
 {% block css %}
-    #packet_details{
+    #packet_details {
         height: 95vh;
-        overflow: scroll;
+        overflow: auto;
     }
 
-    /* Set the maximum width of the page to 600px */
-    .container {
+    .main-container, .container {
         max-width: 600px;
-        margin: 0 auto; /* Center the content horizontally */
+        margin: 0 auto;
+        text-align: center;
     }
 
-    /* Adjust styling for sections */
     .card-section {
         background-color: #272b2f;
         border: 1px solid #474b4e;
-        padding: 15px;
+        padding: 15px 20px;
         margin-bottom: 10px;
         border-radius: 10px;
+        transition: background-color 0.2s ease;
+    }
+
+    .card-section:hover {
+        background-color: #2f3338;
     }
 
     .section-header {
@@ -38,12 +42,6 @@
         font-weight: 400;
     }
 
-    .main-container {
-        max-width: 600px;
-        margin: auto;
-        text-align: center;
-    }
-
     .main-header {
         font-size: 22px;
         margin-bottom: 20px;
@@ -59,7 +57,7 @@
     <div class="card-section">
         <p class="section-header">
             Total Active Nodes (24 hours): <br>
-            <span class="section-value">{{ total_nodes }}</span>
+            <span class="section-value">{{ "{:,}".format(total_nodes) }}</span>
         </p>
     </div>
 
@@ -67,7 +65,7 @@
     <div class="card-section">
         <p class="section-header">
             Total Packets (14 days):
-            <span class="section-value">{{ total_packets }}</span>
+            <span class="section-value">{{ "{:,}".format(total_packets) }}</span>
         </p>
     </div>
 
@@ -75,9 +73,8 @@
     <div class="card-section">
         <p class="section-header">
             Total MQTT Reports (14 days):
-            <span class="section-value">{{ total_packets_seen }}</span>
+            <span class="section-value">{{ "{:,}".format(total_packets_seen) }}</span>
         </p>
     </div>
 </div>
-
 {% endblock %}

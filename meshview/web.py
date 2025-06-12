@@ -1424,9 +1424,9 @@ async def get_config(request):
             "Message": site.get("message", ""),
             "MQTT Server": mqtt.get("server", ""),
             "Topics": json.loads(mqtt.get("topics", "[]")),
-            "Release": SOFTWARE_RELEASE
-        },
-        dumps=lambda obj: json.dumps(obj, indent=2))
+            "Release": SOFTWARE_RELEASE,
+            "Time": datetime.datetime.now().isoformat()
+        }, dumps=lambda obj: json.dumps(obj, indent=2))
 
     except (json.JSONDecodeError, TypeError):
         return web.json_response({"error": "Invalid configuration format"}, status=500)
