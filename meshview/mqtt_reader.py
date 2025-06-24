@@ -38,6 +38,7 @@ async def get_topic_envelopes(mqtt_server, mqtt_port, topics, mqtt_user, mqtt_pa
                 async for msg in client.messages:
                     try:
                         envelope = ServiceEnvelope.FromString(msg.payload)
+                        print(envelope)
                     except DecodeError:
                         continue
                     decrypt(envelope.packet)
