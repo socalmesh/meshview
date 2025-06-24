@@ -55,9 +55,6 @@ async def get_topic_envelopes(mqtt_server, mqtt_port, topics, mqtt_user, mqtt_pa
                     if getattr(envelope.packet, "from", None) == 2144342101:
                         continue
 
-                    # ✅ Print decoded packet
-                    print("Decoded Packet:", envelope.packet.decoded)
-
                     yield msg.topic.value, envelope
 
         except aiomqtt.MqttError as e:
