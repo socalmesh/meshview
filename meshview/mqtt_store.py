@@ -15,8 +15,7 @@ async def process_envelope(topic, env):
 
     # Checking if the received packet is a MAP_REPORT
     # Update the node table with the firmware version
-    #if env.packet.decoded.portnum == PortNum.MAP_REPORT_APP:
-    if env.packet.decoded.portnum == 0:
+    if env.packet.decoded.portnum == PortNum.MAP_REPORT_APP:
         # Extract the node ID from the packet and format the user ID
         node_id = getattr(env.packet, "from")
         user_id = f"!{node_id:0{8}x}"
