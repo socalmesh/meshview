@@ -47,7 +47,6 @@
 
 <script>
     var map = L.map('map');
-    const excludedChannels = new Set(["PKI", "KoiNet", "N1MRODS", "BayMeshNews"]); // Customize these
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -123,7 +122,7 @@ var nodes = [
     }
 
         nodes.forEach(function(node) {
-            if (node.lat !== null && node.long !== null && !excludedChannels.has(node.channel)) {
+            if (node.lat !== null && node.long !== null) {
                 let category = node.channel;
                 let isRouter = node.isRouter === "True"; // Convert from string
                 channels.add(category);
