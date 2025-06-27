@@ -23,7 +23,7 @@ import re
 import traceback
 
 SEQ_REGEX = re.compile(r"seq \d+")
-SOFTWARE_RELEASE= "2.0.3.06-12-25"
+SOFTWARE_RELEASE= "2.0.3.06-26-25"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
@@ -164,7 +164,7 @@ def node_id_to_hex(node_id):
     if node_id == 4294967295:
         return "^all"
     else:
-        return f"!{hex(node_id)[2:]}"
+        return f"!{hex(node_id)[2:].zfill(8)}"
 
 
 def format_timestamp(timestamp):
