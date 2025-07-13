@@ -26,11 +26,11 @@ RUN /opt/conda/envs/meshview/bin/pip install -r /app/requirements.txt
 #place sample config in place
 RUN cp /app/sample.config.ini /app/config.ini
 
-#change default to 8082
-RUN sed -ie 's/port = 8081/port = 8082/g' /app/config.ini
+#change default to 8000
+RUN sed -ie 's/port = 8081/port = 8000/g' /app/config.ini
 
 # Expose the web server port
-EXPOSE 8082
+EXPOSE 8000
 
 # Copy start.sh into container
 COPY start.sh /app/start.sh
