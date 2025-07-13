@@ -100,7 +100,7 @@ port = 8081
 tls_cert =
 
 # Path for the ACME challenge if using Let's Encrypt.
-acme_challenge =
+acme_challenge = /.well-known/acme-challenge
 
 
 # -------------------------
@@ -156,6 +156,31 @@ password = large4cats
 
 
 # -------------------------
+# ACME/Let's Encrypt Configuration
+# -------------------------
+[acme]
+# Enable ACME certificate management
+enabled = False
+
+# Email address for Let's Encrypt account registration
+email = 
+
+# Domain name for the certificate (without https://)
+domain = 
+
+# Path to store the certificate file
+cert_path = cert.pem
+
+# Path to store the private key file
+key_path = key.pem
+
+# Use staging server for testing (True/False)
+staging = True
+
+# Days before expiry to renew certificate
+renewal_threshold_days = 30
+
+# -------------------------
 # Database Configuration
 # -------------------------
 [database]
@@ -188,6 +213,43 @@ Start the web server:
 > ```
 
 Open in your browser: http://localhost:8081/
+
+---
+
+## SSL/HTTPS with Let's Encrypt
+
+MeshView supports automatic SSL certificate management using Let's Encrypt, optimized for containerized environments.
+
+### Setup
+
+1. **Install dependencies**:
+   ```bash
+   pip install acme cryptography certbot
+   ```
+
+2. **Configure in config.ini**:
+   ```ini
+   [acme]
+   enabled = True
+   email = your-email@example.com
+   domain = your-domain.com
+   ```
+
+3. **Run the application** - certificates are obtained automatically on startup.
+
+### How It Works
+
+- **Automatic startup certificates**: Always obtains new certificates on startup
+- **HTTP-01 challenges**: Handled via aiohttp routes
+- **Background renewal**: Checks and renews every 6 hours
+- **Retry logic**: Built-in retry with exponential backoff
+- **Container optimized**: Perfect for ephemeral containers
+
+### Requirements
+
+- **Port 80**: Required for HTTP-01 challenges
+- **Domain resolution**: Your domain must point to the container
+- **Let's Encrypt limits**: 50 certificates per week per domain
 
 ---
 

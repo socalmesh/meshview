@@ -18,6 +18,7 @@ from meshview import database
 from meshview import decode_payload
 from meshview import models
 from meshview import store
+from meshview import acme_client
 from aiohttp import web
 import re
 import traceback
@@ -1435,15 +1436,44 @@ async def get_config(request):
 async def run_server():
     app = web.Application()
     app.add_routes(routes)
+    
+    # Setup ACME client if configured
+    acme_client_instance = None
+    if CONFIG.get("acme", {}).get("enabled", False):
+        acme_client_instance = acme_client.create_acme_client(CONFIG["acme"])
+        if acme_client_instance:
+            await acme_client_instance.setup_challenge_routes(app)
+            # Always obtain certificate on startup for containerized environments
+            logger.info("Containerized environment - obtaining certificate on startup")
+            await acme_client_instance.obtain_certificate()
+            await acme_client_instance.setup_auto_renewal()
+            logger.info("ACME client initialized")
+    
     runner = web.AppRunner(app)
     await runner.setup()
-    if CONFIG["server"]["tls_cert"]:
+    
+    # Setup SSL context
+    ssl_context = None
+    if acme_client_instance:
+        # In containerized environments, always use ACME-generated certificates
+        cert_path = CONFIG["acme"].get("cert_path", "cert.pem")
+        key_path = CONFIG["acme"].get("key_path", "key.pem")
+        if os.path.exists(cert_path) and os.path.exists(key_path):
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context.load_cert_chain(cert_path, key_path)
+            logger.info(f"SSL context configured with ACME certificate: {cert_path}")
+        else:
+            logger.warning("ACME certificate files not found, running without SSL")
+    elif CONFIG["server"]["tls_cert"] and os.path.exists(CONFIG["server"]["tls_cert"]):
+        # Fallback to manually configured certificate
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.load_cert_chain(CONFIG["server"]["tls_cert"])
-    else:
-        ssl_context = None
+        logger.info(f"SSL context configured with manual certificate: {CONFIG['server']['tls_cert']}")
+    
     if host := CONFIG["server"]["bind"]:
         site = web.TCPSite(runner, host, CONFIG["server"]["port"], ssl_context=ssl_context)
         await site.start()
+        logger.info(f"Server started on {host}:{CONFIG['server']['port']} {'with SSL' if ssl_context else 'without SSL'}")
+    
     while True:
         await asyncio.sleep(3600)  # sleep forever
