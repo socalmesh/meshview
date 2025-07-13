@@ -24,7 +24,7 @@ RUN conda create -n meshview python=3.11 -y
 RUN /opt/conda/envs/meshview/bin/pip install -r /app/requirements.txt
 
 #place sample config in place
-RUN cp /app/sample.config.ini /app/config.ini
+#RUN cp /app/sample.config.ini /app/config.ini
 
 #change default to 8000
 RUN sed -ie 's/port = 8081/port = 8000/g' /app/config.ini
