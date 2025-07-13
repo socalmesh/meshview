@@ -14,8 +14,8 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
 # Set work directory
 WORKDIR /app
 
-# Clone the repository with submodules
-RUN git clone --recurse-submodules https://github.com/pablorevilla-meshtastic/meshview.git /app
+# Copy local files instead of cloning from GitHub
+COPY . /app
 
 # Create conda environment
 RUN conda create -n meshview python=3.11 -y
