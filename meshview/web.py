@@ -1475,15 +1475,17 @@ async def run_server():
     # Setup SSL context
     ssl_context = None
     if acme_client_instance:
-        # In containerized environments, always use ACME-generated certificates
-        cert_path = CONFIG["acme"].get("cert_path", "cert.pem")
-        key_path = CONFIG["acme"].get("key_path", "key.pem")
+        # In containerized environments, use certbot's standard certificate location
+        domain = CONFIG["acme"].get("domain", "")
+        cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+        key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+        
         if os.path.exists(cert_path) and os.path.exists(key_path):
             ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             ssl_context.load_cert_chain(cert_path, key_path)
             logger.info(f"SSL context configured with ACME certificate: {cert_path}")
         else:
-            logger.warning("ACME certificate files not found, running without SSL")
+            logger.warning(f"ACME certificate files not found at {cert_path}, running without SSL")
     elif CONFIG["server"]["tls_cert"] and os.path.exists(CONFIG["server"]["tls_cert"]):
         # Fallback to manually configured certificate
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
