@@ -65,25 +65,45 @@ class ACMEClient:
         async def acme_challenge_handler(request):
             """Handle ACME challenge requests."""
             token = request.match_info.get('token', '')
+            logger.info(f"ACME challenge request for token: {token}")
+            
             if not token:
+                logger.warning("ACME challenge request with no token")
                 return web.Response(status=404)
                 
             # Look for challenge file in webroot
             challenge_file = challenge_dir / token
+            logger.info(f"Looking for challenge file: {challenge_file}")
+            
             if challenge_file.exists():
                 try:
                     challenge_response = challenge_file.read_text()
+                    logger.info(f"Serving ACME challenge response for token: {token}")
                     return web.Response(text=challenge_response, content_type='text/plain')
                 except Exception as e:
                     logger.error(f"Error reading challenge file: {e}")
                     return web.Response(status=404)
             else:
+                logger.warning(f"ACME challenge file not found: {challenge_file}")
+                # List files in challenge directory for debugging
+                try:
+                    files = list(challenge_dir.iterdir())
+                    logger.info(f"Files in challenge directory: {files}")
+                except Exception as e:
+                    logger.error(f"Error listing challenge directory: {e}")
                 return web.Response(status=404)
         
         # Add the challenge route
         app.router.add_get(f'{self.acme_challenge_path}/{{token}}', acme_challenge_handler)
         logger.info(f"ACME challenge route added: {self.acme_challenge_path}/{{token}}")
         logger.info(f"ACME webroot directory: {webroot_dir}")
+        
+        # Add a test route to verify the endpoint is accessible
+        async def acme_test_handler(request):
+            return web.Response(text="ACME challenge endpoint is working", content_type='text/plain')
+        
+        app.router.add_get(f'{self.acme_challenge_path}/test', acme_test_handler)
+        logger.info(f"ACME test route added: {self.acme_challenge_path}/test")
 
             
     async def obtain_certificate(self) -> bool:
@@ -92,8 +112,13 @@ class ACMEClient:
             logger.error("No domain configured for ACME certificate")
             return False
             
+        if not self.email:
+            logger.error("No email configured for ACME certificate registration")
+            return False
+            
         # Log domain info for debugging
         logger.info(f"Attempting to obtain certificate for domain: {self.domain}")
+        logger.info(f"Using email: {self.email}")
         logger.info(f"Domain should be accessible at: http://{self.domain}/.well-known/acme-challenge/")
         logger.info(f"Note: Let's Encrypt will try both HTTP and HTTPS for the challenge")
         
