@@ -12,27 +12,19 @@ import shutil
 try:
     import certbot
     from certbot import main as certbot_main
-    from certbot.plugins.manual import ManualAuthenticator
-    from certbot.plugins.standalone import StandaloneAuthenticator
-    from certbot.plugins.webroot import WebrootAuthenticator
-    CERTBOT_AVAILABLE = True
+    
+    # Check if certbot binary is available
+    import subprocess
+    try:
+        subprocess.run(['certbot', '--version'], capture_output=True, check=True)
+        CERTBOT_AVAILABLE = True
+        print("Certbot is available (both Python package and binary)")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        CERTBOT_AVAILABLE = False
+        print("Certbot Python package available but binary not found")
 except ImportError as e:
     print(f"Certbot not available: {e}")
     CERTBOT_AVAILABLE = False
-
-try:
-    import acme
-    from acme import client as acme_client
-    from acme import challenges
-    from acme import messages
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.x509.oid import NameOID
-    ACME_AVAILABLE = True
-except ImportError as e:
-    print(f"ACME library not available: {e}")
-    ACME_AVAILABLE = False
 
 from aiohttp import web
 from meshview import config
@@ -135,108 +127,48 @@ class ACMEClient:
         
         return csr.public_bytes(serialization.Encoding.PEM)
         
-    async def obtain_certificate(self) -> bool:
-        """Obtain a new SSL certificate using ACME with retry logic for containerized environments."""
-        if not ACME_AVAILABLE:
-            logger.error("ACME library not available. Install with: pip install acme cryptography")
+        async def obtain_certificate(self) -> bool:
+        """Obtain a new SSL certificate using certbot."""
+        if not CERTBOT_AVAILABLE:
+            logger.error("Certbot not available. Install with: pip install certbot")
             return False
             
         if not self.domain:
             logger.error("No domain configured for ACME certificate")
             return False
             
-        # Retry logic for containerized environments
-        max_retries = 3
-        retry_delay = 30  # seconds
-        
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"Attempting to obtain certificate (attempt {attempt + 1}/{max_retries})")
-                
-                # Generate private key
-                private_key_bytes = self._generate_private_key()
-                
-                # Generate CSR
-                csr_bytes = self._generate_csr(private_key_bytes, self.domain)
-                
-                # Create ACME client
-                acme_client_instance = acme_client.ClientV2(
-                    directory_url=self.acme_server,
-                    key=acme_client.ClientV2._load_key(private_key_bytes)
-                )
-                
-                # Register account
-                if self.email:
-                    acme_client_instance.new_account(
-                        messages.NewRegistration.from_data(email=self.email)
-                    )
-                
-                # Create order
-                order = acme_client_instance.new_order(csr_bytes)
-                
-                # Get HTTP-01 challenge
-                authz = order.authorizations[0]
-                http_challenge = authz.body.challenges[0]  # HTTP-01 challenge
-                
-                # Store challenge response
-                await self._store_challenge_response(
-                    http_challenge.path, 
-                    http_challenge.response_and_validation(acme_client_instance.net.key).challenge.path
-                )
-                
-                # Wait for challenge to be validated (longer wait for containers)
-                logger.info(f"Waiting for ACME challenge validation for {self.domain}")
-                await asyncio.sleep(10)  # Longer wait for containerized environments
-                
-                # Complete challenge
-                acme_client_instance.answer_challenge(http_challenge, http_challenge.response(acme_client_instance.net.key))
-                
-                # Wait for validation with timeout
-                validation_timeout = 60  # seconds
-                start_time = asyncio.get_event_loop().time()
-                
-                while authz.body.status != messages.STATUS_VALID:
-                    if asyncio.get_event_loop().time() - start_time > validation_timeout:
-                        raise Exception("Challenge validation timeout")
-                    await asyncio.sleep(2)
-                    authz = acme_client_instance.poll(authz)
-                    
-                # Finalize order
-                order = acme_client_instance.finalize_order(order, csr_bytes)
-                
-                # Download certificate
-                cert_chain = acme_client_instance.download_certificate(order)
-                
-                # Save certificate and key
-                if self.cert_path:
-                    with open(self.cert_path, 'wb') as f:
-                        f.write(cert_chain)
-                        
-                if self.key_path:
-                    with open(self.key_path, 'wb') as f:
-                        f.write(private_key_bytes)
-                        
-                # Cleanup challenge
-                await self._cleanup_challenge_response(http_challenge.path)
-                
+        return await self._obtain_certificate_with_certbot()
+            
+    async def _obtain_certificate_with_certbot(self) -> bool:
+        """Obtain certificate using certbot."""
+        try:
+            logger.info(f"Attempting to obtain certificate for {self.domain} using certbot")
+            
+            # Prepare certbot arguments
+            args = [
+                'certonly',
+                '--standalone',
+                '--email', self.email,
+                '--agree-tos',
+                '--no-eff-email',
+                '--domains', self.domain,
+                '--cert-path', self.cert_path,
+                '--key-path', self.key_path,
+            ]
+            
+            # Run certbot
+            result = certbot_main.main(args)
+            
+            if result == 0:
                 logger.info(f"Certificate obtained successfully for {self.domain}")
                 return True
+            else:
+                logger.error("Certbot failed to obtain certificate")
+                return False
                 
-            except Exception as e:
-                logger.error(f"Failed to obtain certificate (attempt {attempt + 1}/{max_retries}): {e}")
-                
-                # Cleanup on failure
-                await self._cleanup_challenge_response(http_challenge.path if 'http_challenge' in locals() else '')
-                
-                if attempt < max_retries - 1:
-                    logger.info(f"Retrying in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
-                else:
-                    logger.error("All attempts to obtain certificate failed")
-                    return False
-                    
-        return False
+        except Exception as e:
+            logger.error(f"Failed to obtain certificate with certbot: {e}")
+            return False
             
     async def renew_certificate_if_needed(self) -> bool:
         """Check if certificate needs renewal and renew if necessary."""
@@ -296,63 +228,19 @@ class ACMEClient:
             return True  # Renew on error to be safe
 
 
-class CertbotACMEClient:
-    """ACME client using certbot for certificate management."""
-    
-    def __init__(self, config_section: Dict[str, Any]):
-        self.config = config_section
-        self.domain = config_section.get('domain', '').replace('https://', '').replace('http://', '')
-        self.email = config_section.get('email', '')
-        self.cert_path = config_section.get('cert_path', '')
-        self.key_path = config_section.get('key_path', '')
-
-        
-    async def obtain_certificate(self) -> bool:
-        """Obtain certificate using certbot."""
-        if not CERTBOT_AVAILABLE:
-            logger.error("Certbot not available. Install with: pip install certbot")
-            return False
-            
-        if not self.domain:
-            logger.error("No domain configured for ACME certificate")
-            return False
-            
-        try:
-            # Prepare certbot arguments
-            args = [
-                'certonly',
-                '--standalone',
-                '--email', self.email,
-                '--agree-tos',
-                '--no-eff-email',
-                '--domains', self.domain,
-                '--cert-path', self.cert_path,
-                '--key-path', self.key_path,
-            ]
-            
-
-                
-            # Run certbot
-            result = certbot_main.main(args)
-            
-            if result == 0:
-                logger.info(f"Certificate obtained successfully for {self.domain}")
-                return True
-            else:
-                logger.error("Certbot failed to obtain certificate")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Failed to obtain certificate with certbot: {e}")
-            return False
-
-
 def create_acme_client(config_section: Dict[str, Any]) -> Optional[ACMEClient]:
-    """Create an appropriate ACME client based on available libraries."""
-    if ACME_AVAILABLE:
+    """Create a certbot-based ACME client."""
+    if CERTBOT_AVAILABLE:
         return ACMEClient(config_section)
-    elif CERTBOT_AVAILABLE:
-        return CertbotACMEClient(config_section)
     else:
-        logger.warning("No ACME libraries available. Install with: pip install acme cryptography certbot")
-        return None 
+        logger.warning("Certbot not available. Install with: pip install certbot")
+        return None
+
+def check_certbot_availability():
+    """Check if certbot is available and working."""
+    if CERTBOT_AVAILABLE:
+        print("✅ Certbot is available and ready to use")
+        return True
+    else:
+        print("❌ Certbot is not available")
+        return False 

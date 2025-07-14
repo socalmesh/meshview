@@ -24,6 +24,8 @@ from meshview import store
 try:
     from meshview import acme_client
     ACME_AVAILABLE = True
+    # Check certbot availability on startup
+    acme_client.check_certbot_availability()
 except ImportError as e:
     print(f"ACME client not available: {e}")
     ACME_AVAILABLE = False
