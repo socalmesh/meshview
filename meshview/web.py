@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import logging
 from datetime import timedelta
 import json
 import os
@@ -29,6 +30,9 @@ except ImportError as e:
 from aiohttp import web
 import re
 import traceback
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 SEQ_REGEX = re.compile(r"seq \d+")
 SOFTWARE_RELEASE= "2.0.3.06-26-25"
