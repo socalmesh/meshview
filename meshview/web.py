@@ -18,7 +18,14 @@ from meshview import database
 from meshview import decode_payload
 from meshview import models
 from meshview import store
-from meshview import acme_client
+
+# Optional ACME client import
+try:
+    from meshview import acme_client
+    ACME_AVAILABLE = True
+except ImportError as e:
+    print(f"ACME client not available: {e}")
+    ACME_AVAILABLE = False
 from aiohttp import web
 import re
 import traceback
@@ -1439,15 +1446,22 @@ async def run_server():
     
     # Setup ACME client if configured
     acme_client_instance = None
-    if CONFIG.get("acme", {}).get("enabled", False):
-        acme_client_instance = acme_client.create_acme_client(CONFIG["acme"])
-        if acme_client_instance:
-            await acme_client_instance.setup_challenge_routes(app)
-            # Always obtain certificate on startup for containerized environments
-            logger.info("Containerized environment - obtaining certificate on startup")
-            await acme_client_instance.obtain_certificate()
-            await acme_client_instance.setup_auto_renewal()
-            logger.info("ACME client initialized")
+    if CONFIG.get("acme", {}).get("enabled", False) and ACME_AVAILABLE:
+        try:
+            acme_client_instance = acme_client.create_acme_client(CONFIG["acme"])
+            if acme_client_instance:
+                await acme_client_instance.setup_challenge_routes(app)
+                # Always obtain certificate on startup for containerized environments
+                logger.info("Containerized environment - obtaining certificate on startup")
+                await acme_client_instance.obtain_certificate()
+                await acme_client_instance.setup_auto_renewal()
+                logger.info("ACME client initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize ACME client: {e}")
+            logger.info("Continuing without ACME support")
+    elif CONFIG.get("acme", {}).get("enabled", False) and not ACME_AVAILABLE:
+        logger.warning("ACME is enabled but dependencies are not available")
+        logger.info("Install ACME dependencies: pip install acme cryptography certbot")
     
     runner = web.AppRunner(app)
     await runner.setup()

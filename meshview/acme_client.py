@@ -16,7 +16,8 @@ try:
     from certbot.plugins.standalone import StandaloneAuthenticator
     from certbot.plugins.webroot import WebrootAuthenticator
     CERTBOT_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"Certbot not available: {e}")
     CERTBOT_AVAILABLE = False
 
 try:
@@ -29,7 +30,8 @@ try:
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
     ACME_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"ACME library not available: {e}")
     ACME_AVAILABLE = False
 
 from aiohttp import web

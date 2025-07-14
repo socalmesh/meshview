@@ -216,13 +216,13 @@ Open in your browser: http://localhost:8081/
 
 ---
 
-## SSL/HTTPS with Let's Encrypt
+## SSL/HTTPS with Let's Encrypt (Optional)
 
 MeshView supports automatic SSL certificate management using Let's Encrypt, optimized for containerized environments.
 
 ### Setup
 
-1. **Install dependencies**:
+1. **Install ACME dependencies** (optional):
    ```bash
    pip install acme cryptography certbot
    ```
@@ -244,6 +244,7 @@ MeshView supports automatic SSL certificate management using Let's Encrypt, opti
 - **Background renewal**: Checks and renews every 6 hours
 - **Retry logic**: Built-in retry with exponential backoff
 - **Container optimized**: Perfect for ephemeral containers
+- **Graceful fallback**: Application runs without SSL if ACME fails
 
 ### Requirements
 
