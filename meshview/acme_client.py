@@ -10,23 +10,17 @@ import tempfile
 import shutil
 from cryptography import x509
 
-# Try to import certbot with error handling for compatibility issues
-CERTBOT_AVAILABLE = False
+# Import certbot - should be available in container
+import certbot
+from certbot import main as certbot_main
+import subprocess
+
+# Verify certbot is available
 try:
-    import certbot
-    
-    # Check if certbot binary is available
-    import subprocess
-    try:
-        subprocess.run(['certbot', '--version'], capture_output=True, check=True)
-        CERTBOT_AVAILABLE = True
-        print("Certbot is available (both Python package and binary)")
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        CERTBOT_AVAILABLE = False
-        print("Certbot Python package available but binary not found")
-except (ImportError, AttributeError) as e:
-    print(f"Certbot not available or has compatibility issues: {e}")
-    CERTBOT_AVAILABLE = False
+    subprocess.run(['certbot', '--version'], capture_output=True, check=True)
+    print("Certbot is available")
+except (subprocess.CalledProcessError, FileNotFoundError):
+    print("Warning: Certbot binary not found")
 
 from aiohttp import web
 from meshview import config
@@ -101,10 +95,6 @@ class ACMEClient:
             
     async def obtain_certificate(self) -> bool:
         """Obtain a new SSL certificate using certbot."""
-        if not CERTBOT_AVAILABLE:
-            logger.error("Certbot not available. Install with: pip install certbot")
-            return False
-            
         if not self.domain:
             logger.error("No domain configured for ACME certificate")
             return False
@@ -115,13 +105,6 @@ class ACMEClient:
         """Obtain certificate using certbot."""
         try:
             logger.info(f"Attempting to obtain certificate for {self.domain} using certbot")
-            
-            # Import certbot here to avoid module-level import issues
-            try:
-                from certbot import main as certbot_main
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to import certbot: {e}")
-                return False
             
             # Prepare certbot arguments
             args = [
@@ -209,17 +192,14 @@ class ACMEClient:
 
 def create_acme_client(config_section: Dict[str, Any]) -> Optional[ACMEClient]:
     """Create a certbot-based ACME client."""
-    if CERTBOT_AVAILABLE:
-        return ACMEClient(config_section)
-    else:
-        logger.warning("Certbot not available. Install with: pip install certbot")
-        return None
+    return ACMEClient(config_section)
 
 def check_certbot_availability():
     """Check if certbot is available and working."""
-    if CERTBOT_AVAILABLE:
+    try:
+        subprocess.run(['certbot', '--version'], capture_output=True, check=True)
         print("✅ Certbot is available and ready to use")
         return True
-    else:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         print("❌ Certbot is not available")
         return False 

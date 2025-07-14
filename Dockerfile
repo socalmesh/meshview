@@ -1,8 +1,8 @@
 FROM ubuntu:latest
 
-# Install system dependencies
+# Install system dependencies including certbot
 RUN apt-get update && \
-    apt-get install -y wget git graphviz && \
+    apt-get install -y wget git graphviz python3-certbot-apache && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Miniconda
