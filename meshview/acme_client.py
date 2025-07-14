@@ -8,10 +8,12 @@ from datetime import datetime, timedelta
 import ssl
 import tempfile
 import shutil
+from cryptography import x509
 
+# Try to import certbot with error handling for compatibility issues
+CERTBOT_AVAILABLE = False
 try:
     import certbot
-    from certbot import main as certbot_main
     
     # Check if certbot binary is available
     import subprocess
@@ -22,8 +24,8 @@ try:
     except (subprocess.CalledProcessError, FileNotFoundError):
         CERTBOT_AVAILABLE = False
         print("Certbot Python package available but binary not found")
-except ImportError as e:
-    print(f"Certbot not available: {e}")
+except (ImportError, AttributeError) as e:
+    print(f"Certbot not available or has compatibility issues: {e}")
     CERTBOT_AVAILABLE = False
 
 from aiohttp import web
@@ -113,6 +115,13 @@ class ACMEClient:
         """Obtain certificate using certbot."""
         try:
             logger.info(f"Attempting to obtain certificate for {self.domain} using certbot")
+            
+            # Import certbot here to avoid module-level import issues
+            try:
+                from certbot import main as certbot_main
+            except (ImportError, AttributeError) as e:
+                logger.error(f"Failed to import certbot: {e}")
+                return False
             
             # Prepare certbot arguments
             args = [

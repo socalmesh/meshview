@@ -2,7 +2,7 @@ FROM ubuntu:latest
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y wget git graphviz certbot && \
+    apt-get install -y wget git graphviz && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Miniconda
