@@ -92,6 +92,11 @@ class ACMEClient:
             logger.error("No domain configured for ACME certificate")
             return False
             
+        # Log domain info for debugging
+        logger.info(f"Attempting to obtain certificate for domain: {self.domain}")
+        logger.info(f"Domain should be accessible at: http://{self.domain}/.well-known/acme-challenge/")
+        logger.info(f"Note: Let's Encrypt will try both HTTP and HTTPS for the challenge")
+        
         return await self._obtain_certificate_with_certbot()
             
     async def _obtain_certificate_with_certbot(self) -> bool:
@@ -112,6 +117,7 @@ class ACMEClient:
                 'certonly',
                 '--webroot',
                 '--webroot-path', '/tmp/acme-webroot',
+                '--preferred-challenges', 'http',
                 '--email', self.email,
                 '--agree-tos',
                 '--no-eff-email',
@@ -149,6 +155,7 @@ class ACMEClient:
                 'certonly',
                 '--webroot',
                 '--webroot-path', '/tmp/acme-webroot',
+                '--preferred-challenges', 'http',
                 '--email', self.email,
                 '--agree-tos',
                 '--no-eff-email',
