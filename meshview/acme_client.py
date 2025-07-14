@@ -137,52 +137,10 @@ class ACMEClient:
             
     async def _obtain_certificate_with_certbot(self) -> bool:
         """Obtain certificate using certbot."""
-        try:
-            logger.info(f"Attempting to obtain certificate for {self.domain} using certbot")
-            
-            # Ensure webroot directory exists and log it
-            webroot_dir = Path('/tmp/acme-webroot')
-            webroot_dir.mkdir(parents=True, exist_ok=True)
-            challenge_dir = webroot_dir / '.well-known' / 'acme-challenge'
-            challenge_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"ACME webroot directory: {webroot_dir}")
-            logger.info(f"ACME challenge directory: {challenge_dir}")
-            
-            # Try to import certbot only when needed
-            try:
-                from certbot import main as certbot_main
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to import certbot: {e}")
-                # Fall back to using certbot binary directly
-                return await self._obtain_certificate_with_certbot_binary()
-            
-            # Prepare certbot arguments for webroot mode
-            args = [
-                'certonly',
-                '--webroot',
-                '--webroot-path', '/tmp/acme-webroot',
-                '--preferred-challenges', 'http',
-                '--email', self.email,
-                '--agree-tos',
-                '--no-eff-email',
-                '--domains', self.domain,
-                '--non-interactive',
-                '--quiet'
-            ]
-            
-            # Run certbot
-            result = certbot_main.main(args)
-            
-            if result == 0:
-                logger.info(f"Certificate obtained successfully for {self.domain}")
-                return True
-            else:
-                logger.error("Certbot failed to obtain certificate")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Failed to obtain certificate with certbot: {e}")
-            return False
+        logger.info(f"Attempting to obtain certificate for {self.domain} using certbot")
+        
+        # Always use the binary approach for better reliability
+        return await self._obtain_certificate_with_certbot_binary()
             
     async def _obtain_certificate_with_certbot_binary(self) -> bool:
         """Obtain certificate using certbot binary directly."""
@@ -192,6 +150,14 @@ class ACMEClient:
             if not CERTBOT_BINARY_AVAILABLE:
                 logger.error("Certbot binary not available")
                 return False
+            
+            # Ensure webroot directory exists and log it
+            webroot_dir = Path('/tmp/acme-webroot')
+            webroot_dir.mkdir(parents=True, exist_ok=True)
+            challenge_dir = webroot_dir / '.well-known' / 'acme-challenge'
+            challenge_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"ACME webroot directory: {webroot_dir}")
+            logger.info(f"ACME challenge directory: {challenge_dir}")
             
             # Prepare certbot command for webroot mode
             cmd = [
@@ -205,17 +171,30 @@ class ACMEClient:
                 '--no-eff-email',
                 '--domains', self.domain,
                 '--non-interactive',
-                '--quiet'
+                '--verbose'
             ]
+            
+            # Log the exact command being run
+            logger.info(f"Running certbot binary with cmd: {cmd}")
             
             # Run certbot binary
             result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            # Log challenge files after certbot runs
+            challenge_dir = Path('/tmp/acme-webroot/.well-known/acme-challenge')
+            try:
+                challenge_files = list(challenge_dir.iterdir()) if challenge_dir.exists() else []
+                logger.info(f"Challenge files after certbot binary: {[f.name for f in challenge_files]}")
+            except Exception as e:
+                logger.error(f"Error listing challenge files: {e}")
             
             if result.returncode == 0:
                 logger.info(f"Certificate obtained successfully for {self.domain}")
                 return True
             else:
-                logger.error(f"Certbot binary failed: {result.stderr}")
+                logger.error(f"Certbot binary failed with code {result.returncode}")
+                logger.error(f"Stdout: {result.stdout}")
+                logger.error(f"Stderr: {result.stderr}")
                 return False
                 
         except Exception as e:
