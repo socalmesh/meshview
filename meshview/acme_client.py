@@ -102,8 +102,19 @@ class ACMEClient:
         async def acme_test_handler(request):
             return web.Response(text="ACME challenge endpoint is working", content_type='text/plain')
         
+        # Add a debug route to list challenge files
+        async def acme_debug_handler(request):
+            try:
+                files = list(challenge_dir.iterdir()) if challenge_dir.exists() else []
+                file_list = [f.name for f in files]
+                return web.Response(text=f"Challenge files: {file_list}", content_type='text/plain')
+            except Exception as e:
+                return web.Response(text=f"Error: {e}", content_type='text/plain')
+        
         app.router.add_get(f'{self.acme_challenge_path}/test', acme_test_handler)
+        app.router.add_get(f'{self.acme_challenge_path}/debug', acme_debug_handler)
         logger.info(f"ACME test route added: {self.acme_challenge_path}/test")
+        logger.info(f"ACME debug route added: {self.acme_challenge_path}/debug")
 
             
     async def obtain_certificate(self) -> bool:
@@ -128,6 +139,14 @@ class ACMEClient:
         """Obtain certificate using certbot."""
         try:
             logger.info(f"Attempting to obtain certificate for {self.domain} using certbot")
+            
+            # Ensure webroot directory exists and log it
+            webroot_dir = Path('/tmp/acme-webroot')
+            webroot_dir.mkdir(parents=True, exist_ok=True)
+            challenge_dir = webroot_dir / '.well-known' / 'acme-challenge'
+            challenge_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"ACME webroot directory: {webroot_dir}")
+            logger.info(f"ACME challenge directory: {challenge_dir}")
             
             # Try to import certbot only when needed
             try:
