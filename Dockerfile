@@ -14,16 +14,8 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
 # Set work directory
 WORKDIR /app
 
-# Accept build argument for ACME email
-ARG ACME_EMAIL
-
 # Copy local files instead of cloning from GitHub
 COPY . /app
-
-# Replace email placeholder in config.ini with actual value
-RUN if [ -n "$ACME_EMAIL" ]; then \
-        sed -i "s/email =/email = $ACME_EMAIL/" /app/config.ini; \
-    fi
 
 # Create conda environment
 RUN conda create -n meshview python=3.11 -y

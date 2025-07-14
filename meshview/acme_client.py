@@ -149,6 +149,8 @@ class ACMEClient:
                 '--domains', self.domain,
                 '--cert-path', self.cert_path,
                 '--key-path', self.key_path,
+                '--non-interactive',
+                '--quiet'
             ]
             
             # Run certbot
@@ -187,7 +189,8 @@ class ACMEClient:
                 '--domains', self.domain,
                 '--cert-path', self.cert_path,
                 '--key-path', self.key_path,
-                '--non-interactive'
+                '--non-interactive',
+                '--quiet'
             ]
             
             # Run certbot binary
