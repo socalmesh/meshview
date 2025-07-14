@@ -97,37 +97,7 @@ class ACMEClient:
         if challenge_file.exists():
             challenge_file.unlink()
             
-    def _generate_private_key(self) -> bytes:
-        """Generate a new private key."""
-        private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-        )
-        return private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        
-    def _generate_csr(self, private_key_bytes: bytes, domain: str) -> bytes:
-        """Generate a Certificate Signing Request."""
-        private_key = serialization.load_pem_private_key(private_key_bytes, password=None)
-        
-        # Create CSR
-        csr = x509.CertificateSigningRequestBuilder().subject_name(
-            x509.Name([
-                x509.NameAttribute(NameOID.COMMON_NAME, domain),
-            ])
-        ).add_extension(
-            x509.SubjectAlternativeName([
-                x509.DNSName(domain),
-            ]),
-            critical=False,
-        ).sign(private_key, hashes.SHA256())
-        
-        return csr.public_bytes(serialization.Encoding.PEM)
-        
-        async def obtain_certificate(self) -> bool:
+    async def obtain_certificate(self) -> bool:
         """Obtain a new SSL certificate using certbot."""
         if not CERTBOT_AVAILABLE:
             logger.error("Certbot not available. Install with: pip install certbot")
