@@ -10,17 +10,17 @@ import tempfile
 import shutil
 from cryptography import x509
 
-# Import certbot - should be available in container
-import certbot
-from certbot import main as certbot_main
+# Import subprocess for certbot checks
 import subprocess
 
-# Verify certbot is available
+# Check if certbot binary is available (don't import Python module yet)
 try:
     subprocess.run(['certbot', '--version'], capture_output=True, check=True)
-    print("Certbot is available")
+    print("Certbot binary is available")
+    CERTBOT_BINARY_AVAILABLE = True
 except (subprocess.CalledProcessError, FileNotFoundError):
     print("Warning: Certbot binary not found")
+    CERTBOT_BINARY_AVAILABLE = False
 
 from aiohttp import web
 from meshview import config
@@ -106,6 +106,14 @@ class ACMEClient:
         try:
             logger.info(f"Attempting to obtain certificate for {self.domain} using certbot")
             
+            # Try to import certbot only when needed
+            try:
+                from certbot import main as certbot_main
+            except (ImportError, AttributeError) as e:
+                logger.error(f"Failed to import certbot: {e}")
+                # Fall back to using certbot binary directly
+                return await self._obtain_certificate_with_certbot_binary()
+            
             # Prepare certbot arguments
             args = [
                 'certonly',
@@ -130,6 +138,43 @@ class ACMEClient:
                 
         except Exception as e:
             logger.error(f"Failed to obtain certificate with certbot: {e}")
+            return False
+            
+    async def _obtain_certificate_with_certbot_binary(self) -> bool:
+        """Obtain certificate using certbot binary directly."""
+        try:
+            logger.info(f"Attempting to obtain certificate for {self.domain} using certbot binary")
+            
+            if not CERTBOT_BINARY_AVAILABLE:
+                logger.error("Certbot binary not available")
+                return False
+            
+            # Prepare certbot command
+            cmd = [
+                'certbot',
+                'certonly',
+                '--standalone',
+                '--email', self.email,
+                '--agree-tos',
+                '--no-eff-email',
+                '--domains', self.domain,
+                '--cert-path', self.cert_path,
+                '--key-path', self.key_path,
+                '--non-interactive'
+            ]
+            
+            # Run certbot binary
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                logger.info(f"Certificate obtained successfully for {self.domain}")
+                return True
+            else:
+                logger.error(f"Certbot binary failed: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to obtain certificate with certbot binary: {e}")
             return False
             
     async def renew_certificate_if_needed(self) -> bool:
