@@ -54,44 +54,37 @@ class ACMEClient:
             
     async def setup_challenge_routes(self, app: web.Application):
         """Setup ACME challenge routes for HTTP-01 verification."""
+        # Ensure webroot directory exists
+        webroot_dir = Path('/tmp/acme-webroot')
+        webroot_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create .well-known/acme-challenge directory
+        challenge_dir = webroot_dir / '.well-known' / 'acme-challenge'
+        challenge_dir.mkdir(parents=True, exist_ok=True)
+        
         async def acme_challenge_handler(request):
             """Handle ACME challenge requests."""
             token = request.match_info.get('token', '')
             if not token:
                 return web.Response(status=404)
                 
-            # Get the challenge response from storage
-            challenge_response = await self._get_challenge_response(token)
-            if challenge_response:
-                return web.Response(text=challenge_response, content_type='text/plain')
+            # Look for challenge file in webroot
+            challenge_file = challenge_dir / token
+            if challenge_file.exists():
+                try:
+                    challenge_response = challenge_file.read_text()
+                    return web.Response(text=challenge_response, content_type='text/plain')
+                except Exception as e:
+                    logger.error(f"Error reading challenge file: {e}")
+                    return web.Response(status=404)
             else:
                 return web.Response(status=404)
         
         # Add the challenge route
         app.router.add_get(f'{self.acme_challenge_path}/{{token}}', acme_challenge_handler)
         logger.info(f"ACME challenge route added: {self.acme_challenge_path}/{{token}}")
-        
-    async def _get_challenge_response(self, token: str) -> Optional[str]:
-        """Get the challenge response for a given token."""
-        # This would typically be stored in memory or a simple file
-        # For now, we'll use a simple file-based approach
-        challenge_file = Path(f"acme_challenges/{token}")
-        if challenge_file.exists():
-            return challenge_file.read_text()
-        return None
-        
-    async def _store_challenge_response(self, token: str, response: str):
-        """Store the challenge response for a given token."""
-        challenge_dir = Path("acme_challenges")
-        challenge_dir.mkdir(exist_ok=True)
-        challenge_file = challenge_dir / token
-        challenge_file.write_text(response)
-        
-    async def _cleanup_challenge_response(self, token: str):
-        """Clean up the challenge response after verification."""
-        challenge_file = Path(f"acme_challenges/{token}")
-        if challenge_file.exists():
-            challenge_file.unlink()
+        logger.info(f"ACME webroot directory: {webroot_dir}")
+
             
     async def obtain_certificate(self) -> bool:
         """Obtain a new SSL certificate using certbot."""
@@ -114,10 +107,11 @@ class ACMEClient:
                 # Fall back to using certbot binary directly
                 return await self._obtain_certificate_with_certbot_binary()
             
-            # Prepare certbot arguments
+            # Prepare certbot arguments for webroot mode
             args = [
                 'certonly',
-                '--standalone',
+                '--webroot',
+                '--webroot-path', '/tmp/acme-webroot',
                 '--email', self.email,
                 '--agree-tos',
                 '--no-eff-email',
@@ -149,11 +143,12 @@ class ACMEClient:
                 logger.error("Certbot binary not available")
                 return False
             
-            # Prepare certbot command
+            # Prepare certbot command for webroot mode
             cmd = [
                 'certbot',
                 'certonly',
-                '--standalone',
+                '--webroot',
+                '--webroot-path', '/tmp/acme-webroot',
                 '--email', self.email,
                 '--agree-tos',
                 '--no-eff-email',
