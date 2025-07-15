@@ -1,24 +1,12 @@
-FROM ubuntu:latest
+FROM continuumio/miniconda3:latest
 
 # Install system dependencies including certbot, sqlite3, and cron
 RUN apt-get update && \
     apt-get install -y wget git graphviz python3-certbot-apache sqlite3 cron && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Miniconda
-ENV PATH="/opt/conda/bin:$PATH"
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /miniconda.sh && \
-    bash /miniconda.sh -b -p /opt/conda && \
-    rm /miniconda.sh
-
-# Debug conda installation
-RUN echo "Conda version:" && /opt/conda/bin/conda --version && \
-    echo "Conda info:" && /opt/conda/bin/conda info
-
-# Initialize conda and create environment
-RUN /opt/conda/bin/conda init bash && \
-    echo "Creating conda environment..." && \
-    /opt/conda/bin/conda create -n meshview python=3.11 -y -v
+# Create conda environment
+RUN conda create -n meshview python=3.11 -y
 
 # Set work directory
 WORKDIR /app
