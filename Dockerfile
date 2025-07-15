@@ -11,14 +11,20 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     bash /miniconda.sh -b -p /opt/conda && \
     rm /miniconda.sh
 
+# Debug conda installation
+RUN echo "Conda version:" && /opt/conda/bin/conda --version && \
+    echo "Conda info:" && /opt/conda/bin/conda info
+
+# Initialize conda and create environment
+RUN /opt/conda/bin/conda init bash && \
+    echo "Creating conda environment..." && \
+    /opt/conda/bin/conda create -n meshview python=3.11 -y -v
+
 # Set work directory
 WORKDIR /app
 
 # Copy local files instead of cloning from GitHub
 COPY . /app
-
-# Create conda environment
-RUN conda create -n meshview python=3.11 -y
 
 # Activate environment and install dependencies
 RUN /opt/conda/envs/meshview/bin/pip install -r /app/requirements.txt
