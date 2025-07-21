@@ -36,6 +36,7 @@ Samples of currently running instances:
 - https://socalmesh.w4hac.com  (Southern California)
 - https://view.azmsh.net  (Arizona)
 - https://meshview.aero-gaming.de/ (Hessen - Germany)
+- https://map.nswmesh.au/ (Sydney - Australia)
 
 ---
 
