@@ -1546,6 +1546,8 @@ async def api_nodes(request):
             "short_name": n.short_name,
             "channel": n.channel,
             "last_seen": n.last_seen.isoformat() if n.last_seen else None,
+            "last_lat": getattr(n, "last_lat", None),
+            "last_long": getattr(n, "last_long", None),
             "hardware": n.hardware,
             "firmware": n.firmware,
             "role": n.role,
