@@ -78,6 +78,8 @@ Returns a list of all nodes, with optional filters based on "last seen" time.
       "last_seen": "2025-07-22T14:10:00.000000",
       "hardware": "Heltec V3",
       "firmware": "1.3.2",
+      "last_lat": 367919104,
+      "last_long": -1217003520,
       "role": "CLIENT"
     }
   ]
