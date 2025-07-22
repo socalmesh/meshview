@@ -1,6 +1,6 @@
 # API Documentation
 
-This document describes the available REST API endpoints for **Chat** and **Nodes**.
+This document describes the available REST API endpoints for **Chat** and **Nodes**. More will be added later.
 
 ---
 
