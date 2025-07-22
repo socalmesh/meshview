@@ -1431,6 +1431,131 @@ async def get_config(request):
     except (json.JSONDecodeError, TypeError):
         return web.json_response({"error": "Invalid configuration format"}, status=500)
 
+# API Section
+
+# How this works
+# When your frontend calls /api/chat without since, it returns the most recent limit (default 100) messages.
+# When your frontend calls /api/chat?since=ISO_TIMESTAMP, it returns only messages with import_time > since.
+# The response includes "latest_import_time" for frontend to keep track of the newest message timestamp.
+# The backend fetches extra packets (limit*5) to account for filtering messages like "seq N" and since filtering.
+
+@routes.get("/api/chat")
+async def api_chat(request):
+    try:
+        # Parse query params
+        limit_str = request.query.get("limit", "100")
+        since_str = request.query.get("since", None)
+
+        try:
+            limit = min(max(int(limit_str), 1), 200)  # Limit between 1 and 200
+        except ValueError:
+            limit = 100
+
+        if since_str:
+            try:
+                since = datetime.datetime.fromisoformat(since_str)
+            except Exception as e:
+                print(f"Failed to parse since '{since_str}': {e}")
+                since = None
+        else:
+            since = None
+
+        # Fetch packets from store
+        packets = await store.get_packets(
+            node_id=0xFFFFFFFF,
+            portnum=PortNum.TEXT_MESSAGE_APP,
+            limit=limit*5,  # Fetch extra to filter out seq messages and since filter
+        )
+
+        SEQ_REGEX = re.compile(r"seq \d+")
+        ui_packets = [Packet.from_model(p) for p in packets]
+        filtered_packets = [p for p in ui_packets if p.payload and not SEQ_REGEX.fullmatch(p.payload)]
+
+        # Filter by 'since' timestamp if provided
+        if since:
+            filtered_packets = [p for p in filtered_packets if p.import_time > since]
+
+        # Sort by import_time descending (latest first)
+        filtered_packets.sort(key=lambda p: p.import_time, reverse=True)
+
+        # Trim to requested limit
+        filtered_packets = filtered_packets[:limit]
+
+        packets_data = [{
+            "id": p.id,
+            "import_time": p.import_time.isoformat(),
+            "channel": getattr(p.from_node, "channel", ""),
+            "from_node_id": p.from_node_id,
+            "long_name": getattr(p.from_node, "long_name", ""),
+            "payload": p.payload,
+        } for p in filtered_packets]
+
+        latest_import_time = filtered_packets[0].import_time.isoformat() if filtered_packets else since_str or None
+
+        return web.json_response({
+            "packets": packets_data,
+            "latest_import_time": latest_import_time,
+        })
+
+    except Exception as e:
+        print("Error in /api/chat:", e)
+        return web.json_response({"error": "Failed to fetch chat data"}, status=500)
+
+
+# Client to pass ?hours=1 or ?days=7 to filter
+
+@routes.get("/api/nodes")
+async def api_nodes(request):
+    try:
+        # Query params
+        hours = request.query.get("hours")
+        days = request.query.get("days")
+        last_seen_after = None
+
+        # Determine cutoff time
+        if hours:
+            try:
+                last_seen_after = datetime.datetime.now() - datetime.timedelta(hours=int(hours))
+            except ValueError:
+                pass
+        elif days:
+            try:
+                last_seen_after = datetime.datetime.now() - datetime.timedelta(days=int(days))
+            except ValueError:
+                pass
+        else:
+            # Fallback: if a direct ISO timestamp is provided
+            last_seen_str = request.query.get("last_seen_after")
+            if last_seen_str:
+                try:
+                    last_seen_after = datetime.datetime.fromisoformat(last_seen_str)
+                except Exception as e:
+                    print(f"Failed to parse last_seen_after '{last_seen_str}': {e}")
+
+        # Fetch nodes
+        nodes = await store.get_nodes()
+
+        # Apply filter
+        if last_seen_after:
+            nodes = [n for n in nodes if n.last_seen and n.last_seen > last_seen_after]
+
+        # Prepare response
+        nodes_data = [{
+            "node_id": n.id,
+            "long_name": n.long_name,
+            "short_name": n.short_name,
+            "channel": n.channel,
+            "last_seen": n.last_seen.isoformat() if n.last_seen else None,
+            "hardware": n.hardware,
+            "firmware": n.firmware,
+            "role": n.role,
+        } for n in nodes]
+
+        return web.json_response({"nodes": nodes_data})
+    except Exception as e:
+        print("Error in /api/nodes:", e)
+        return web.json_response({"error": "Failed to fetch nodes"}, status=500)
+
 
 async def run_server():
     app = web.Application()
