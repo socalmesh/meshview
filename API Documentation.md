@@ -1,124 +1,117 @@
+
 # API Documentation
 
-This document describes the available REST API endpoints for **Chat** and **Nodes**. More will be added later.
+## 1. Chat API
 
----
+### GET `/api/chat`
+Returns the most recent chat messages.
 
-## **Chat API**
+**Query Parameters**
+- `limit` (optional, int): Maximum number of messages to return. Default: `100`.
 
-### **`GET /api/chat`**
-Fetches chat messages, with support for both initial loading and incremental updates.
-
-#### **Query Parameters**
-| Name     | Type   | Required | Description |
-|----------|--------|----------|-------------|
-| `limit`  | int    | No       | Number of messages to return (default: 100, max: 200). |
-| `since`  | string | No       | Return only messages with `import_time > since` (ISO 8601 format, e.g., `2025-07-21T12:00:00`). |
-
-#### **Response (200 OK)**
+**Response Example**
 ```json
 {
   "packets": [
     {
       "id": 123,
-      "import_time": "2025-07-22T14:12:00.123456",
-      "channel": "LongFast",
-      "from_node_id": 456789,
-      "long_name": "Node A",
-      "payload": "Hello world!"
-    }
-  ],
-  "latest_import_time": "2025-07-22T14:12:00.123456"
-}
-```
-
-**Fields:**
-- `id`: Unique packet ID.
-- `import_time`: ISO 8601 timestamp of when the message was imported.
-- `channel`: Channel name.
-- `from_node_id`: Numeric ID of the node that sent the message.
-- `long_name`: Human-readable name of the node (if available).
-- `payload`: Actual message text.
-
-#### **Examples**
-- **Get last 50 messages:**
-  ```
-  GET /api/chat?limit=50
-  ```
-- **Get messages after a certain timestamp:**
-  ```
-  GET /api/chat?since=2025-07-22T12:00:00
-  ```
-
----
-
-## **Nodes API**
-
-### **`GET /api/nodes`**
-Returns a list of all nodes, with optional filters based on "last seen" time.
-
-#### **Query Parameters**
-| Name              | Type   | Required | Description |
-|-------------------|--------|----------|-------------|
-| `hours`           | int    | No       | Only return nodes seen within the last `N` hours. |
-| `days`            | int    | No       | Only return nodes seen within the last `N` days. |
-| `last_seen_after` | string | No       | Custom ISO 8601 timestamp for filtering (`2025-07-21T10:00:00`). |
-
-**Note:** `hours` and `days` take precedence over `last_seen_after`.
-
-#### **Response (200 OK)**
-```json
-{
-  "nodes": [
-    {
-      "node_id": 123456,
-      "long_name": "BaseStation",
-      "short_name": "BS",
-      "channel": "LongFast",
-      "last_seen": "2025-07-22T14:10:00.000000",
-      "hardware": "Heltec V3",
-      "firmware": "1.3.2",
-      "last_lat": 367919104,
-      "last_long": -1217003520,
-      "role": "CLIENT"
+      "import_time": "2025-07-22T12:45:00",
+      "from_node_id": 987654,
+      "from_node": "Alice",
+      "channel": "main",
+      "payload": "Hello, world!"
     }
   ]
 }
 ```
 
-**Fields:**
-- `node_id`: Unique ID of the node.
-- `long_name`: Full descriptive name of the node.
-- `short_name`: Short name or alias.
-- `channel`: Channel the node is configured on.
-- `last_seen`: ISO 8601 timestamp of the last time the node was seen.
-- `hardware`: Hardware model (e.g., Heltec V3).
-- `firmware`: Firmware version of the node.
-- `role`: Node role (e.g., `CLIENT`, `ROUTER`, etc.).
+---
 
-#### **Examples**
-- **All nodes:**
-  ```
-  GET /api/nodes
-  ```
-- **Nodes seen in the last 1 hour:**
-  ```
-  GET /api/nodes?hours=1
-  ```
-- **Nodes seen in the last 7 days:**
-  ```
-  GET /api/nodes?days=7
-  ```
-- **Custom timestamp:**
-  ```
-  GET /api/nodes?last_seen_after=2025-07-21T12:00:00
-  ```
+### GET `/api/chat/updates`
+Returns chat messages imported after a given timestamp.
+
+**Query Parameters**
+- `last_time` (optional, ISO timestamp): Only messages imported after this time are returned.
+
+**Response Example**
+```json
+{
+  "packets": [
+    {
+      "id": 124,
+      "import_time": "2025-07-22T12:50:00",
+      "from_node_id": 987654,
+      "from_node": "Alice",
+      "channel": "main",
+      "payload": "New message!"
+    }
+  ],
+  "latest_import_time": "2025-07-22T12:50:00"
+}
+```
 
 ---
 
-## **General Notes**
-- All timestamps are returned in **localtime** (ISO 8601 format).
-- Both endpoints return JSON responses with `application/json` content type.
-- Error responses return `{"error": "message"}` with an appropriate HTTP status code (e.g., `500`).
+## 2. Nodes API
+
+### GET `/api/nodes`
+Returns a list of all nodes, with optional filtering by last seen.
+
+**Query Parameters**
+- `hours` (optional, int): Return nodes seen in the last N hours.
+- `days` (optional, int): Return nodes seen in the last N days.
+- `last_seen_after` (optional, ISO timestamp): Return nodes seen after this time.
+
+**Response Example**
+```json
+{
+  "nodes": [
+    {
+      "node_id": 1234,
+      "long_name": "Alice",
+      "short_name": "A",
+      "channel": "main",
+      "last_seen": "2025-07-22T12:40:00",
+      "hardware": "T-Beam",
+      "firmware": "1.2.3",
+      "role": "client",
+      "last_lat": 37.7749,
+      "last_long": -122.4194
+    }
+  ]
+}
+```
 
 ---
+
+## 3. Packets API
+
+### GET `/api/packets`
+Returns a list of packets with optional filters.
+
+**Query Parameters**
+- `limit` (optional, int): Maximum number of packets to return. Default: `200`.
+- `since` (optional, ISO timestamp): Only packets imported after this timestamp are returned.
+
+**Response Example**
+```json
+{
+  "packets": [
+    {
+      "id": 123,
+      "from_node_id": 5678,
+      "to_node_id": 91011,
+      "portnum": 1,
+      "import_time": "2025-07-22T12:45:00",
+      "payload": "Hello, Bob!"
+    }
+  ]
+}
+```
+
+---
+
+### Notes
+- All timestamps (`import_time`, `last_seen`) are returned in ISO 8601 format.
+- `portnum` is an integer representing the packet type.
+- `payload` is always a UTF-8 decoded string.

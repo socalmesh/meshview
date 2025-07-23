@@ -321,29 +321,6 @@ async def packet_list(request):
         return web.Response(status=500, text="Internal server error")
 
 
-
-@routes.get("/packet_list_text/{node_id}")
-async def packet_list_text(request):
-    node_id = int(request.match_info["node_id"])
-    portnum = int(request.query.get("portnum")) if request.query.get("portnum") else None
-
-    async with asyncio.TaskGroup() as tg:
-        raw_packets = tg.create_task(store.get_packets(node_id, portnum, limit=200))
-
-    packets = [Packet.from_model(p) for p in await raw_packets]  # Convert generator to a list
-
-    # Convert packets to a plain text format with formatted import time and raw payload
-    text_data = "\n\n----------------------\n\n".join(
-        f"{packet.import_time.strftime('%-I:%M:%S %p - %m-%d-%Y')}\n{packet.raw_payload}"
-        for packet in packets
-    )
-
-    return web.Response(
-        text=text_data,
-        content_type="text/plain",
-    )
-
-
 @routes.get("/packet_details/{packet_id}")
 async def packet_details(request):
     packet_id = int(request.match_info["packet_id"])
@@ -1095,7 +1072,7 @@ async def api_nodes(request):
             content_type="text/plain"
         )
 
-@routes.get("/api/packets")
+@routes.get("/api2/packets")
 async def api_packets(request):
     try:
         node_id = request.query.get("node_id")
@@ -1432,7 +1409,7 @@ async def get_config(request):
         return web.json_response({"error": "Invalid configuration format"}, status=500)
 
 # API Section
-
+#######################################################################
 # How this works
 # When your frontend calls /api/chat without since, it returns the most recent limit (default 100) messages.
 # When your frontend calls /api/chat?since=ISO_TIMESTAMP, it returns only messages with import_time > since.
@@ -1557,6 +1534,52 @@ async def api_nodes(request):
     except Exception as e:
         print("Error in /api/nodes:", e)
         return web.json_response({"error": "Failed to fetch nodes"}, status=500)
+
+@routes.get("/api/packets")
+async def api_packets(request):
+    try:
+        # Query parameters
+        limit = int(request.query.get("limit", 200))
+        since_str = request.query.get("since")
+        since_time = None
+
+        # Parse 'since' timestamp if provided
+        if since_str:
+            try:
+                since_time = datetime.datetime.fromisoformat(since_str)
+            except Exception as e:
+                print(f"Failed to parse 'since' timestamp '{since_str}': {e}")
+
+        # Fetch last N packets
+        packets = await store.get_packets(
+            node_id=0xFFFFFFFF,
+            portnum=None,
+            limit=limit
+        )
+        packets = [Packet.from_model(p) for p in packets]
+
+        # Apply "since" filter
+        if since_time:
+            packets = [p for p in packets if p.import_time > since_time]
+
+        # Build JSON response (no raw_payload)
+        packets_json = [{
+            "id": p.id,
+            "from_node_id": p.from_node_id,
+            "to_node_id": p.to_node_id,
+            "portnum": int(p.portnum),
+            "import_time": p.import_time.isoformat(),
+            "payload": p.payload
+        } for p in packets]
+
+        return web.json_response({"packets": packets_json})
+
+    except Exception as e:
+        print("Error in /api/packets:", str(e))
+        return web.json_response(
+            {"error": "Failed to fetch packets"},
+            status=500
+        )
 
 
 async def run_server():
