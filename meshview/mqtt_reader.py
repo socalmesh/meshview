@@ -47,7 +47,7 @@ async def get_topic_envelopes(mqtt_server, mqtt_port, topics, mqtt_user, mqtt_pa
                         continue
 
                     decrypt(envelope.packet)
-
+                    # print(envelope.packet.decoded)
                     if not envelope.packet.decoded:
                         continue
 
