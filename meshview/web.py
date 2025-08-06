@@ -399,44 +399,39 @@ async def packet_details(request):
 @routes.get("/firehose/updates")
 async def firehose_updates(request):
     try:
+        # Parse `last_time` from query
         last_time_str = request.query.get("last_time", None)
         if last_time_str:
             try:
                 last_time = datetime.datetime.fromisoformat(last_time_str)
+                if last_time.tzinfo is None:
+                    last_time = last_time.replace(tzinfo=datetime.timezone.utc)
             except Exception as e:
                 print(f"Failed to parse last_time '{last_time_str}': {e}")
-                last_time = datetime.datetime.min
+                last_time = None
         else:
-            last_time = datetime.datetime.min
+            last_time = None
 
-        portnum = request.query.get("portnum")
-        if portnum is not None and portnum != "":
-            portnum = int(portnum)
-        else:
-            portnum = None
 
+        # Query packets using `after=last_time`
         packets = await store.get_packets(
-            portnum=portnum,
+            after=last_time,
             limit=10,
         )
         ui_packets = [Packet.from_model(p) for p in packets]
 
-        # Filter packets newer than last_time
-        new_packets = [p for p in ui_packets if p.import_time > last_time]
-
+        # Render HTML using Jinja2
         template = env.get_template("packet.html")
-        # Replace YOUR_NODE_ID with your current node ID (integer)
-        YOUR_NODE_ID = 0x12345678  # example, replace with actual
+        rendered_packets = [template.render(packet=p) for p in ui_packets]
 
-        rendered_packets = [template.render(packet=p, node_id=YOUR_NODE_ID) for p in new_packets]
-
+        # Prepare response
         response = {
             "packets": rendered_packets,
         }
 
-        if new_packets:
-            latest_import_time = max(p.import_time for p in new_packets)
-            response["latest_import_time"] = latest_import_time.isoformat()
+        if ui_packets:
+            latest_import_time = max(p.import_time for p in ui_packets)
+            response["latest_import_time"] = latest_import_time.isoformat(timespec="seconds")
 
         return web.json_response(response)
 
