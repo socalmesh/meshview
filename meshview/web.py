@@ -880,7 +880,7 @@ async def graph_network(request):
 
     for packet in await store.get_packets(
         portnum=PortNum.NEIGHBORINFO_APP,
-        since=since,
+        after=since,
     ):
         _, neighbor_info = decode_payload.decode(packet)
         node_ids.add(packet.from_node_id)
@@ -1332,7 +1332,7 @@ async def nodegraph(request):
             used_nodes.add(path[i + 1])  # Add all nodes in the traceroute path
 
     # Fetch NeighborInfo packets
-    for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, since=since):
+    for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since):
         try:
             _, neighbor_info = decode_payload.decode(packet)
             node_ids.add(packet.from_node_id)
