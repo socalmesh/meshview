@@ -1100,13 +1100,12 @@ async def api_packets(request):
 async def net(request):
     try:
         # Fetch packets for the given node ID and port number
-        after_time = datetime.datetime.now() - timedelta(days=6)
+        after_time = datetime.datetime.now() - timedelta(days=3)
         packets = await store.get_packets(
-            node_id=0xFFFFFFFF, portnum=PortNum.TEXT_MESSAGE_APP, after=after_time)
+            portnum=PortNum.TEXT_MESSAGE_APP, after=after_time, limit=1000)
 
         # Convert packets to UI packets
         ui_packets = [Packet.from_model(p) for p in packets]
-
         # Precompile regex for performance
         seq_pattern = re.compile(r"seq \d+$")
 

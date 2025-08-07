@@ -23,7 +23,7 @@ async def get_fuzzy_nodes(query):
         return result.scalars()
 
 
-async def get_packets(node_id=None, portnum=None, after=None, before=None, limit=100):
+async def get_packets(node_id=None, portnum=None, after=None, before=None, limit=None):
     async with database.async_session() as session:
         q = select(Packet)
 
