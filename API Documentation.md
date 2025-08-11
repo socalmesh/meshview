@@ -115,3 +115,45 @@ Returns a list of packets with optional filters.
 - All timestamps (`import_time`, `last_seen`) are returned in ISO 8601 format.
 - `portnum` is an integer representing the packet type.
 - `payload` is always a UTF-8 decoded string.
+
+## 4 Statistics API: GET `/api/stats`
+
+Retrieve packet statistics aggregated by time periods, with optional filtering.
+
+---
+
+## Query Parameters
+
+| Parameter    | Type    | Required | Default  | Description                                                                                       |
+|--------------|---------|----------|----------|-------------------------------------------------------------------------------------------------|
+| `period_type` | string  | No       | `hour`   | Time granularity of the stats. Allowed values: `hour`, `day`.                                   |
+| `length`      | integer | No       | 24       | Number of periods to include (hours or days).                                                   |
+| `channel`     | string  | No       | —        | Filter results by channel name (case-insensitive).                                             |
+| `portnum`     | integer | No       | —        | Filter results by port number.                                                                  |
+| `to_node`     | integer | No       | —        | Filter results to packets sent **to** this node ID.                                            |
+| `from_node`   | integer | No       | —        | Filter results to packets sent **from** this node ID.                                          |
+
+---
+
+## Response
+
+```json
+{
+  "period_type": "hour",
+  "length": 24,
+  "channel": "LongFast",
+  "portnum": 1,
+  "to_node": 12345678,
+  "from_node": 87654321,
+  "data": [
+    {
+      "period": "2025-08-08 14:00",
+      "count": 10
+    },
+    {
+      "period": "2025-08-08 15:00",
+      "count": 7
+    }
+    // more entries...
+  ]
+}
