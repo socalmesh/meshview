@@ -1,10 +1,9 @@
-import datetime
 from sqlalchemy import select, func
 from sqlalchemy.orm import lazyload
 from meshview import database
 from meshview.models import Packet, PacketSeen, Node, Traceroute
 from sqlalchemy import text
-
+from datetime import datetime, timedelta
 
 async def get_node(node_id):
     async with database.async_session() as session:
@@ -60,7 +59,7 @@ async def get_packets_from(node_id=None, portnum=None, since=None, limit=500):
         if portnum:
             q = q.where(Packet.portnum == portnum)
         if since:
-            q = q.where(Packet.import_time > (datetime.datetime.now() - since))
+            q = q.where(Packet.import_time > (datetime.now() - since))
         result = await session.execute(q.limit(limit).order_by(Packet.import_time.desc()))
         return result.scalars()
 
@@ -115,7 +114,7 @@ async def get_traceroutes(since):
         result = await session.execute(
                 select(Traceroute)
                 .join(Packet)
-                .where(Traceroute.import_time > (datetime.datetime.now() - since))
+                .where(Traceroute.import_time > (datetime.now() - since))
                 .order_by(Traceroute.import_time)
         )
         return result.scalars()
@@ -128,7 +127,7 @@ async def get_mqtt_neighbors(since):
             .where(
                 (PacketSeen.hop_limit == PacketSeen.hop_start)
                 & (PacketSeen.hop_start != 0)
-                & (PacketSeen.import_time > (datetime.datetime.now() - since))
+                & (PacketSeen.import_time > (datetime.now() - since))
             )
             .options(
                 lazyload(Packet.from_node),
@@ -159,7 +158,7 @@ async def get_total_node_count(channel: str = None) -> int:
     try:
         async with database.async_session() as session:
             q = select(func.count(Node.id)).where(
-                Node.last_update > datetime.datetime.now() - datetime.timedelta(days=1)
+                Node.last_update > datetime.now() - timedelta(days=1)
             )
 
             if channel:
@@ -271,7 +270,7 @@ async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
                 query = query.where(Node.hw_model == hw_model)
 
             if days_active is not None:
-                query = query.where(Node.last_update > datetime.datetime.now() - datetime.timedelta(days_active))
+                query = query.where(Node.last_update > datetime.now() - timedelta(days_active))
 
             # Exclude nodes where last_update is an empty string
             query = query.where(Node.last_update != "")
@@ -288,3 +287,56 @@ async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
         print("error reading DB")  # Consider using logging instead of print
         return []  # Return an empty list in case of failure
 
+
+async def get_packet_stats(
+    period_type: str = "day",
+    length: int = 14,
+    channel: str | None = None,
+    portnum: int | None = None,
+    to_node: int | None = None,
+    from_node: int | None = None
+):
+    now = datetime.now()
+
+    if period_type == "hour":
+        start_time = now - timedelta(hours=length)
+        time_format = '%Y-%m-%d %H:00'
+    elif period_type == "day":
+        start_time = now - timedelta(days=length)
+        time_format = '%Y-%m-%d'
+    else:
+        raise ValueError("period_type must be 'hour' or 'day'")
+
+    async with database.async_session() as session:
+        q = (
+            select(
+                func.strftime(time_format, Packet.import_time).label('period'),
+                func.count().label('count')
+            )
+            .where(Packet.import_time >= start_time)
+        )
+
+        # Filters
+        if channel:
+            q = q.where(func.lower(Packet.channel) == channel.lower())
+        if portnum is not None:
+            q = q.where(Packet.portnum == portnum)
+        if to_node is not None:
+            q = q.where(Packet.to_node_id == to_node)
+        if from_node is not None:
+            q = q.where(Packet.from_node_id == from_node)
+
+        q = q.group_by('period').order_by('period')
+
+        result = await session.execute(q)
+        data = [{"period": row.period, "count": row.count} for row in result]
+
+        return {
+            "period_type": period_type,
+            "length": length,
+            "channel": channel,
+            "portnum": portnum,
+            "to_node": to_node,
+            "from_node": from_node,
+            "data": data
+        }

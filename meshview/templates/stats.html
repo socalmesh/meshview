@@ -7,7 +7,7 @@
     }
 
     .main-container, .container {
-        max-width: 600px;
+        max-width: 900px;
         margin: 0 auto;
         text-align: center;
     }
@@ -16,7 +16,7 @@
         background-color: #272b2f;
         border: 1px solid #474b4e;
         padding: 15px 20px;
-        margin-bottom: 10px;
+        margin-bottom: 20px;
         border-radius: 10px;
         transition: background-color 0.2s ease;
     }
@@ -29,17 +29,7 @@
         font-size: 16px;
         margin: 0;
         font-weight: 500;
-    }
-
-    .section-value {
-        font-weight: 700;
-        color: #03dac6;
-    }
-
-    .percentage {
-        font-size: 12px;
-        color: #ffeb3b;
-        font-weight: 400;
+        color: #fff;
     }
 
     .main-header {
@@ -47,34 +37,140 @@
         margin-bottom: 20px;
         font-weight: 600;
     }
+
+    .chart {
+        height: 400px;
+        margin-top: 15px;
+    }
+{% endblock %}
+
+{% block head %}
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 {% endblock %}
 
 {% block body %}
 <div class="main-container">
     <h2 class="main-header">Mesh Statistics</h2>
 
-    <!-- Section for Total Nodes -->
+    <!-- Hourly Chart -->
     <div class="card-section">
-        <p class="section-header">
-            Total Active Nodes (24 hours): <br>
-            <span class="section-value">{{ "{:,}".format(total_nodes) }}</span>
-        </p>
+        <p class="section-header">Packets per Hour (Last 24 Hours)</p>
+        <div id="chart_hourly" class="chart"></div>
     </div>
 
-    <!-- Section for Total Packets -->
+    <!-- PortNum 1 Hourly Chart -->
     <div class="card-section">
-        <p class="section-header">
-            Total Packets (14 days):
-            <span class="section-value">{{ "{:,}".format(total_packets) }}</span>
-        </p>
+        <p class="section-header">Packets per Hour for PortNum 1 (Last 24 Hours)</p>
+        <div id="chart_portnum_1" class="chart"></div>
     </div>
 
-    <!-- Section for Total MQTT Reports -->
+    <!-- Daily Chart -->
     <div class="card-section">
-        <p class="section-header">
-            Total MQTT Reports (14 days):
-            <span class="section-value">{{ "{:,}".format(total_packets_seen) }}</span>
-        </p>
+        <p class="section-header">Packets per Day (Last 14 Days)</p>
+        <div id="chart_daily" class="chart"></div>
+    </div>
+
+    <!-- PortNum 1 Daily Chart -->
+    <div class="card-section">
+        <p class="section-header">Packets per Day for PortNum 1 (Last 14 Days)</p>
+        <div id="chart_daily_portnum_1" class="chart"></div>
     </div>
 </div>
+
+<script>
+    async function fetchStats(period_type, length, portnum = null) {
+        try {
+            let url = `/api/stats?period_type=${period_type}&length=${length}`;
+            if (portnum !== null) {
+                url += `&portnum=${portnum}`;
+            }
+            const res = await fetch(url);
+            if (!res.ok) {
+                console.error(`Failed to fetch ${period_type} stats:`, res.status, res.statusText);
+                return [];
+            }
+            const json = await res.json();
+            return json.data || [];
+        } catch (err) {
+            console.error('Error fetching stats:', err);
+            return [];
+        }
+    }
+
+    let chartHourly = null;
+    let chartPortnum1 = null;
+    let chartDaily = null;
+    let chartDailyPortnum1 = null;
+
+    function renderChart(domId, data, type, color, isHourly) {
+        const el = document.getElementById(domId);
+        if (!el) return;
+
+        const chart = echarts.init(el);
+        if (domId === 'chart_hourly') chartHourly = chart;
+        else if (domId === 'chart_portnum_1') chartPortnum1 = chart;
+        else if (domId === 'chart_daily') chartDaily = chart;
+        else if (domId === 'chart_daily_portnum_1') chartDailyPortnum1 = chart;
+
+        const periods = data.map(d => {
+            const p = (d && (d.period || d.period === 0)) ? d.period.toString() : '';
+            if (isHourly) {
+                if (p.includes(' ')) return p.split(' ')[1];
+                return p.slice(-5) || p;
+            }
+            return p;
+        });
+
+        const counts = data.map(d => (d.count ?? d.packet_count ?? 0));
+
+        const option = {
+            backgroundColor: '#272b2f',
+            tooltip: { trigger: 'axis' },
+            grid: { left: '6%', right: '6%', bottom: '18%' },
+            xAxis: {
+                type: 'category',
+                data: periods,
+                axisLine: { lineStyle: { color: '#aaa' } },
+                axisLabel: { rotate: 45, color: '#ccc' }
+            },
+            yAxis: {
+                type: 'value',
+                axisLine: { lineStyle: { color: '#aaa' } },
+                axisLabel: { color: '#ccc' }
+            },
+            series: [{
+                data: counts,
+                type: type,
+                smooth: type === 'line',
+                itemStyle: { color: color },
+                areaStyle: type === 'line' ? {} : undefined
+            }]
+        };
+
+        chart.setOption(option);
+    }
+
+    async function init() {
+        const hourlyData = await fetchStats('hour', 24);
+        renderChart('chart_hourly', hourlyData, 'bar', '#03dac6', true);
+
+        const portnum1Data = await fetchStats('hour', 24, 1);
+        renderChart('chart_portnum_1', portnum1Data, 'bar', '#ff5722', true);
+
+        const dailyData = await fetchStats('day', 14);
+        renderChart('chart_daily', dailyData, 'line', '#ffeb3b', false);
+
+        const dailyPortnum1Data = await fetchStats('day', 14, 1);
+        renderChart('chart_daily_portnum_1', dailyPortnum1Data, 'bar', '#ff7043', false);
+    }
+
+    window.addEventListener('resize', () => {
+        if (chartHourly) chartHourly.resize();
+        if (chartPortnum1) chartPortnum1.resize();
+        if (chartDaily) chartDaily.resize();
+        if (chartDailyPortnum1) chartDailyPortnum1.resize();
+    });
+
+    init();
+</script>
 {% endblock %}

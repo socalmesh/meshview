@@ -384,7 +384,7 @@ async def packet_details(request):
     portnum = request.query.get("portnum")
     if portnum:
         portnum = int(portnum)
-    packets = await store.get_packets(portnum=portnum, limit=20)
+    packets = await store.get_packets(portnum=portnum, limit=10)
     template = env.get_template("firehose.html")
     return web.Response(
         text=template.render(
@@ -1395,6 +1395,18 @@ async def get_config(request):
     except (json.JSONDecodeError, TypeError):
         return web.json_response({"error": "Invalid configuration format"}, status=500)
 
+
+@routes.get("/stats2")
+async def packet_details(request):
+
+    template = env.get_template("stats2.html")
+    return web.Response(
+        text=template.render(
+            site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+        ),
+        content_type="text/html",
+    )
 # API Section
 #######################################################################
 # How this works
@@ -1567,6 +1579,63 @@ async def api_packets(request):
             {"error": "Failed to fetch packets"},
             status=500
         )
+
+
+@routes.get("/api/stats")
+async def api_stats(request):
+    """
+    Return packet statistics for a given period type, length,
+    and optional filters for channel, portnum, to_node, from_node.
+    """
+    allowed_periods = {"hour", "day"}
+
+    # period_type validation
+    period_type = request.query.get("period_type", "hour").lower()
+    if period_type not in allowed_periods:
+        return web.json_response(
+            {"error": f"Invalid period_type. Must be one of {allowed_periods}"},
+            status=400
+        )
+
+    # length validation
+    try:
+        length = int(request.query.get("length", 24))
+    except ValueError:
+        return web.json_response(
+            {"error": "length must be an integer"},
+            status=400
+        )
+
+    # Optional filters
+    channel = request.query.get("channel")
+
+    def parse_int_param(name):
+        value = request.query.get(name)
+        if value is not None:
+            try:
+                return int(value)
+            except ValueError:
+                raise web.HTTPBadRequest(
+                    text=json.dumps({"error": f"{name} must be an integer"}),
+                    content_type="application/json"
+                )
+        return None
+
+    portnum = parse_int_param("portnum")
+    to_node = parse_int_param("to_node")
+    from_node = parse_int_param("from_node")
+
+    # Fetch stats
+    stats = await store.get_packet_stats(
+        period_type=period_type,
+        length=length,
+        channel=channel,
+        portnum=portnum,
+        to_node=to_node,
+        from_node=from_node
+    )
+
+    return web.json_response(stats)
 
 
 async def run_server():
