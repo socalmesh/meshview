@@ -1396,10 +1396,10 @@ async def get_config(request):
         return web.json_response({"error": "Invalid configuration format"}, status=500)
 
 
-@routes.get("/stats2")
+@routes.get("/api-stats")
 async def packet_details(request):
 
-    template = env.get_template("stats2.html")
+    template = env.get_template("api-stats.html")
     return web.Response(
         text=template.render(
             site_config = CONFIG,

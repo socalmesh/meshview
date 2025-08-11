@@ -27,7 +27,7 @@
 
     .section-header {
         font-size: 16px;
-        margin: 0;
+        margin: 0 0 6px 0;
         font-weight: 500;
         color: #fff;
     }
@@ -40,7 +40,13 @@
 
     .chart {
         height: 400px;
-        margin-top: 15px;
+        margin-top: 10px;
+    }
+
+    .total-count {
+        color: #ccc;
+        font-size: 14px;
+        margin-bottom: 8px;
     }
 {% endblock %}
 
@@ -55,43 +61,51 @@
     <!-- Overall hourly packets -->
     <div class="card-section">
         <p class="section-header">Packets per Hour - All Ports</p>
+        <div id="total_hourly_all" class="total-count">Total: 0</div>
         <div id="chart_hourly_all" class="chart"></div>
     </div>
 
     <!-- Hourly charts by portnum -->
     <div class="card-section">
         <p class="section-header">Packets per Hour - Text Messages (Port 1)</p>
+        <div id="total_portnum_1" class="total-count">Total: 0</div>
         <div id="chart_portnum_1" class="chart"></div>
     </div>
 
     <div class="card-section">
         <p class="section-header">Packets per Hour - Position (Port 3)</p>
+        <div id="total_portnum_3" class="total-count">Total: 0</div>
         <div id="chart_portnum_3" class="chart"></div>
     </div>
 
     <div class="card-section">
         <p class="section-header">Packets per Hour - Node Info (Port 4)</p>
+        <div id="total_portnum_4" class="total-count">Total: 0</div>
         <div id="chart_portnum_4" class="chart"></div>
     </div>
 
     <div class="card-section">
         <p class="section-header">Packets per Hour - Telemetry (Port 67)</p>
+        <div id="total_portnum_67" class="total-count">Total: 0</div>
         <div id="chart_portnum_67" class="chart"></div>
     </div>
 
     <div class="card-section">
         <p class="section-header">Packets per Hour - Traceroute (Port 70)</p>
+        <div id="total_portnum_70" class="total-count">Total: 0</div>
         <div id="chart_portnum_70" class="chart"></div>
     </div>
 
     <div class="card-section">
         <p class="section-header">Packets per Hour - Neighbor Info (Port 71)</p>
+        <div id="total_portnum_71" class="total-count">Total: 0</div>
         <div id="chart_portnum_71" class="chart"></div>
     </div>
 
     <!-- Daily packets chart -->
     <div class="card-section">
         <p class="section-header">Packets per Day - All Ports (Last 14 Days)</p>
+        <div id="total_daily_all" class="total-count">Total: 0</div>
         <div id="chart_daily_all" class="chart"></div>
     </div>
 </div>
@@ -114,6 +128,14 @@
             console.error('Error fetching stats:', err);
             return [];
         }
+    }
+
+    function updateTotalCount(domId, data) {
+        const el = document.getElementById(domId);
+        if (!el || !data.length) return;
+        // Sum counts for total
+        const total = data.reduce((acc, d) => acc + (d.count ?? d.packet_count ?? 0), 0);
+        el.textContent = `Total: ${total.toLocaleString()}`;
     }
 
     // Chart references
@@ -183,6 +205,7 @@
     async function init() {
         // Overall hourly packets
         const hourlyAllData = await fetchStats('hour', 24);
+        updateTotalCount('total_hourly_all', hourlyAllData);
         renderChart('chart_hourly_all', hourlyAllData, 'bar', '#03dac6', true);
 
         // Hourly packets by portnum in parallel
@@ -196,15 +219,25 @@
             'chart_portnum_70',
             'chart_portnum_71'
         ];
+        const totalIds = [
+            'total_portnum_1',
+            'total_portnum_3',
+            'total_portnum_4',
+            'total_portnum_67',
+            'total_portnum_70',
+            'total_portnum_71'
+        ];
 
         const allData = await Promise.all(portnums.map(pn => fetchStats('hour', 24, pn)));
 
         for (let i = 0; i < portnums.length; i++) {
+            updateTotalCount(totalIds[i], allData[i]);
             renderChart(domIds[i], allData[i], 'bar', colors[i], true);
         }
 
         // Daily packets (all ports, last 14 days)
         const dailyAllData = await fetchStats('day', 14);
+        updateTotalCount('total_daily_all', dailyAllData);
         renderChart('chart_daily_all', dailyAllData, 'line', '#66bb6a', false);
     }
 
