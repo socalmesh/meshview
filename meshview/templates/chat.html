@@ -133,8 +133,8 @@ async function fetchUpdates() {
                     </span>
                     <span class="col-5 message">
                         ${escapeHtml(packet.payload)}
-                        ${packet.raw_mesh_packet && packet.raw_mesh_packet.decoded && packet.raw_mesh_packet.decoded.reply_id
-                            ? `<span class="replying-to">(Replying to: <a href="/packet/${packet.raw_mesh_packet.decoded.reply_id}">${packet.raw_mesh_packet.decoded.reply_id}</a>)</span>`
+                        ${packet.reply_id
+                            ? `<span class="replying-to">(Replying to: <a href="/packet/${packet.reply_id}">${packet.reply_id}</a>)</span>`
                             : ''}
                     </span>
                 `;

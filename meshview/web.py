@@ -1287,14 +1287,26 @@ async def chat_updates(request):
         filtered_packets = [p for p in ui_packets if not SEQ_REGEX.fullmatch(p.payload)]
         new_packets = [p for p in filtered_packets if p.import_time > last_time]
 
-        packets_data = [{
-            "id": p.id,
-            "import_time": p.import_time.isoformat(),
-            "channel": p.from_node.channel if p.from_node else "",
-            "from_node_id": p.from_node_id,
-            "long_name": p.from_node.long_name if p.from_node else "",
-            "payload": p.payload,
-        } for p in new_packets]
+        packets_data = []
+        for p in new_packets:
+            reply_id = None
+            if getattr(p, 'raw_mesh_packet', None):
+                decoded = getattr(p.raw_mesh_packet, 'decoded', None)
+                if decoded:
+                    reply_id = getattr(decoded, 'reply_id', None)
+
+            packet_dict = {
+                "id": p.id,
+                "import_time": p.import_time.isoformat(),
+                "channel": p.from_node.channel if p.from_node else "",
+                "from_node_id": p.from_node_id,
+                "long_name": p.from_node.long_name if p.from_node else "",
+                "payload": p.payload,
+            }
+            if reply_id:
+                packet_dict["reply_id"] = reply_id
+
+            packets_data.append(packet_dict)
 
         response = {
             "packets": packets_data
