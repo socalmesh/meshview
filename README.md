@@ -6,7 +6,7 @@ The project serves as a real-time monitoring and diagnostic tool for the Meshtas
 
 ### Version 2.0.4 update - August 2025
 * New statistic page with more data.
-* New api /api/stats (See api documentation).
+* New API /api/stats (See API documentation).
 * Inprovement on "See Everything" and "Conversation" pages.
 * Tracking of replies with links to original message.
 
