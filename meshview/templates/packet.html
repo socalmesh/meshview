@@ -41,6 +41,9 @@
                     {% if packet.pretty_payload %}
                     <div>{{packet.pretty_payload}}</div>
                     {% endif %}
+                    {% if  packet.raw_mesh_packet.decoded.reply_id %}
+                    Replying to: <a href="/packet/{{packet.raw_mesh_packet.decoded.reply_id}}">{{packet.raw_mesh_packet.decoded.reply_id}}</a>
+                    {% endif %}
                     {% if  packet.raw_mesh_packet.decoded and packet.raw_mesh_packet.decoded.portnum == 70 %}
                         <ul>
                             {% for node_id in packet.raw_payload.route %}
