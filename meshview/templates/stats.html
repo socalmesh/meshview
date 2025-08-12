@@ -58,6 +58,13 @@
 <div class="main-container">
     <h2 class="main-header">Mesh Statistics - Hourly Packet Counts (Last 24 Hours)</h2>
 
+    <!-- Daily packets chart moved to top -->
+    <div class="card-section">
+        <p class="section-header">Packets per Day - All Ports (Last 14 Days)</p>
+        <div id="total_daily_all" class="total-count">Total: 0</div>
+        <div id="chart_daily_all" class="chart"></div>
+    </div>
+
     <!-- Overall hourly packets -->
     <div class="card-section">
         <p class="section-header">Packets per Hour - All Ports</p>
@@ -101,13 +108,6 @@
         <div id="total_portnum_71" class="total-count">Total: 0</div>
         <div id="chart_portnum_71" class="chart"></div>
     </div>
-
-    <!-- Daily packets chart -->
-    <div class="card-section">
-        <p class="section-header">Packets per Day - All Ports (Last 14 Days)</p>
-        <div id="total_daily_all" class="total-count">Total: 0</div>
-        <div id="chart_daily_all" class="chart"></div>
-    </div>
 </div>
 
 <script>
@@ -133,12 +133,10 @@
     function updateTotalCount(domId, data) {
         const el = document.getElementById(domId);
         if (!el || !data.length) return;
-        // Sum counts for total
         const total = data.reduce((acc, d) => acc + (d.count ?? d.packet_count ?? 0), 0);
         el.textContent = `Total: ${total.toLocaleString()}`;
     }
 
-    // Chart references
     let chartHourlyAll = null;
     let chartPortnum1 = null;
     let chartPortnum3 = null;
@@ -151,7 +149,6 @@
     function renderChart(domId, data, type, color, isHourly) {
         const el = document.getElementById(domId);
         if (!el) return;
-
         const chart = echarts.init(el);
         switch(domId) {
             case 'chart_hourly_all': chartHourlyAll = chart; break;
@@ -203,12 +200,14 @@
     }
 
     async function init() {
-        // Overall hourly packets
+        const dailyAllData = await fetchStats('day', 14);
+        updateTotalCount('total_daily_all', dailyAllData);
+        renderChart('chart_daily_all', dailyAllData, 'line', '#66bb6a', false);
+
         const hourlyAllData = await fetchStats('hour', 24);
         updateTotalCount('total_hourly_all', hourlyAllData);
         renderChart('chart_hourly_all', hourlyAllData, 'bar', '#03dac6', true);
 
-        // Hourly packets by portnum in parallel
         const portnums = [1, 3, 4, 67, 70, 71];
         const colors = ['#ff5722', '#2196f3', '#9c27b0', '#ffeb3b', '#795548', '#4caf50'];
         const domIds = [
@@ -234,11 +233,6 @@
             updateTotalCount(totalIds[i], allData[i]);
             renderChart(domIds[i], allData[i], 'bar', colors[i], true);
         }
-
-        // Daily packets (all ports, last 14 days)
-        const dailyAllData = await fetchStats('day', 14);
-        updateTotalCount('total_daily_all', dailyAllData);
-        renderChart('chart_daily_all', dailyAllData, 'line', '#66bb6a', false);
     }
 
     window.addEventListener('resize', () => {
