@@ -435,21 +435,38 @@ async def firehose_updates(request):
 
 @routes.get("/packet/{packet_id}")
 async def packet(request):
-    packet = await store.get_packet(int(request.match_info["packet_id"]))
+    try:
+        packet_id = int(request.match_info["packet_id"])
+    except (ValueError, KeyError):
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="Invalid packet ID",
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+        )
+        return web.Response(text=rendered, content_type="text/html")
+
+    packet = await store.get_packet(packet_id)
     if not packet:
-        return web.Response(status=404)
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="Packet not found",
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+        )
+        return web.Response(text=rendered, content_type="text/html")
 
     node = await store.get_node(packet.from_node_id)
     template = env.get_template("packet_index.html")
 
-    return web.Response(
-        text=template.render(
-            packet=Packet.from_model(packet),
-            site_config = CONFIG,
-            SOFTWARE_RELEASE=SOFTWARE_RELEASE
-        ),
-        content_type="text/html",
+    rendered = template.render(
+        packet=Packet.from_model(packet),
+        node=node,
+        site_config=CONFIG,
+        SOFTWARE_RELEASE=SOFTWARE_RELEASE,
     )
+    return web.Response(text=rendered, content_type="text/html")
+
 
 @routes.get("/graph/power_json/{node_id}")
 async def graph_power_json(request):
