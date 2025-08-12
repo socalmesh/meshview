@@ -48,6 +48,9 @@
             </span>
             <span class="col-5 message">
                 {{ packet.payload }}
+                {% if  packet.raw_mesh_packet.decoded.reply_id %}
+                (Replying to: <a href="/packet/{{packet.raw_mesh_packet.decoded.reply_id}}">{{packet.raw_mesh_packet.decoded.reply_id}}</a>)
+                {% endif %}
             </span>
         </div>
         {% else %}
