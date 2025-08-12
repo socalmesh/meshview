@@ -22,6 +22,12 @@
 .chat-packet.flash {
     animation: flash 3.5s ease-out;
 }
+
+/* New CSS for smaller Replying to text */
+.replying-to {
+    font-size: 0.85em;
+    color: #ccc;
+}
 {% endblock %}
 
 {% block body %}
@@ -48,8 +54,10 @@
             </span>
             <span class="col-5 message">
                 {{ packet.payload }}
-                {% if  packet.raw_mesh_packet.decoded.reply_id %}
-                (Replying to: <a href="/packet/{{packet.raw_mesh_packet.decoded.reply_id}}">{{packet.raw_mesh_packet.decoded.reply_id}}</a>)
+                {% if packet.raw_mesh_packet.decoded.reply_id %}
+                <span class="replying-to">
+                    (Replying to: <a href="/packet/{{ packet.raw_mesh_packet.decoded.reply_id }}">{{ packet.raw_mesh_packet.decoded.reply_id }}</a>)
+                </span>
                 {% endif %}
             </span>
         </div>
@@ -105,7 +113,8 @@ async function fetchUpdates() {
                 const formattedTime = date.toLocaleTimeString([], {
                     hour: 'numeric',
                     minute: '2-digit',
-                    second: '2-digit'
+                    second: '2-digit',
+                    hour12: true
                 });
                 const formattedDate = `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear()}`;
                 const formattedTimestamp = `${formattedTime} - ${formattedDate}`;
@@ -122,7 +131,12 @@ async function fetchUpdates() {
                             ${packet.long_name || (packet.from_node_id || '').toString(16)}
                         </a>
                     </span>
-                    <span class="col-5 message">${escapeHtml(packet.payload)}</span>
+                    <span class="col-5 message">
+                        ${escapeHtml(packet.payload)}
+                        ${packet.raw_mesh_packet && packet.raw_mesh_packet.decoded && packet.raw_mesh_packet.decoded.reply_id
+                            ? `<span class="replying-to">(Replying to: <a href="/packet/${packet.raw_mesh_packet.decoded.reply_id}">${packet.raw_mesh_packet.decoded.reply_id}</a>)</span>`
+                            : ''}
+                    </span>
                 `;
 
                 chatContainer.prepend(div);
