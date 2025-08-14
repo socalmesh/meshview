@@ -268,7 +268,13 @@ async def packet_list(request):
         try:
             node_id = int(request.match_info["node_id"])
         except (KeyError, ValueError):
-            return web.Response(status=400, text="Invalid or missing node ID")
+            template = env.get_template("error.html")
+            rendered = template.render(
+                error_message="Invalid or missing node ID",
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+            )
+            return web.Response(text=rendered, content_type="text/html")
 
         # Parse and validate portnum (optional)
         portnum = request.query.get("portnum")
@@ -293,7 +299,13 @@ async def packet_list(request):
         has_telemetry = await has_telemetry_task
 
         if node is None:
-            return web.Response(status=404, text="Node not found")
+            template = env.get_template("error.html")
+            rendered = template.render(
+                error_message="Node not found",
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+            )
+            return web.Response(text=rendered, content_type="text/html")
 
         # Render template
         template = env.get_template("node.html")
@@ -318,7 +330,13 @@ async def packet_list(request):
     except Exception as e:
         # Log full traceback for diagnostics
         traceback.print_exc()
-        return web.Response(status=500, text="Internal server error")
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="Internal server error",
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+        )
+        return web.Response(text=rendered, content_type="text/html")
 
 
 @routes.get("/packet_details/{packet_id}")
