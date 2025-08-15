@@ -268,14 +268,28 @@ async def packet_list(request):
         try:
             node_id = int(request.match_info["node_id"])
         except (KeyError, ValueError):
-            return web.Response(status=400, text="Invalid or missing node ID")
+            template = env.get_template("error.html")
+            rendered = template.render(
+                error_message="Invalid or missing node ID",
+                error_details=None,
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+            )
+            return web.Response(text=rendered, status=400, content_type="text/html")
 
         # Parse and validate portnum (optional)
         portnum = request.query.get("portnum")
         try:
             portnum = int(portnum) if portnum else None
         except ValueError:
-            return web.Response(status=400, text="Invalid portnum value")
+            template = env.get_template("error.html")
+            rendered = template.render(
+                error_message="Invalid portnum value",
+                error_details=None,
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+            )
+            return web.Response(text=rendered, status=400, content_type="text/html")
 
         # Run tasks concurrently
         async with asyncio.TaskGroup() as tg:
@@ -293,7 +307,14 @@ async def packet_list(request):
         has_telemetry = await has_telemetry_task
 
         if node is None:
-            return web.Response(status=404, text="Node not found")
+            template = env.get_template("error.html")
+            rendered = template.render(
+                error_message="Node not found",
+                error_details=None,
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+            )
+            return web.Response(text=rendered, status=404, content_type="text/html")
 
         # Render template
         template = env.get_template("node.html")
@@ -318,7 +339,14 @@ async def packet_list(request):
     except Exception as e:
         # Log full traceback for diagnostics
         traceback.print_exc()
-        return web.Response(status=500, text="Internal server error")
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="Internal server error",
+            error_details=traceback.format_exc(),
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+        )
+        return web.Response(text=rendered, content_type="text/html")
 
 
 @routes.get("/packet_details/{packet_id}")
@@ -1039,12 +1067,14 @@ async def nodelist(request):
             content_type="text/html",
         )
     except Exception as e:
-
-        return web.Response(
-            text="An error occurred while processing your request.",
-            status=500,
-            content_type="text/plain",
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="An error occurred while processing your request.",
+            error_details=traceback.format_exc(),
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         )
+        return web.Response(text=rendered, status=500, content_type="text/html")
 
 @routes.get("/api/nodes")
 async def api_nodes(request):
@@ -1148,11 +1178,14 @@ async def net(request):
 
     except Exception as e:
         print("Error processing net request")
-        return web.Response(
-            text="An internal server error occurred.",
-            status=500,
-            content_type="text/plain",
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="An internal server error occurred.",
+            error_details=traceback.format_exc(),
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         )
+        return web.Response(text=rendered, status=500, content_type="text/html")
 
 
 @routes.get("/map")
@@ -1232,11 +1265,15 @@ async def top(request):
             content_type="text/html",
         )
     except Exception as e:
-        return web.Response(
-            text=f"An error occurred: {str(e)}",
-            status=500,
-            content_type="text/plain",
+        print("Error in /top:", e)
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="An error occurred in /top",
+            error_details=traceback.format_exc(),
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         )
+        return web.Response(text=rendered, status=500, content_type="text/html")
 
 @routes.get("/chat")
 async def chat(request):
@@ -1260,11 +1297,15 @@ async def chat(request):
         )
     except Exception as e:
         print("Error in /chat:", e)
-        return web.Response(
-            text="An error occurred while processing your request.",
-            status=500,
-            content_type="text/plain",
+        template = env.get_template("error.html")
+        rendered = template.render(
+            error_message="An error occurred while processing your request.",
+            error_details=traceback.format_exc(),
+            site_config=CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         )
+        return web.Response(text=rendered, status=500, content_type="text/html")
+
 @routes.get("/chat/updates")
 async def chat_updates(request):
     try:
