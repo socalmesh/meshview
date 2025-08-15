@@ -85,9 +85,16 @@ cp sample.config.ini config.ini
 
 Edit `config.ini` to match your MQTT and web server settings:
 
+
 ```bash
 nano config.ini
 ```
+
+> **NOTE**
+> On MacOS set the bind configuration line to 
+> ```
+> bind = 127.0.0.1
+> ```
 
 Example:
 
