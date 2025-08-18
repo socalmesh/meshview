@@ -1466,17 +1466,7 @@ async def get_config(request):
         return web.json_response({"error": "Invalid configuration format"}, status=500)
 
 
-@routes.get("/api-stats")
-async def packet_details(request):
 
-    template = env.get_template("api-stats.html")
-    return web.Response(
-        text=template.render(
-            site_config = CONFIG,
-            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
-        ),
-        content_type="text/html",
-    )
 # API Section
 #######################################################################
 # How this works
@@ -1706,6 +1696,31 @@ async def api_stats(request):
     )
 
     return web.json_response(stats)
+
+@routes.get("/api-stats")
+async def packet_details(request):
+
+    template = env.get_template("api-stats.html")
+    return web.Response(
+        text=template.render(
+            site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+        ),
+        content_type="text/html",
+    )
+
+
+@routes.get("/api-packets")
+async def packet_details(request):
+
+    template = env.get_template("api-packets.html")
+    return web.Response(
+        text=template.render(
+            site_config = CONFIG,
+            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+        ),
+        content_type="text/html",
+    )
 
 
 async def run_server():
