@@ -3,6 +3,5 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/meshtastic-python" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/meshtastic-python/protobufs" vcs="Git" />
   </component>
 </project>
