@@ -3,5 +3,5 @@
 	url = https://github.com/meshtastic/python.git
 
 [submodule "nanopb"]
-	path = meshtastic-python
+	path = meshtastic-python/nanopd
 	url = https://github.com/nanopb/nanopb.git
