@@ -2,6 +2,6 @@
 	path = meshtastic-python
 	url = https://github.com/meshtastic/python.git
 
-[submodule "protobufs"]
-	path = protobufs
-	url = http://github.com/meshtastic/protobufs
+[submodule "nanopb"]
+	path = meshtastic-python
+	url = https://github.com/nanopb/nanopb.git
