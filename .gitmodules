@@ -1,7 +1,3 @@
 [submodule "meshtastic-python"]
 	path = meshtastic-python
 	url = https://github.com/meshtastic/python.git
-
-[submodule "meshtastic-python/nanopb"]
-	path = meshtastic-python/nanopb
-	url = https://github.com/nanopb/nanopb.git
