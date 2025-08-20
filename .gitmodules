@@ -1,7 +1,3 @@
 [submodule "python"]
 	path = python
 	url = https://github.com/meshtastic/python.git
-
-[submodule "protobufs"]
-	path = python/protobufs
-	url = http://github.com/meshtastic/protobufs
