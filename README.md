@@ -63,7 +63,7 @@ Initialize submodule (non-recursively) and create symlink:
 ```bash
 cd meshview
 git submodule update --init
-ln -s python/meshtastic/protobuf meshtastic/protobuf
+ln -s ../python/meshtastic/protobuf meshtastic/protobuf
 ```
 Create a Python virtual environment:
 
