@@ -56,7 +56,7 @@
                 {{ packet.payload }}
                 {% if packet.raw_mesh_packet.decoded.reply_id %}
                 <span class="replying-to">
-                    (Replying to: <a href="/packet/{{ packet.raw_mesh_packet.decoded.reply_id }}">{{ packet.raw_mesh_packet.decoded.reply_id }}</a>)
+                    <i>(Replying to: <a href="/packet/{{ packet.raw_mesh_packet.decoded.reply_id }}">{{ packet.raw_mesh_packet.decoded.reply_id }}</a>)</i>
                 </span>
                 {% endif %}
             </span>
