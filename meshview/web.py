@@ -1598,42 +1598,45 @@ async def api_nodes(request):
 @routes.get("/api/packets")
 async def api_packets(request):
     try:
-        limit = int(request.query.get("limit", 200))
+        # Query parameters
+        limit = int(request.query.get("limit", 50))
         since_str = request.query.get("since")
         since_time = None
+
+        # Parse 'since' timestamp if provided
         if since_str:
             try:
                 since_time = datetime.datetime.fromisoformat(since_str)
             except Exception as e:
                 print(f"Failed to parse 'since' timestamp '{since_str}': {e}")
 
-        # Fetch packets (filter at DB level if possible)
+        # Fetch last N packets
         packets = await store.get_packets(
             node_id=0xFFFFFFFF,
             portnum=None,
             limit=limit,
             after=since_time
         )
+        packets = [Packet.from_model(p) for p in packets]
 
-        # Build JSON (decode payload as UTF-8 text)
+        # Build JSON response (no raw_payload)
         packets_json = [{
             "id": p.id,
             "from_node_id": p.from_node_id,
             "to_node_id": p.to_node_id,
-            "portnum": int(p.portnum) if p.portnum is not None else None,
+            "portnum": int(p.portnum),
             "import_time": p.import_time.isoformat(),
-            "payload": p.payload.decode("utf-8", errors="replace") if p.payload else None
+            "payload": p.payload
         } for p in packets]
 
         return web.json_response({"packets": packets_json})
 
     except Exception as e:
         print("Error in /api/packets:", str(e))
-        return web.json_response({"error": "Failed to fetch packets"}, status=500)
-
-    except Exception as e:
-        print("Error in /api/packets:", str(e))
-        return web.json_response({"error": "Failed to fetch packets"}, status=500)
+        return web.json_response(
+            {"error": "Failed to fetch packets"},
+            status=500
+        )
 
 
 @routes.get("/api/stats")
