@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Mesh Nodes Live Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  body { margin: 0; }
+  #map { height: 100vh; width: 100%; }
+
+  #ticket-tape {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 30px;
+    background: rgba(0,0,0,0.7);
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 30px;
+    display: flex;
+    overflow-x: auto; overflow-y: hidden;
+    white-space: nowrap; z-index: 1000;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  #ticket-tape::-webkit-scrollbar { display: none; }
+  .ticket-node { flex: 0 0 auto; margin-right: 15px; transition: color 0.3s, font-weight 0.3s; }
+  .has-location { color: white; }
+  .no-location { color: grey; }
+
+  #legend {
+    position: absolute; bottom: 10px; right: 10px;
+    background: rgba(0,0,0,0.7);
+    color: white; padding: 8px 12px;
+    font-family: monospace; font-size: 13px;
+    border-radius: 5px; z-index: 1000;
+  }
+  .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+  .legend-color { width: 16px; height: 16px; margin-right: 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="ticket-tape"></div>
+<div id="map"></div>
+<div id="legend"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const map = L.map("map");
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+
+  const nodeMarkers = new Map();
+  let lastPacketTime = null;
+  const ticketTape = document.getElementById('ticket-tape');
+
+  // Custom port numbers, colors, and labels
+  const portColors = { 1:"red", 67:"cyan", 3:"orange", 70:"purple", 4:"yellow", 71:"brown", 73:"pink" };
+  const portLabels = {
+    1:"Text chat",
+    67:"Telemetry",
+    3:"Position/GPS",
+    70:"Traceroute",
+    4:"Node Info",
+    71:"Neighbour Info",
+    73:"Map Report"
+  };
+  function getPulseColor(portnum) { return portColors[portnum] || "green"; }
+
+  // Generate legend dynamically with labels
+  const legend = document.getElementById("legend");
+  for (const [port, color] of Object.entries(portColors)) {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    const colorBox = document.createElement("div");
+    colorBox.className = "legend-color";
+    colorBox.style.background = color;
+    const label = document.createElement("span");
+    label.textContent = `${portLabels[port] || "Custom"} (${port})`;
+    item.appendChild(colorBox);
+    item.appendChild(label);
+    legend.appendChild(item);
+  }
+
+  // Pulse marker animation
+  function pulseMarker(marker, highlightColor="red") {
+    if (!marker) return;
+    const originalColor = marker.options.originalColor;
+    const originalRadius = marker.options.originalRadius;
+
+    marker.bringToFront();
+    const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius+5;
+    let flashTime = 0;
+
+    const flashTimer = setInterval(() => {
+      flashTime += flashInterval;
+      const isOn = (flashTime / flashInterval) % 2 === 0;
+      marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
+
+      if (flashTime >= flashDuration) {
+        clearInterval(flashTimer);
+        const fadeStart = performance.now();
+        function fade(now) {
+          const t = Math.min((now - fadeStart)/fadeDuration, 1);
+          const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
+          marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
+          if(t<1) requestAnimationFrame(fade);
+          else marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
+        }
+        requestAnimationFrame(fade);
+      }
+    }, flashInterval);
+  }
+
+  // Load nodes from API
+  async function loadNodes() {
+    try {
+      const res = await fetch("http://localhost:8081/api/nodes");
+      const nodes = (await res.json()).nodes;
+
+      nodes.forEach(node => {
+        const color = "blue"; // default marker
+        const lat = node.last_lat, lng = node.last_long;
+        if(lat && lng) {
+          const marker = L.circleMarker([lat/1e7,lng/1e7], { radius:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7 }).addTo(map);
+          marker.options.originalColor=color;
+          marker.options.originalRadius=7;
+          marker.options.nodeInfo=node;
+          marker.bindPopup(`<b>${node.long_name||node.short_name||"Unknown"}</b><br>ID: ${node.node_id}<br>Role: ${node.role}`);
+          nodeMarkers.set(node.node_id, marker);
+        } else {
+          nodeMarkers.set(node.node_id, {options:{nodeInfo:node}});
+        }
+      });
+
+      const markersWithCoords = Array.from(nodeMarkers.values()).filter(m=>m instanceof L.CircleMarker);
+      if(markersWithCoords.length>0) map.fitBounds(L.featureGroup(markersWithCoords).getBounds().pad(0.2));
+      else map.setView([37.77,-122.42],9);
+    } catch(err){ console.error(err); }
+  }
+
+  // Update ticket tape
+  function updateTicketTape(pkt) {
+    const nodeId = pkt.from_node_id;
+    const marker = nodeMarkers.get(nodeId);
+    const nodeInfo = marker?.options?.nodeInfo || {};
+    const shortName = nodeInfo.short_name||nodeInfo.long_name||nodeId;
+    const hasLocation = nodeInfo.last_lat && nodeInfo.last_long;
+    const nodeDiv = document.createElement("div");
+    nodeDiv.className="ticket-node";
+    nodeDiv.classList.add(hasLocation?"has-location":"no-location");
+    nodeDiv.textContent = shortName;
+    ticketTape.appendChild(nodeDiv);
+    ticketTape.scrollTo({left:ticketTape.scrollWidth,behavior:"smooth"});
+  }
+
+  // Poll packets and animate
+  async function pollPackets() {
+    try {
+      let url = "http://localhost:8081/api/packets?limit=10";
+      if(lastPacketTime) url += `&since=${lastPacketTime}`;
+      const packets = (await (await fetch(url)).json()).packets || [];
+      if(packets.length>0) lastPacketTime = packets[0].import_time;
+      packets.forEach(pkt=>{
+        const marker=nodeMarkers.get(pkt.from_node_id);
+        if(marker instanceof L.CircleMarker) pulseMarker(marker,getPulseColor(pkt.portnum));
+        updateTicketTape(pkt);
+      });
+    } catch(err){ console.error(err); }
+  }
+
+  loadNodes().then(()=>{ setInterval(pollPackets,1000); });
+</script>
+</body>
+</html>
