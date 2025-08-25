@@ -21,6 +21,7 @@ from meshview import store
 from aiohttp import web
 import re
 import traceback
+import pathlib
 
 SEQ_REGEX = re.compile(r"seq \d+")
 SOFTWARE_RELEASE= "2.0.5.08-30-25"
@@ -1697,30 +1698,21 @@ async def api_stats(request):
 
     return web.json_response(stats)
 
-@routes.get("/api-stats")
-async def packet_details(request):
+# Generic static HTML route
+@routes.get("/{page}")
+async def serve_page(request):
+    page = request.match_info["page"]
 
-    template = env.get_template("api-stats.html")
-    return web.Response(
-        text=template.render(
-            site_config = CONFIG,
-            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
-        ),
-        content_type="text/html",
-    )
+    # default to index.html if no extension
+    if not page.endswith(".html"):
+        page = f"{page}.html"
 
+    html_file = pathlib.Path(__file__).parent / "static" / page
+    if not html_file.exists():
+        raise web.HTTPNotFound(text=f"Page '{page}' not found")
 
-@routes.get("/api-packets")
-async def packet_details(request):
-
-    template = env.get_template("api-packets.html")
-    return web.Response(
-        text=template.render(
-            site_config = CONFIG,
-            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
-        ),
-        content_type="text/html",
-    )
+    content = html_file.read_text(encoding="utf-8")
+    return web.Response(text=content, content_type="text/html")
 
 
 async def run_server():
