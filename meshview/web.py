@@ -1598,48 +1598,42 @@ async def api_nodes(request):
 @routes.get("/api/packets")
 async def api_packets(request):
     try:
-        # Query parameters
         limit = int(request.query.get("limit", 200))
         since_str = request.query.get("since")
         since_time = None
-
-        # Parse 'since' timestamp if provided
         if since_str:
             try:
                 since_time = datetime.datetime.fromisoformat(since_str)
             except Exception as e:
                 print(f"Failed to parse 'since' timestamp '{since_str}': {e}")
 
-        # Fetch last N packets
+        # Fetch packets (filter at DB level if possible)
         packets = await store.get_packets(
             node_id=0xFFFFFFFF,
             portnum=None,
-            limit=limit
+            limit=limit,
+            after=since_time
         )
-        packets = [Packet.from_model(p) for p in packets]
 
-        # Apply "since" filter
-        if since_time:
-            packets = [p for p in packets if p.import_time > since_time]
-
-        # Build JSON response (no raw_payload)
+        # Build JSON (decode payload as UTF-8 text)
         packets_json = [{
             "id": p.id,
             "from_node_id": p.from_node_id,
             "to_node_id": p.to_node_id,
-            "portnum": int(p.portnum),
+            "portnum": int(p.portnum) if p.portnum is not None else None,
             "import_time": p.import_time.isoformat(),
-            "payload": p.payload
+            "payload": p.payload.decode("utf-8", errors="replace") if p.payload else None
         } for p in packets]
 
         return web.json_response({"packets": packets_json})
 
     except Exception as e:
         print("Error in /api/packets:", str(e))
-        return web.json_response(
-            {"error": "Failed to fetch packets"},
-            status=500
-        )
+        return web.json_response({"error": "Failed to fetch packets"}, status=500)
+
+    except Exception as e:
+        print("Error in /api/packets:", str(e))
+        return web.json_response({"error": "Failed to fetch packets"}, status=500)
 
 
 @routes.get("/api/stats")
