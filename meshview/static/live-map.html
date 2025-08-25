@@ -112,7 +112,7 @@
   // Load nodes from API
   async function loadNodes() {
     try {
-      const res = await fetch("http://localhost:8081/api/nodes");
+      const res = await fetch("/api/nodes");
       const nodes = (await res.json()).nodes;
 
       nodes.forEach(node => {
@@ -154,7 +154,7 @@
   // Poll packets and animate
   async function pollPackets() {
     try {
-      let url = "http://localhost:8081/api/packets?limit=10";
+      let url = "/api/packets?limit=10";
       if(lastPacketTime) url += `&since=${lastPacketTime}`;
       const packets = (await (await fetch(url)).json()).packets || [];
       if(packets.length>0) lastPacketTime = packets[0].import_time;
