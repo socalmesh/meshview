@@ -79,7 +79,7 @@
     legend.appendChild(item);
   }
 
-  // Pulse marker animation
+  // Pulse marker animation (dot shrinks but stays full color)
   function pulseMarker(marker, highlightColor="red") {
     if (!marker) return;
     const originalColor = marker.options.originalColor;
@@ -131,9 +131,33 @@
       });
 
       const markersWithCoords = Array.from(nodeMarkers.values()).filter(m=>m instanceof L.CircleMarker);
-      if(markersWithCoords.length>0) map.fitBounds(L.featureGroup(markersWithCoords).getBounds().pad(0.2));
-      else map.setView([37.77,-122.42],9);
+      if(markersWithCoords.length>0) {
+        // Fit bounds from /api/config instead of default
+        await setMapBoundsFromConfig();
+      } else {
+        map.setView([37.77,-122.42],9);
+      }
     } catch(err){ console.error(err); }
+  }
+
+  // Set map bounds dynamically from /api/config
+  async function setMapBoundsFromConfig() {
+    try {
+      const res = await fetch("/api/config");
+      const config = await res.json();
+      const topLeft = [
+        parseFloat(config.site.map_top_left_lat),
+        parseFloat(config.site.map_top_left_lon)
+      ];
+      const bottomRight = [
+        parseFloat(config.site.map_bottom_right_lat),
+        parseFloat(config.site.map_bottom_right_lon)
+      ];
+      map.fitBounds([topLeft, bottomRight]);
+    } catch(err) {
+      console.error("Failed to load map bounds from config:", err);
+      map.setView([37.77,-122.42],9);
+    }
   }
 
   // Update ticket tape

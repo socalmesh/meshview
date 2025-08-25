@@ -1695,6 +1695,18 @@ async def api_stats(request):
 
     return web.json_response(stats)
 
+
+
+@routes.get("/api/config")
+async def api_config(request):
+    try:
+        # Return CONFIG as JSON
+        return web.json_response(CONFIG)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+
 # Generic static HTML route
 @routes.get("/{page}")
 async def serve_page(request):
