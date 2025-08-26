@@ -35,6 +35,16 @@
   }
   .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
   .legend-color { width: 16px; height: 16px; margin-right: 6px; border-radius: 4px; }
+
+  /* Floating pulse label style */
+  .pulse-label span {
+    background: rgba(0,0,0,0.6);
+    padding: 2px 4px;
+    border-radius: 3px;
+    pointer-events: none;
+    font-family: monospace;
+    font-size: 12px;
+  }
 </style>
 </head>
 <body>
@@ -51,12 +61,11 @@
   let lastPacketTime = null;
   const ticketTape = document.getElementById('ticket-tape');
 
-  // Custom port numbers, colors, and labels
   const portColors = { 1:"red", 67:"cyan", 3:"orange", 70:"purple", 4:"yellow", 71:"brown", 73:"pink" };
   const portLabels = {
-    1:"Text chat",
+    1:"Text",
     67:"Telemetry",
-    3:"Position/GPS",
+    3:"Position",
     70:"Traceroute",
     4:"Node Info",
     71:"Neighbour Info",
@@ -64,7 +73,7 @@
   };
   function getPulseColor(portnum) { return portColors[portnum] || "green"; }
 
-  // Generate legend dynamically with labels
+  // Generate legend dynamically
   const legend = document.getElementById("legend");
   for (const [port, color] of Object.entries(portColors)) {
     const item = document.createElement("div");
@@ -79,44 +88,64 @@
     legend.appendChild(item);
   }
 
-  // Pulse marker animation (dot shrinks but stays full color)
-  function pulseMarker(marker, highlightColor="red") {
-    if (!marker) return;
-    const originalColor = marker.options.originalColor;
-    const originalRadius = marker.options.originalRadius;
+  // Pulse marker with floating label on top
+ function pulseMarker(marker, highlightColor="red") {
+  if (!marker) return;
+  if(marker.activePulse) return;
+  marker.activePulse = true;
 
-    marker.bringToFront();
-    const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius+5;
-    let flashTime = 0;
+  const originalColor = marker.options.originalColor;
+  const originalRadius = marker.options.originalRadius;
 
-    const flashTimer = setInterval(() => {
-      flashTime += flashInterval;
-      const isOn = (flashTime / flashInterval) % 2 === 0;
-      marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
+  // Bring marker on top
+  marker.bringToFront();
 
-      if (flashTime >= flashDuration) {
-        clearInterval(flashTimer);
-        const fadeStart = performance.now();
-        function fade(now) {
-          const t = Math.min((now - fadeStart)/fadeDuration, 1);
-          const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
-          marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
-          if(t<1) requestAnimationFrame(fade);
-          else marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
+// Create temporary tooltip (floating label)
+const nodeInfo = marker.options.nodeInfo || {};
+const shortName = nodeInfo.short_name || nodeInfo.long_name || "Unknown";
+marker.bindTooltip(shortName, {
+  permanent: true,
+  direction: 'top',
+  className: 'pulse-label',
+  offset: [0, -10]  // move 5 pixels up
+}).openTooltip();
+
+
+  const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius+5;
+  let flashTime = 0;
+
+  const flashTimer = setInterval(() => {
+    flashTime += flashInterval;
+    const isOn = (flashTime / flashInterval) % 2 === 0;
+    marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
+
+    if(flashTime >= flashDuration){
+      clearInterval(flashTimer);
+      const fadeStart = performance.now();
+      function fade(now){
+        const t = Math.min((now - fadeStart)/fadeDuration,1);
+        const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
+        marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
+        if(t<1) requestAnimationFrame(fade);
+        else {
+          marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
+          marker.unbindTooltip(); // remove label
+          marker.activePulse = false;
         }
-        requestAnimationFrame(fade);
       }
-    }, flashInterval);
-  }
+      requestAnimationFrame(fade);
+    }
+  }, flashInterval);
+}
 
-  // Load nodes from API
+
   async function loadNodes() {
     try {
       const res = await fetch("/api/nodes");
       const nodes = (await res.json()).nodes;
 
       nodes.forEach(node => {
-        const color = "blue"; // default marker
+        const color = "blue";
         const lat = node.last_lat, lng = node.last_long;
         if(lat && lng) {
           const marker = L.circleMarker([lat/1e7,lng/1e7], { radius:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7 }).addTo(map);
@@ -132,7 +161,6 @@
 
       const markersWithCoords = Array.from(nodeMarkers.values()).filter(m=>m instanceof L.CircleMarker);
       if(markersWithCoords.length>0) {
-        // Fit bounds from /api/config instead of default
         await setMapBoundsFromConfig();
       } else {
         map.setView([37.77,-122.42],9);
@@ -140,19 +168,12 @@
     } catch(err){ console.error(err); }
   }
 
-  // Set map bounds dynamically from /api/config
   async function setMapBoundsFromConfig() {
     try {
       const res = await fetch("/api/config");
       const config = await res.json();
-      const topLeft = [
-        parseFloat(config.site.map_top_left_lat),
-        parseFloat(config.site.map_top_left_lon)
-      ];
-      const bottomRight = [
-        parseFloat(config.site.map_bottom_right_lat),
-        parseFloat(config.site.map_bottom_right_lon)
-      ];
+      const topLeft = [ parseFloat(config.site.map_top_left_lat), parseFloat(config.site.map_top_left_lon) ];
+      const bottomRight = [ parseFloat(config.site.map_bottom_right_lat), parseFloat(config.site.map_bottom_right_lon) ];
       map.fitBounds([topLeft, bottomRight]);
     } catch(err) {
       console.error("Failed to load map bounds from config:", err);
@@ -160,7 +181,6 @@
     }
   }
 
-  // Update ticket tape
   function updateTicketTape(pkt) {
     const nodeId = pkt.from_node_id;
     const marker = nodeMarkers.get(nodeId);
@@ -175,7 +195,6 @@
     ticketTape.scrollTo({left:ticketTape.scrollWidth,behavior:"smooth"});
   }
 
-  // Poll packets and animate
   async function pollPackets() {
     try {
       let url = "/api/packets?limit=10";
