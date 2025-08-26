@@ -8,24 +8,6 @@
   body { margin: 0; }
   #map { height: 100vh; width: 100%; }
 
-  #ticket-tape {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 30px;
-    background: rgba(0,0,0,0.7);
-    font-family: monospace;
-    font-size: 14px;
-    line-height: 30px;
-    display: flex;
-    overflow-x: auto; overflow-y: hidden;
-    white-space: nowrap; z-index: 1000;
-    scrollbar-width: none; -ms-overflow-style: none;
-  }
-  #ticket-tape::-webkit-scrollbar { display: none; }
-  .ticket-node { flex: 0 0 auto; margin-right: 15px; transition: color 0.3s, font-weight 0.3s; }
-  .has-location { color: white; }
-  .no-location { color: grey; }
-
   #legend {
     position: absolute; bottom: 10px; right: 10px;
     background: rgba(0,0,0,0.7);
@@ -48,7 +30,6 @@
 </style>
 </head>
 <body>
-<div id="ticket-tape"></div>
 <div id="map"></div>
 <div id="legend"></div>
 
@@ -59,7 +40,6 @@
 
   const nodeMarkers = new Map();
   let lastPacketTime = null;
-  const ticketTape = document.getElementById('ticket-tape');
 
   const portColors = { 1:"red", 67:"cyan", 3:"orange", 70:"purple", 4:"yellow", 71:"brown", 73:"pink" };
   const portLabels = {
@@ -89,55 +69,50 @@
   }
 
   // Pulse marker with floating label on top
- function pulseMarker(marker, highlightColor="red") {
-  if (!marker) return;
-  if(marker.activePulse) return;
-  marker.activePulse = true;
+  function pulseMarker(marker, highlightColor="red") {
+    if (!marker) return;
+    if(marker.activePulse) return;
+    marker.activePulse = true;
 
-  const originalColor = marker.options.originalColor;
-  const originalRadius = marker.options.originalRadius;
+    const originalColor = marker.options.originalColor;
+    const originalRadius = marker.options.originalRadius;
+    marker.bringToFront();
 
-  // Bring marker on top
-  marker.bringToFront();
+    const nodeInfo = marker.options.nodeInfo || {};
+    const shortName = nodeInfo.short_name || nodeInfo.long_name || "Unknown";
+    marker.bindTooltip(shortName, {
+      permanent: true,
+      direction: 'top',
+      className: 'pulse-label',
+      offset: [0, -10]
+    }).openTooltip();
 
-// Create temporary tooltip (floating label)
-const nodeInfo = marker.options.nodeInfo || {};
-const shortName = nodeInfo.short_name || nodeInfo.long_name || "Unknown";
-marker.bindTooltip(shortName, {
-  permanent: true,
-  direction: 'top',
-  className: 'pulse-label',
-  offset: [0, -10]  // move 5 pixels up
-}).openTooltip();
+    const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius+5;
+    let flashTime = 0;
 
+    const flashTimer = setInterval(() => {
+      flashTime += flashInterval;
+      const isOn = (flashTime / flashInterval) % 2 === 0;
+      marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
 
-  const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius+5;
-  let flashTime = 0;
-
-  const flashTimer = setInterval(() => {
-    flashTime += flashInterval;
-    const isOn = (flashTime / flashInterval) % 2 === 0;
-    marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
-
-    if(flashTime >= flashDuration){
-      clearInterval(flashTimer);
-      const fadeStart = performance.now();
-      function fade(now){
-        const t = Math.min((now - fadeStart)/fadeDuration,1);
-        const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
-        marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
-        if(t<1) requestAnimationFrame(fade);
-        else {
-          marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
-          marker.unbindTooltip(); // remove label
-          marker.activePulse = false;
+      if(flashTime >= flashDuration){
+        clearInterval(flashTimer);
+        const fadeStart = performance.now();
+        function fade(now){
+          const t = Math.min((now - fadeStart)/fadeDuration,1);
+          const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
+          marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
+          if(t<1) requestAnimationFrame(fade);
+          else {
+            marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
+            marker.unbindTooltip();
+            marker.activePulse = false;
+          }
         }
+        requestAnimationFrame(fade);
       }
-      requestAnimationFrame(fade);
-    }
-  }, flashInterval);
-}
-
+    }, flashInterval);
+  }
 
   async function loadNodes() {
     try {
@@ -181,20 +156,6 @@ marker.bindTooltip(shortName, {
     }
   }
 
-  function updateTicketTape(pkt) {
-    const nodeId = pkt.from_node_id;
-    const marker = nodeMarkers.get(nodeId);
-    const nodeInfo = marker?.options?.nodeInfo || {};
-    const shortName = nodeInfo.short_name||nodeInfo.long_name||nodeId;
-    const hasLocation = nodeInfo.last_lat && nodeInfo.last_long;
-    const nodeDiv = document.createElement("div");
-    nodeDiv.className="ticket-node";
-    nodeDiv.classList.add(hasLocation?"has-location":"no-location");
-    nodeDiv.textContent = shortName;
-    ticketTape.appendChild(nodeDiv);
-    ticketTape.scrollTo({left:ticketTape.scrollWidth,behavior:"smooth"});
-  }
-
   async function pollPackets() {
     try {
       let url = "/api/packets?limit=10";
@@ -204,7 +165,6 @@ marker.bindTooltip(shortName, {
       packets.forEach(pkt=>{
         const marker=nodeMarkers.get(pkt.from_node_id);
         if(marker instanceof L.CircleMarker) pulseMarker(marker,getPulseColor(pkt.portnum));
-        updateTicketTape(pkt);
       });
     } catch(err){ console.error(err); }
   }
