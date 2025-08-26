@@ -69,50 +69,52 @@
   }
 
   // Pulse marker with floating label on top
-  function pulseMarker(marker, highlightColor="red") {
-    if (!marker) return;
-    if(marker.activePulse) return;
-    marker.activePulse = true;
+  // Pulse marker with floating label on top
+function pulseMarker(marker, highlightColor = "red") {
+  if (!marker) return;
+  if (marker.activePulse) return;
+  marker.activePulse = true;
 
-    const originalColor = marker.options.originalColor;
-    const originalRadius = marker.options.originalRadius;
-    marker.bringToFront();
+  const originalColor = marker.options.originalColor;
+  const originalRadius = marker.options.originalRadius;
+  marker.bringToFront();
 
-    const nodeInfo = marker.options.nodeInfo || {};
-    const shortName = nodeInfo.short_name || nodeInfo.long_name || "Unknown";
-    marker.bindTooltip(shortName, {
-      permanent: true,
-      direction: 'top',
-      className: 'pulse-label',
-      offset: [0, -10]
-    }).openTooltip();
+  const nodeInfo = marker.options.nodeInfo || {};
+  const displayName = nodeInfo.long_name || nodeInfo.short_name || "Unknown"; // 🔹 Now prioritizes long_name
+  marker.bindTooltip(displayName, {
+    permanent: true,
+    direction: 'top',
+    className: 'pulse-label',
+    offset: [0, -10]
+  }).openTooltip();
 
-    const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius+5;
-    let flashTime = 0;
+  const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius + 5;
+  let flashTime = 0;
 
-    const flashTimer = setInterval(() => {
-      flashTime += flashInterval;
-      const isOn = (flashTime / flashInterval) % 2 === 0;
-      marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
+  const flashTimer = setInterval(() => {
+    flashTime += flashInterval;
+    const isOn = (flashTime / flashInterval) % 2 === 0;
+    marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
 
-      if(flashTime >= flashDuration){
-        clearInterval(flashTimer);
-        const fadeStart = performance.now();
-        function fade(now){
-          const t = Math.min((now - fadeStart)/fadeDuration,1);
-          const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
-          marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
-          if(t<1) requestAnimationFrame(fade);
-          else {
-            marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
-            marker.unbindTooltip();
-            marker.activePulse = false;
-          }
+    if (flashTime >= flashDuration) {
+      clearInterval(flashTimer);
+      const fadeStart = performance.now();
+      function fade(now) {
+        const t = Math.min((now - fadeStart) / fadeDuration, 1);
+        const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
+        marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
+        if (t < 1) requestAnimationFrame(fade);
+        else {
+          marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
+          marker.unbindTooltip();
+          marker.activePulse = false;
         }
-        requestAnimationFrame(fade);
       }
-    }, flashInterval);
-  }
+      requestAnimationFrame(fade);
+    }
+  }, flashInterval);
+}
+
 
   async function loadNodes() {
     try {
