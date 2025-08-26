@@ -31,7 +31,7 @@ The project serves as a real-time monitoring and diagnostic tool for the Meshtas
 
 Samples of currently running instances:
 
-- https://meshview.bayme.sh   (SF Bay Area)
+- https://meshview.bayme.sh (SF Bay Area)
 - https://www.svme.sh/ (Sacramento Valley)
 - https://meshview.nyme.sh/   (New York)
 - https://map.wpamesh.net/ (Western Pennsylvania)
@@ -42,7 +42,7 @@ Samples of currently running instances:
 - https://socalmesh.w4hac.com  (Southern California)
 - https://meshview.lsinfra.de (Hessen - Germany)
 - https://map.nswmesh.au/ (Sydney - Australia)
-
+- https://meshview.pvmesh.org/ (Pioneer Valley, Massachusetts)
 ---
 
 ## Installing
