@@ -205,19 +205,25 @@ function loadEdges(callback) {
 }
 
 function onNodeClick(node) {
+    console.log(`Clicked node ${node.long_name}: lat=${node.lat}, long=${node.long}`);
+
     loadEdges(edges => {
         edgeLayer.clearLayers();
         edges.forEach(edge => {
-            // Only consider edges connected to the clicked node
+            // Only draw edges connected to the clicked node
             if (edge.from !== node.id && edge.to !== node.id) return;
 
             let fromNode = nodes.find(n => n.id === edge.from);
             let toNode = nodes.find(n => n.id === edge.to);
 
-            // Validate coordinates
             if (fromNode && toNode && fromNode.lat != null && fromNode.long != null &&
                 toNode.lat != null && toNode.long != null) {
 
+                // Determine the "other" node
+                let otherNode = edge.from === node.id ? toNode : fromNode;
+                console.log(`  Connected to node ${otherNode.long_name}: lat=${otherNode.lat}, long=${otherNode.long}`);
+
+                // Draw the edge
                 L.polyline(
                     [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
                     {
@@ -231,6 +237,7 @@ function onNodeClick(node) {
         });
     });
 }
+
 
 
 // Attach edge click events
