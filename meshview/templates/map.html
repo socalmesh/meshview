@@ -75,6 +75,7 @@ var nodes = [
 {% endfor %}
 ];
 
+// Helper maps
 const portMap = {
     1: "Text",
     67: "Telemetry",
@@ -86,19 +87,19 @@ const portMap = {
 };
 
 function timeAgo(date) {
-    var now = new Date();
+    var now = Date.now();
     var diff = now - new Date(date);
     var seconds = Math.floor(diff / 1000);
     var minutes = Math.floor(seconds / 60);
     var hours = Math.floor(minutes / 60);
     var days = Math.floor(hours / 24);
-
     if (days > 0) return days + "d";
     if (hours > 0) return hours + "h";
     if (minutes > 0) return minutes + "m";
     return seconds + "s";
 }
 
+// Color palette
 const palette = [
     "#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe",
     "#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"
@@ -113,10 +114,14 @@ function hashToColor(str) {
     return color;
 }
 
-// Plot nodes
+// Create node map for fast lookup
+const nodeMap = new Map();
+nodes.forEach(n => nodeMap.set(n.id, n));
+
 var bounds = L.latLngBounds();
 var channels = new Set();
 
+// --- Plot nodes ---
 nodes.forEach(function(node) {
     if (node.lat !== null && node.long !== null) {
         let category = node.channel;
@@ -142,6 +147,7 @@ nodes.forEach(function(node) {
 
         var marker = L.circleMarker([node.lat, node.long], markerOptions).addTo(map);
         marker.nodeId = node.id;
+        marker.originalColor = color;
         markerById[node.id] = marker;
 
         marker.on('click', function() {
@@ -163,7 +169,7 @@ var bayAreaBounds = [
 ];
 map.fitBounds(bayAreaBounds);
 
-// Channel filters
+// --- Filters ---
 let filterContainer = document.getElementById("filter-container");
 channels.forEach(channel => {
     let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
@@ -174,15 +180,25 @@ channels.forEach(channel => {
     filterContainer.appendChild(label);
 });
 
+function isMarkerVisible(marker) {
+    return map.hasLayer(marker);
+}
+
 function updateMarkers() {
     let showRoutersOnly = document.getElementById("filter-routers-only").checked;
-    channels.forEach(channel => {
-        let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
-        let isChecked = document.getElementById(filterId).checked;
-        markers[channel].forEach(obj => {
-            let shouldShow = isChecked && (!showRoutersOnly || obj.isRouter);
-            shouldShow ? map.addLayer(obj.marker) : map.removeLayer(obj.marker);
-        });
+    nodes.forEach(node => {
+        let category = node.channel;
+        let checkbox = document.getElementById(`filter-${category.replace(/\s+/g,'-').toLowerCase()}`);
+        let shouldShow = checkbox.checked && (!showRoutersOnly || node.isRouter);
+        let marker = markerById[node.id];
+        if (shouldShow) map.addLayer(marker);
+        else map.removeLayer(marker);
+
+        // Remove blinking tooltip if hidden
+        if (!shouldShow && marker.tooltip) {
+            map.removeLayer(marker.tooltip);
+            marker.tooltip = null;
+        }
     });
 }
 
@@ -205,46 +221,29 @@ function loadEdges(callback) {
 }
 
 function onNodeClick(node) {
-    console.log(`Clicked node ${node.long_name}: lat=${node.lat}, long=${node.long}`);
-
     loadEdges(edges => {
         edgeLayer.clearLayers();
         edges.forEach(edge => {
-            // Only draw edges connected to the clicked node
             if (edge.from !== node.id && edge.to !== node.id) return;
+            let fromNode = nodeMap.get(edge.from);
+            let toNode = nodeMap.get(edge.to);
+            if (!fromNode || !toNode) return;
+            if (!fromNode.lat || !fromNode.long || !toNode.lat || !toNode.long) return;
 
-            let fromNode = nodes.find(n => n.id === edge.from);
-            let toNode = nodes.find(n => n.id === edge.to);
+            let lineColor = edge.type === "neighbor" ? "red" : "blue";
+            let dash = edge.type === "traceroute" ? "5,5" : null;
 
-            // Only draw if lat/long are not 0
-            if (fromNode && toNode &&
-                fromNode.lat !== 0 && fromNode.long !== 0 &&
-                toNode.lat !== 0 && toNode.long !== 0) {
-
-                let otherNode = edge.from === node.id ? toNode : fromNode;
-                console.log(`  Connected to node ${otherNode.long_name}: lat=${otherNode.lat}, long=${otherNode.long}`);
-
-                L.polyline(
-                    [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
-                    {
-                        color: edge.type === "neighbor" ? "red" : "blue",
-                        weight: 2,
-                        opacity: 1,
-                        dashArray: edge.type === "traceroute" ? "5,5" : null
-                    }
-                ).addTo(edgeLayer);
-            }
+            L.polyline(
+                [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
+                { color: lineColor, weight: 2, opacity: 1, dashArray: dash }
+            ).addTo(edgeLayer);
         });
     });
 }
 
-
-// Attach edge click events
 nodes.forEach(node => {
-    if (node.lat != null && node.long != null) {
-        let marker = markerById[node.id];
-        if (marker) marker.on('click', () => onNodeClick(node));
-    }
+    let marker = markerById[node.id];
+    if (marker) marker.on('click', () => onNodeClick(node));
 });
 
 // --- Blinking nodes ---
@@ -257,19 +256,20 @@ function fetchLatestPacket() {
         .then(data => {
             if (data.packets && data.packets.length > 0) lastFetchTime = data.packets[0].import_time;
             else lastFetchTime = new Date().toISOString();
-            console.log("Starting from:", lastFetchTime);
         })
         .catch(err => console.error("Error fetching latest packet:", err));
 }
 
 function blinkNode(marker, longName, portnum) {
+    if (!isMarkerVisible(marker)) return;  // skip if hidden
+
+    // Clear previous blink if any
     if (activeBlinks.has(marker)) {
         clearInterval(activeBlinks.get(marker));
         marker.setStyle({ fillColor: marker.originalColor });
         if (marker.tooltip) map.removeLayer(marker.tooltip);
     }
 
-    marker.originalColor = marker.options.fillColor;
     let blinkCount = 0;
     let portName = portMap[portnum] || `Port ${portnum}`;
 
@@ -280,13 +280,14 @@ function blinkNode(marker, longName, portnum) {
         className: 'blinking-tooltip'
     }).setContent(`${longName} (${portName})`)
       .setLatLng(marker.getLatLng());
-
     tooltip.addTo(map);
     marker.tooltip = tooltip;
 
     let interval = setInterval(() => {
-        marker.setStyle({ fillColor: blinkCount % 2 === 0 ? 'yellow' : marker.originalColor });
-        marker.bringToFront();
+        if (isMarkerVisible(marker)) {
+            marker.setStyle({ fillColor: blinkCount % 2 === 0 ? 'yellow' : marker.originalColor });
+            marker.bringToFront();  // <-- ensures blinking node stays on top
+        }
         blinkCount++;
         if (blinkCount > 7) {
             clearInterval(interval);
@@ -309,7 +310,7 @@ function fetchNewPackets() {
             data.packets.forEach(packet => {
                 let marker = markerById[packet.from_node_id];
                 if (marker) {
-                    let nodeData = nodes.find(n => n.id === packet.from_node_id);
+                    let nodeData = nodeMap.get(packet.from_node_id);
                     if (nodeData) blinkNode(marker, nodeData.long_name, packet.portnum);
                 }
             });
@@ -322,5 +323,6 @@ function fetchNewPackets() {
 
 fetchLatestPacket();
 setInterval(fetchNewPackets, 1000);
+
 </script>
 {% endblock %}
