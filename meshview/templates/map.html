@@ -124,8 +124,14 @@
             if (node.last_update) popupContent += `<b>Last seen:</b> ${timeAgo(node.last_update)}<br>`;
             if (node.firmware) popupContent += `<b>Firmware:</b> ${node.firmware}<br>`;
 
-            var marker = L.circleMarker([node.lat, node.long], markerOptions).bindPopup(popupContent);
-            marker.addTo(map);
+            var marker = L.circleMarker([node.lat, node.long], markerOptions).addTo(map);
+                marker.on('click', function() {
+                    marker.bindPopup(popupContent).openPopup();
+                    setTimeout(() => {
+                        marker.closePopup();
+                    }, 2000); // 2000 ms = 3 seconds
+                });
+
 
             if (!markers[category]) markers[category] = [];
             markers[category].push({ marker, isRouter });
