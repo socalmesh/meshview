@@ -169,22 +169,30 @@
     }
   }
 
-  async function pollPackets() {
-    try {
-      let url = "/api/packets?limit=10";
-      if(lastPacketTime) url += `&since=${lastPacketTime}`;
-      const packets = (await (await fetch(url)).json()).packets || [];
-      if(packets.length>0) lastPacketTime = packets[0].import_time;
+async function pollPackets() {
+  try {
+    let url = "/api/packets?limit=10";
+    if (lastPacketTime) url += `&since=${lastPacketTime}`;
+    const packets = (await (await fetch(url)).json()).packets || [];
+    if (packets.length > 0) lastPacketTime = packets[0].import_time;
 
-      packets.forEach(pkt => {
-        const marker = nodeMarkers.get(pkt.from_node_id);
-        if(marker instanceof L.CircleMarker) {
-          marker.currentPortLabel = portLabels[pkt.portnum] || `${pkt.portnum}`; // Save label
-          pulseMarker(marker, getPulseColor(pkt.portnum));
-        }
-      });
-    } catch(err){ console.error(err); }
+    packets.forEach(pkt => {
+      const marker = nodeMarkers.get(pkt.from_node_id);
+
+      // 🔍 Debug log
+      const nodeName = marker?.options?.nodeInfo?.short_name || marker?.options?.nodeInfo?.long_name || "Unknown";
+      console.log(`Packet received: port=${pkt.portnum}, node=${nodeName}`);
+
+      if (marker instanceof L.CircleMarker) {
+        marker.currentPortLabel = portLabels[pkt.portnum] || `${pkt.portnum}`; // Save label
+        pulseMarker(marker, getPulseColor(pkt.portnum));
+      }
+    });
+  } catch (err) {
+    console.error(err);
   }
+}
+
 
   loadNodes().then(()=>{ setInterval(pollPackets,1000); });
 </script>

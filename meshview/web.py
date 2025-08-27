@@ -1612,8 +1612,6 @@ async def api_packets(request):
 
         # Fetch last N packets
         packets = await store.get_packets(
-            node_id=0xFFFFFFFF,
-            portnum=None,
             limit=limit,
             after=since_time
         )
