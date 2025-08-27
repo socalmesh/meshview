@@ -34,16 +34,12 @@
 <div id="map" style="width: 100%; height: 600px;"></div>
 
 <div id="filter-container">
-    <!-- Filters will be dynamically generated here -->
+    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
      crossorigin=""></script>
-
-<div id="filter-container">
-    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
-</div>
 
 <script>
     var map = L.map('map');
@@ -53,26 +49,27 @@
     }).addTo(map);
 
     var markers = {};
+    var nodeIndex = {}; // node.id -> [lat, lng]
     var bounds = L.latLngBounds();
-    var channels = new Set(); // Stores unique channels
+    var channels = new Set();
 
-var nodes = [
-{% for node in nodes %}
-{
-    lat: {{ (node.last_lat / 10**7)|round(7) }},
-    long: {{ (node.last_long / 10**7)|round(7) if node.last_long is not none else "null" }},
-    long_name: {{ (node.long_name or "") | tojson }},
-    short_name: {{ (node.short_name or "") | tojson }},
-    channel: {{ (node.channel or "") | tojson }},
-    hw_model: {{ (node.hw_model or "") | tojson }},
-    role: {{ (node.role or "") | tojson }},
-    last_update: {{ node.last_update | default("", true) | tojson }},
-    firmware: {{ (node.firmware or "") | tojson }},
-    id: {{ (node.node_id or "") | tojson }},
-    isRouter: "{{ 'router' in node.role.lower() }}"
-}{{ "," if not loop.last else "" }}
-{% endfor %}
-];
+    var nodes = [
+    {% for node in nodes %}
+    {
+        lat: {{ (node.last_lat / 10**7)|round(7) }},
+        long: {{ (node.last_long / 10**7)|round(7) if node.last_long is not none else "null" }},
+        long_name: {{ (node.long_name or "") | tojson }},
+        short_name: {{ (node.short_name or "") | tojson }},
+        channel: {{ (node.channel or "") | tojson }},
+        hw_model: {{ (node.hw_model or "") | tojson }},
+        role: {{ (node.role or "") | tojson }},
+        last_update: {{ node.last_update | default("", true) | tojson }},
+        firmware: {{ (node.firmware or "") | tojson }},
+        id: {{ (node.node_id or "") | tojson }},
+        isRouter: "{{ 'router' in node.role.lower() }}"
+    }{{ "," if not loop.last else "" }}
+    {% endfor %}
+    ];
 
     function timeAgo(date) {
         var now = new Date();
@@ -89,46 +86,27 @@ var nodes = [
     }
 
     const palette = [
-        "#e6194b", // red
-        "#4363d8", // blue
-        "#f58231", // orange
-        "#911eb4", // purple
-        "#46f0f0", // cyan
-        "#f032e6", // magenta
-        "#bcf60c", // lime
-        "#fabebe", // pink
-        "#008080", // teal
-        "#e6beff", // lavender
-        "#9a6324", // brown
-        "#fffac8", // cream
-        "#800000", // maroon
-        "#aaffc3", // mint
-        "#808000", // olive
-        "#ffd8b1", // apricot
-        "#000075", // navy
-        "#808080"  // gray
+        "#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe",
+        "#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"
     ];
-
     const colorMap = new Map();
     let nextColorIndex = 0;
-
     function hashToColor(str) {
         if (colorMap.has(str)) return colorMap.get(str);
-
         const color = palette[nextColorIndex % palette.length];
         colorMap.set(str, color);
         nextColorIndex++;
         return color;
     }
 
-        nodes.forEach(function(node) {
-            if (node.lat !== null && node.long !== null) {
-                let category = node.channel;
-                let isRouter = node.isRouter === "True"; // Convert from string
-                channels.add(category);
+    // Plot nodes
+    nodes.forEach(function(node) {
+        if (node.lat !== null && node.long !== null) {
+            let category = node.channel;
+            let isRouter = node.isRouter === "True";
+            channels.add(category);
 
             let color = hashToColor(category);
-
             let markerOptions = {
                 radius: isRouter ? 9 : 7,
                 color: "white",
@@ -152,18 +130,20 @@ var nodes = [
             if (!markers[category]) markers[category] = [];
             markers[category].push({ marker, isRouter });
 
+            nodeIndex[node.id] = [node.lat, node.long];
             bounds.extend(marker.getLatLng());
         }
     });
 
+    // Fit to configured bounds
     var bayAreaBounds = [
         [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
         [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
     ];
     map.fitBounds(bayAreaBounds);
 
+    // Create channel filters
     let filterContainer = document.getElementById("filter-container");
-
     channels.forEach(channel => {
         let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
         let color = hashToColor(channel);
@@ -177,11 +157,9 @@ var nodes = [
 
     function updateMarkers() {
         let showRoutersOnly = document.getElementById("filter-routers-only").checked;
-
         channels.forEach(channel => {
             let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
             let isChecked = document.getElementById(filterId).checked;
-
             markers[channel].forEach(obj => {
                 let shouldShow = isChecked && (!showRoutersOnly || obj.isRouter);
                 shouldShow ? map.addLayer(obj.marker) : map.removeLayer(obj.marker);
@@ -193,6 +171,58 @@ var nodes = [
         input.addEventListener("change", updateMarkers);
     });
 
-</script>
+    // --- Lazy load edges on node click ---
+    var edgeLayer = L.layerGroup().addTo(map); // initially empty
+    var edgesData = null;
 
+    function loadEdges(callback) {
+        if (edgesData) {
+            callback(edgesData);
+        } else {
+            fetch('/api/edges')
+                .then(res => res.json())
+                .then(data => {
+                    edgesData = data.edges;
+                    callback(edgesData);
+                })
+                .catch(err => console.error("Error loading edges:", err));
+        }
+    }
+
+    function onNodeClick(node) {
+        loadEdges(function(edges) {
+            edgeLayer.clearLayers(); // remove previous edges
+
+            edges.forEach(edge => {
+                if (edge.from === node.id || edge.to === node.id) {
+                    let from = nodeIndex[edge.from];
+                    let to = nodeIndex[edge.to];
+                    if (from && to) {
+                        let poly = L.polyline([from, to], {
+                            color: edge.type === "neighbor" ? "red" : "blue",
+                            weight: 2,
+                            opacity: 1,
+                            dashArray: edge.type === "traceroute" ? "5,5" : null
+                        }).addTo(edgeLayer);
+
+                        poly.bringToBack();
+                        poly.setStyle({opacity: 1}); // highlight edge immediately
+                    }
+                }
+            });
+        });
+    }
+
+    // Attach click events to nodes
+    nodes.forEach(node => {
+        if (node.lat !== null && node.long !== null) {
+            let marker = markers[node.channel].find(obj =>
+                obj.marker.getLatLng().lat === node.lat &&
+                obj.marker.getLatLng().lng === node.long
+            ).marker;
+
+            marker.on('click', () => onNodeClick(node));
+        }
+    });
+</script>
 {% endblock %}

@@ -1705,6 +1705,43 @@ async def api_config(request):
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
+@routes.get("/api/edges")
+async def api_edges(request):
+    edges_set = set()
+    edge_type = {}
+    since = datetime.timedelta(hours=48)
+
+    # Fetch traceroutes
+    for tr in await store.get_traceroutes(since):
+        route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
+        path = [tr.packet.from_node_id] + list(route.route)  # Convert to list
+        if tr.done:
+            path.append(tr.packet.to_node_id)
+        else:
+            if path[-1] != tr.gateway_node_id:
+                path.append(tr.gateway_node_id)
+
+        for i in range(len(path) - 1):
+            edge_pair = (path[i], path[i + 1])
+            edges_set.add(edge_pair)
+            edge_type[edge_pair] = "traceroute"
+
+    # Fetch NeighborInfo packets
+    for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since):
+        try:
+            _, neighbor_info = decode_payload.decode(packet)
+            for node in neighbor_info.neighbors:
+                edge_pair = (node.node_id, packet.from_node_id)
+                if edge_pair not in edges_set:
+                    edges_set.add(edge_pair)
+                    edge_type[edge_pair] = "neighbor"
+        except Exception as e:
+            print(f"Error decoding NeighborInfo packet: {e}")
+
+    # Prepare edges with type only
+    edges = [{"from": frm, "to": to, "type": edge_type[(frm, to)]} for frm, to in edges_set]
+
+    return web.json_response({"edges": edges})
 
 
 # Generic static HTML route
