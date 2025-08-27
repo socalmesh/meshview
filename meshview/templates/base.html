@@ -50,14 +50,14 @@
     </div>
 
     <div style="text-align:center">
-        {% if site.get("nodes") == "True" %}<a href="/nodelist">Nodes</a>&nbsp;-&nbsp;{% endif %}
-        {% if site.get("conversations") == "True" %}<a href="/chat">Conversations</a>&nbsp;-&nbsp;{% endif %}
-        {% if site.get("everything") == "True" %}<a href="/firehose">See <strong>everything</strong></a>&nbsp;-&nbsp;{% endif %}
-        {% if site.get("graphs") == "True" %}<a href="/nodegraph">Mesh Graphs</a>&nbsp;-&nbsp;{% endif %}
-        {% if site.get("net") == "True" %}<a href="/net">Weekly Net</a>&nbsp;-&nbsp;{% endif %}
-        {% if site.get("map") == "True" %}<a href="/map">Map</a>&nbsp;-&nbsp;{% endif %}
-        {% if site.get("stats") == "True" %}<a href="/stats">Stats</a>&nbsp;-&nbsp;{% endif %}
-        {% if site.get("top") == "True" %}<a href="/top">Top Traffic</a>{% endif %}
+        {% if site.get("nodes") == "True" %}<a href="/nodelist">Nodes</a>{% endif %}
+        {% if site.get("conversations") == "True" %}&nbsp;-&nbsp;<a href="/chat">Conversations</a>{% endif %}
+        {% if site.get("everything") == "True" %}&nbsp;-&nbsp;<a href="/firehose">See <strong>everything</strong></a>{% endif %}
+        {% if site.get("graphs") == "True" %}&nbsp;-&nbsp;<a href="/nodegraph">Mesh Graphs</a>{% endif %}
+        {% if site.get("net") == "True" %}&nbsp;-&nbsp;<a href="/net">Weekly Net</a>{% endif %}
+        {% if site.get("map") == "True" %}&nbsp;-&nbsp;<a href="/map">Live Map</a>{% endif %}
+        {% if site.get("stats") == "True" %}&nbsp;-&nbsp;<a href="/stats">Stats</a>{% endif %}
+        {% if site.get("top") == "True" %}&nbsp;-&nbsp;<a href="/top">Top Traffic</a>{% endif %}
     </div>
 
     {% include "search_form.html" %}
