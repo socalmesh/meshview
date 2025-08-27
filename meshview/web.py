@@ -1707,12 +1707,15 @@ async def api_config(request):
 async def api_edges(request):
     edges_set = set()
     edge_type = {}
-    since = datetime.timedelta(hours=48)
+    since = datetime.datetime.now() - datetime.timedelta(hours=48)
+
+    # Get optional type filter from query string
+    filter_type = request.query.get("type")  # None if not provided
 
     # Fetch traceroutes
     for tr in await store.get_traceroutes(since):
         route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
-        path = [tr.packet.from_node_id] + list(route.route)  # Convert to list
+        path = [tr.packet.from_node_id] + list(route.route)
         if tr.done:
             path.append(tr.packet.to_node_id)
         else:
@@ -1736,8 +1739,12 @@ async def api_edges(request):
         except Exception as e:
             print(f"Error decoding NeighborInfo packet: {e}")
 
-    # Prepare edges with type only
-    edges = [{"from": frm, "to": to, "type": edge_type[(frm, to)]} for frm, to in edges_set]
+    # Prepare edges with optional filtering by type
+    edges = [
+        {"from": frm, "to": to, "type": typ}
+        for (frm, to), typ in edge_type.items()
+        if filter_type is None or typ == filter_type
+    ]
 
     return web.json_response({"edges": edges})
 
