@@ -49,12 +49,14 @@
      crossorigin=""></script>
 
 <script>
+// ---- Map Setup ----
 var map = L.map('map');
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 }).addTo(map);
 
+// ---- Marker and node setup ----
 var markers = {};
 var markerById = {};
 var nodes = [
@@ -75,7 +77,6 @@ var nodes = [
 {% endfor %}
 ];
 
-// Helper maps
 const portMap = {
     1: "Text",
     67: "Telemetry",
@@ -114,16 +115,22 @@ function hashToColor(str) {
     return color;
 }
 
-// Create node map for fast lookup
+// Node map
 const nodeMap = new Map();
 nodes.forEach(n => nodeMap.set(n.id, n));
 
+// Filter setup
 var bounds = L.latLngBounds();
 var channels = new Set();
 
-// --- Plot nodes ---
+// ---- Coordinate helper ----
+function isInvalidCoord(node) {
+    return (!node || node.lat == null || node.long == null || node.lat === 0 || node.long === 0);
+}
+
+// ---- Plot nodes ----
 nodes.forEach(function(node) {
-    if (node.lat !== null && node.long !== null) {
+    if (!isInvalidCoord(node)) {
         let category = node.channel;
         channels.add(category);
         let color = hashToColor(category);
@@ -133,15 +140,13 @@ nodes.forEach(function(node) {
             color: "white",
             fillColor: color,
             fillOpacity: 1,
-            weight: 0.7,
+            weight: 0.7
         };
 
-        var popupContent = `
-            <b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
+        let popupContent = `<b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
             <b>Channel:</b> ${node.channel}<br>
             <b>Model:</b> ${node.hw_model}<br>
-            <b>Role:</b> ${node.role}<br>
-        `;
+            <b>Role:</b> ${node.role}<br>`;
         if (node.last_update) popupContent += `<b>Last seen:</b> ${timeAgo(node.last_update)}<br>`;
         if (node.firmware) popupContent += `<b>Firmware:</b> ${node.firmware}<br>`;
 
@@ -150,26 +155,27 @@ nodes.forEach(function(node) {
         marker.originalColor = color;
         markerById[node.id] = marker;
 
-        marker.on('click', function() {
+        marker.on('click', function(e) {
+            e.originalEvent.stopPropagation(); // prevent map click
             marker.bindPopup(popupContent).openPopup();
             setTimeout(() => marker.closePopup(), 3000);
+            onNodeClick(node);
         });
 
         if (!markers[category]) markers[category] = [];
         markers[category].push({ marker, isRouter: node.isRouter });
-
         bounds.extend(marker.getLatLng());
     }
 });
 
-// Fit map bounds
+// Fit bounds
 var bayAreaBounds = [
     [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
     [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
 ];
 map.fitBounds(bayAreaBounds);
 
-// --- Filters ---
+// Filters
 let filterContainer = document.getElementById("filter-container");
 channels.forEach(channel => {
     let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
@@ -180,10 +186,6 @@ channels.forEach(channel => {
     filterContainer.appendChild(label);
 });
 
-function isMarkerVisible(marker) {
-    return map.hasLayer(marker);
-}
-
 function updateMarkers() {
     let showRoutersOnly = document.getElementById("filter-routers-only").checked;
     nodes.forEach(node => {
@@ -192,12 +194,9 @@ function updateMarkers() {
         let shouldShow = checkbox.checked && (!showRoutersOnly || node.isRouter);
         let marker = markerById[node.id];
         if (shouldShow) map.addLayer(marker);
-        else map.removeLayer(marker);
-
-        // Remove blinking tooltip if hidden
-        if (!shouldShow && marker.tooltip) {
-            map.removeLayer(marker.tooltip);
-            marker.tooltip = null;
+        else {
+            map.removeLayer(marker);
+            if (marker.tooltip) { map.removeLayer(marker.tooltip); marker.tooltip = null; }
         }
     });
 }
@@ -206,9 +205,10 @@ document.querySelectorAll(".filter-checkbox").forEach(input => {
     input.addEventListener("change", updateMarkers);
 });
 
-// --- Edges ---
+// ---- Edges ----
 var edgeLayer = L.layerGroup().addTo(map);
 var edgesData = null;
+let selectedNodeId = null;
 
 function loadEdges(callback) {
     if (edgesData) callback(edgesData);
@@ -221,23 +221,20 @@ function loadEdges(callback) {
 }
 
 function onNodeClick(node) {
+    if (selectedNodeId === node.id) {
+        edgeLayer.clearLayers();
+        selectedNodeId = null;
+        return;
+    }
+    selectedNodeId = node.id;
+
     loadEdges(edges => {
         edgeLayer.clearLayers();
-
         edges.forEach(edge => {
             if (edge.from !== node.id && edge.to !== node.id) return;
-
             const fromNode = nodeMap.get(edge.from);
             const toNode = nodeMap.get(edge.to);
-
-            // Validate that nodes and coordinates are present and not 0
-            if (!fromNode || !toNode) return;
-            if (
-                fromNode.lat == null || fromNode.long == null ||
-                toNode.lat == null || toNode.long == null ||
-                fromNode.lat == 0 || fromNode.long == 0 ||
-                toNode.lat == 0 || toNode.long == 0
-            ) return;
+            if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
 
             const lineColor = edge.type === "neighbor" ? "red" : "blue";
             const dash = edge.type === "traceroute" ? "5,5" : null;
@@ -251,13 +248,13 @@ function onNodeClick(node) {
     });
 }
 
-
-nodes.forEach(node => {
-    let marker = markerById[node.id];
-    if (marker) marker.on('click', () => onNodeClick(node));
+// Clear edges on map click
+map.on('click', () => {
+    edgeLayer.clearLayers();
+    selectedNodeId = null;
 });
 
-// --- Blinking nodes ---
+// ---- Blinking Nodes ----
 var lastFetchTime = null;
 const activeBlinks = new Map();
 
@@ -272,9 +269,8 @@ function fetchLatestPacket() {
 }
 
 function blinkNode(marker, longName, portnum) {
-    if (!isMarkerVisible(marker)) return;  // skip if hidden
+    if (!map.hasLayer(marker)) return;
 
-    // Clear previous blink if any
     if (activeBlinks.has(marker)) {
         clearInterval(activeBlinks.get(marker));
         marker.setStyle({ fillColor: marker.originalColor });
@@ -283,21 +279,19 @@ function blinkNode(marker, longName, portnum) {
 
     let blinkCount = 0;
     let portName = portMap[portnum] || `Port ${portnum}`;
-
     let tooltip = L.tooltip({
         permanent: true,
         direction: 'top',
         offset: [0, -marker.options.radius - 5],
         className: 'blinking-tooltip'
-    }).setContent(`${longName} (${portName})`)
-      .setLatLng(marker.getLatLng());
+    }).setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng());
     tooltip.addTo(map);
     marker.tooltip = tooltip;
 
     let interval = setInterval(() => {
-        if (isMarkerVisible(marker)) {
+        if (map.hasLayer(marker)) {
             marker.setStyle({ fillColor: blinkCount % 2 === 0 ? 'yellow' : marker.originalColor });
-            marker.bringToFront();  // <-- keeps blinking node on top
+            marker.bringToFront();
         }
         blinkCount++;
         if (blinkCount > 7) {
@@ -332,31 +326,20 @@ function fetchNewPackets() {
         .catch(err => console.error("Error fetching packets:", err));
 }
 
-// --- Visibility-based polling control ---
+// ---- Polling Control ----
 let packetInterval = null;
-
 function startPacketFetcher() {
     if (!packetInterval) {
         fetchLatestPacket();
         packetInterval = setInterval(fetchNewPackets, 1000);
-        console.log("Packet fetching started");
     }
 }
-
 function stopPacketFetcher() {
-    if (packetInterval) {
-        clearInterval(packetInterval);
-        packetInterval = null;
-        console.log("Packet fetching stopped");
-    }
+    if (packetInterval) { clearInterval(packetInterval); packetInterval = null; }
 }
-
 document.addEventListener("visibilitychange", function() {
-    if (document.hidden) {
-        stopPacketFetcher();
-    } else {
-        startPacketFetcher();
-    }
+    if (document.hidden) stopPacketFetcher();
+    else startPacketFetcher();
 });
 
 // Init
