@@ -60,8 +60,8 @@ var markerById = {};
 var nodes = [
 {% for node in nodes %}
 {
-    lat: {{ (node.last_lat / 10**7)|round(7) }},
-    long: {{ (node.last_long / 10**7)|round(7) if node.last_long is not none else "null" }},
+    lat: {{ ((node.last_lat / 10**7) + (range(-9,9) | random) / 30000) | round(7) }},
+    long: {{ ((node.last_long / 10**7) + (range(-9,9) | random) / 30000) |round(7) if node.last_long is not none else "null" }},
     long_name: {{ (node.long_name or "") | tojson }},
     short_name: {{ (node.short_name or "") | tojson }},
     channel: {{ (node.channel or "") | tojson }},
