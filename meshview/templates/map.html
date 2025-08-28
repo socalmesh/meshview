@@ -223,23 +223,34 @@ function loadEdges(callback) {
 function onNodeClick(node) {
     loadEdges(edges => {
         edgeLayer.clearLayers();
+
         edges.forEach(edge => {
             if (edge.from !== node.id && edge.to !== node.id) return;
-            let fromNode = nodeMap.get(edge.from);
-            let toNode = nodeMap.get(edge.to);
-            if (!fromNode || !toNode) return;
-            if (!fromNode.lat || !fromNode.long || !toNode.lat || !toNode.long) return;
 
-            let lineColor = edge.type === "neighbor" ? "red" : "blue";
-            let dash = edge.type === "traceroute" ? "5,5" : null;
+            const fromNode = nodeMap.get(edge.from);
+            const toNode = nodeMap.get(edge.to);
+
+            // Validate that nodes and coordinates are present and not 0
+            if (!fromNode || !toNode) return;
+            if (
+                fromNode.lat == null || fromNode.long == null ||
+                toNode.lat == null || toNode.long == null ||
+                fromNode.lat == 0 || fromNode.long == 0 ||
+                toNode.lat == 0 || toNode.long == 0
+            ) return;
+
+            const lineColor = edge.type === "neighbor" ? "red" : "blue";
+            const dash = edge.type === "traceroute" ? "5,5" : null;
+            const weight = edge.type === "neighbor" ? 3 : 2;
 
             L.polyline(
                 [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
-                { color: lineColor, weight: 2, opacity: 1, dashArray: dash }
+                { color: lineColor, weight, opacity: 1, dashArray: dash }
             ).addTo(edgeLayer);
         });
     });
 }
+
 
 nodes.forEach(node => {
     let marker = markerById[node.id];
