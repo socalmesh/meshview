@@ -251,7 +251,7 @@ var lastFetchTime = null;
 const activeBlinks = new Map();
 
 function fetchLatestPacket() {
-    fetch(`/api/packets?limit=1&since=1970-01-01T00:00:00Z`)
+    fetch(`/api/packets?limit=1`)
         .then(res => res.json())
         .then(data => {
             if (data.packets && data.packets.length > 0) lastFetchTime = data.packets[0].import_time;
@@ -286,7 +286,7 @@ function blinkNode(marker, longName, portnum) {
     let interval = setInterval(() => {
         if (isMarkerVisible(marker)) {
             marker.setStyle({ fillColor: blinkCount % 2 === 0 ? 'yellow' : marker.originalColor });
-            marker.bringToFront();  // <-- ensures blinking node stays on top
+            marker.bringToFront();  // <-- keeps blinking node on top
         }
         blinkCount++;
         if (blinkCount > 7) {
@@ -302,7 +302,7 @@ function blinkNode(marker, longName, portnum) {
 
 function fetchNewPackets() {
     if (!lastFetchTime) return;
-    fetch(`/api/packets?since=${lastFetchTime}`)
+    fetch(`/api/packets?limit=5&since=${lastFetchTime}`)
         .then(res => res.json())
         .then(data => {
             if (!data.packets || data.packets.length === 0) return;
@@ -321,8 +321,35 @@ function fetchNewPackets() {
         .catch(err => console.error("Error fetching packets:", err));
 }
 
+// --- Visibility-based polling control ---
+let packetInterval = null;
+
+function startPacketFetcher() {
+    if (!packetInterval) {
+        packetInterval = setInterval(fetchNewPackets, 1000);
+        console.log("Packet fetching started");
+    }
+}
+
+function stopPacketFetcher() {
+    if (packetInterval) {
+        clearInterval(packetInterval);
+        packetInterval = null;
+        console.log("Packet fetching stopped");
+    }
+}
+
+document.addEventListener("visibilitychange", function() {
+    if (document.hidden) {
+        stopPacketFetcher();
+    } else {
+        startPacketFetcher();
+    }
+});
+
+// Init
 fetchLatestPacket();
-setInterval(fetchNewPackets, 1000);
+startPacketFetcher();
 
 </script>
 {% endblock %}
