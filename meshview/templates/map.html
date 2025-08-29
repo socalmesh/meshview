@@ -39,7 +39,6 @@
 
 {% block body %}
 <div id="map" style="width: 100%; height: 600px;"></div>
-
 <div id="filter-container">
     <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
 </div>
@@ -56,7 +55,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 }).addTo(map);
 
-// ---- Marker and node setup ----
+// ---- Node Data ----
 var markers = {};
 var markerById = {};
 var nodes = [
@@ -77,16 +76,11 @@ var nodes = [
 {% endfor %}
 ];
 
+// ---- Helpers ----
 const portMap = {
-    1: "Text",
-    67: "Telemetry",
-    3: "Position",
-    70: "Traceroute",
-    4: "Node Info",
-    71: "Neighbour Info",
-    73: "Map Report"
+    1: "Text", 67: "Telemetry", 3: "Position",
+    70: "Traceroute", 4: "Node Info", 71: "Neighbour Info", 73: "Map Report"
 };
-
 function timeAgo(date) {
     var now = Date.now();
     var diff = now - new Date(date);
@@ -99,8 +93,6 @@ function timeAgo(date) {
     if (minutes > 0) return minutes + "m";
     return seconds + "s";
 }
-
-// Color palette
 const palette = [
     "#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe",
     "#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"
@@ -114,22 +106,18 @@ function hashToColor(str) {
     nextColorIndex++;
     return color;
 }
-
-// Node map
 const nodeMap = new Map();
 nodes.forEach(n => nodeMap.set(n.id, n));
 
-// Filter setup
-var bounds = L.latLngBounds();
-var channels = new Set();
-
-// ---- Coordinate helper ----
 function isInvalidCoord(node) {
     return (!node || node.lat == null || node.long == null || node.lat == 0 || node.long == 0);
 }
 
-// ---- Plot nodes ----
-nodes.forEach(function(node) {
+// ---- Marker Plotting ----
+var bounds = L.latLngBounds();
+var channels = new Set();
+
+nodes.forEach(node => {
     if (!isInvalidCoord(node)) {
         let category = node.channel;
         channels.add(category);
@@ -156,7 +144,7 @@ nodes.forEach(function(node) {
         markerById[node.id] = marker;
 
         marker.on('click', function(e) {
-            e.originalEvent.stopPropagation(); // prevent map click
+            e.originalEvent.stopPropagation();
             marker.bindPopup(popupContent).openPopup();
             setTimeout(() => marker.closePopup(), 3000);
             onNodeClick(node);
@@ -168,14 +156,14 @@ nodes.forEach(function(node) {
     }
 });
 
-// Fit bounds
+// Fit map bounds
 var bayAreaBounds = [
     [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
     [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
 ];
 map.fitBounds(bayAreaBounds);
 
-// Filters
+// ---- Filters ----
 let filterContainer = document.getElementById("filter-container");
 channels.forEach(channel => {
     let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
@@ -185,7 +173,6 @@ channels.forEach(channel => {
     label.innerHTML = `<input type="checkbox" class="filter-checkbox" id="${filterId}" checked> ${channel}`;
     filterContainer.appendChild(label);
 });
-
 function updateMarkers() {
     let showRoutersOnly = document.getElementById("filter-routers-only").checked;
     nodes.forEach(node => {
@@ -200,7 +187,6 @@ function updateMarkers() {
         }
     });
 }
-
 document.querySelectorAll(".filter-checkbox").forEach(input => {
     input.addEventListener("change", updateMarkers);
 });
@@ -210,51 +196,67 @@ var edgeLayer = L.layerGroup().addTo(map);
 var edgesData = null;
 let selectedNodeId = null;
 
-function loadEdges(callback) {
-    if (edgesData) callback(edgesData);
-    else {
-        fetch('/api/edges')
-            .then(res => res.json())
-            .then(data => { edgesData = data.edges; callback(edgesData); })
-            .catch(err => console.error("Error loading edges:", err));
-    }
-}
+// Preload edges on page load
+fetch('/api/edges')
+    .then(res => res.json())
+    .then(data => { edgesData = data.edges; })
+    .catch(err => console.error(err));
 
 function onNodeClick(node) {
-    if (selectedNodeId === node.id) {
-        edgeLayer.clearLayers();
-        selectedNodeId = null;
+    // Toggle off if already selected
+    if (selectedNodeId != node.id) {
+    selectedNodeId = node.id;
+    edgeLayer.clearLayers();
+    console.log(`Clicked node: ${node.long_name}`);
+     if (!edgesData) {
+        console.log("Edges not loaded yet");
         return;
     }
-    selectedNodeId = node.id;
 
-    loadEdges(edges => {
-        edgeLayer.clearLayers();
-        edges.forEach(edge => {
-            if (edge.from !== node.id && edge.to !== node.id) return;
-            const fromNode = nodeMap.get(edge.from);
-            const toNode = nodeMap.get(edge.to);
-            if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
-
-            const lineColor = edge.type === "neighbor" ? "red" : "blue";
-            const dash = edge.type === "traceroute" ? "5,5" : null;
-            const weight = edge.type === "neighbor" ? 3 : 2;
-
-            L.polyline(
-                [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
-                { color: lineColor, weight, opacity: 1, dashArray: dash }
-            ).addTo(edgeLayer);
-        });
-    });
+// Ensure edgeLayer is visible
+if (!map.hasLayer(edgeLayer)) {
+    edgeLayer.addTo(map);
 }
 
-// Clear edges on map click
+edgesData.forEach(edge => {
+    if (edge.from !== node.id && edge.to !== node.id) return;
+
+    const fromNode = nodeMap.get(edge.from);
+    const toNode = nodeMap.get(edge.to);
+    if (!fromNode || !toNode) return;
+    if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
+
+    const lineColor = edge.type === "neighbor" ? "red" : "blue";
+    const dash = edge.type === "traceroute" ? "5,5" : null;
+    const weight = edge.type === "neighbor" ? 3 : 2;
+
+    L.polyline(
+        [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
+        { color: lineColor, weight, opacity: 1, dashArray: dash }
+    )
+    .addTo(edgeLayer)
+    .bringToFront(); // Force this line to be visible
+
+    console.log(`Edge type: ${edge.type} | From: ${fromNode.long_name} (${fromNode.lat},${fromNode.long}) -> To: ${toNode.long_name} (${toNode.lat},${toNode.long})`);
+});
+
+// Bring all edges to top
+edgeLayer.bringToFront();
+
+
+
+    }
+
+
+}
+
+// Clear edges when clicking map
 map.on('click', () => {
     edgeLayer.clearLayers();
     selectedNodeId = null;
 });
 
-// ---- Blinking Nodes ----
+// ---- Blinking nodes ----
 var lastFetchTime = null;
 const activeBlinks = new Map();
 
@@ -311,7 +313,6 @@ function fetchNewPackets() {
         .then(res => res.json())
         .then(data => {
             if (!data.packets || data.packets.length === 0) return;
-
             data.packets.forEach(packet => {
                 let marker = markerById[packet.from_node_id];
                 if (marker) {
@@ -319,11 +320,10 @@ function fetchNewPackets() {
                     if (nodeData) blinkNode(marker, nodeData.long_name, packet.portnum);
                 }
             });
-
             let latestPacket = data.packets[data.packets.length - 1];
             if (latestPacket && latestPacket.import_time) lastFetchTime = latestPacket.import_time;
         })
-        .catch(err => console.error("Error fetching packets:", err));
+        .catch(err => console.error(err));
 }
 
 // ---- Polling Control ----
