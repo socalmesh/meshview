@@ -110,8 +110,22 @@ const nodeMap = new Map();
 nodes.forEach(n => nodeMap.set(n.id, n));
 
 function isInvalidCoord(node) {
-    return (!node || node.lat == null || node.long == null || node.lat == 0 || node.long == 0);
+    if (!node) return true;
+
+    let { lat, long } = node;
+
+    // Remove decimal places (round to nearest integer)
+    lat = Math.round(lat);
+    long = Math.round(long);
+
+    return (
+        lat === null || long === null ||
+        lat === undefined || long === undefined ||
+        lat === 0 || long === 0 ||
+        Number.isNaN(lat) || Number.isNaN(long)
+    );
 }
+
 
 // ---- Marker Plotting ----
 var bounds = L.latLngBounds();
