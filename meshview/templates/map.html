@@ -191,6 +191,7 @@ document.querySelectorAll(".filter-checkbox").forEach(input => {
     input.addEventListener("change", updateMarkers);
 });
 
+
 // ---- Edges ----
 var edgeLayer = L.layerGroup().addTo(map);
 var edgesData = null;
@@ -201,6 +202,8 @@ fetch('/api/edges')
     .then(res => res.json())
     .then(data => { edgesData = data.edges; })
     .catch(err => console.error(err));
+
+
 
 function onNodeClick(node) {
     // Toggle off if already selected
@@ -237,7 +240,7 @@ edgesData.forEach(edge => {
     .addTo(edgeLayer)
     .bringToFront(); // Force this line to be visible
 
-    console.log(`Edge type: ${edge.type} | From: ${fromNode.long_name} (${fromNode.lat},${fromNode.long}) -> To: ${toNode.long_name} (${toNode.lat},${toNode.long})`);
+    console.log(`Edge type: To: ${toNode.long_name} (${toNode.lat},${toNode.long})`);
 });
 
 // Bring all edges to top
