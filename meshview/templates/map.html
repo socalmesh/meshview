@@ -53,7 +53,7 @@
         crossorigin=""></script>
 
 <script>
-    // ---- Map initial Setup ----
+    // ---- Map Setup ----
     var map = L.map('map');
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -245,7 +245,7 @@
                 if (!fromNode || !toNode) return;
                 if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
 
-                const lineColor = edge.type === "neighbor" ? "darkred" : "deepskyblue"; //different than the node category colors
+                const lineColor = edge.type === "neighbor" ? "darkred" : "black"; //different than the node category colors
                 const dash = edge.type === "traceroute" ? "5,5" : null;
                 const weight = edge.type === "neighbor" ? 3 : 2;
 
@@ -260,7 +260,7 @@
                 if (edge.type === "traceroute") {
                     L.polylineDecorator(polyline, {
                         patterns: [
-                            { offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({ pixelSize: 12, polygon: false, pathOptions: { stroke: true, color: lineColor } }) }
+                            { offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({ pixelSize: 5, polygon: false, pathOptions: { stroke: true, color: lineColor } }) }
                         ]
                     }).addTo(edgeLayer);
                 }
