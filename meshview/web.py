@@ -4,7 +4,7 @@ from datetime import timedelta
 import json
 import os
 import ssl
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 import pydot
 from google.protobuf import text_format
@@ -1370,8 +1370,7 @@ async def chat_updates(request):
 async def nodegraph(request):
     nodes = await store.get_nodes(days_active=3)  # Fetch nodes for the given channel
     node_ids = set()
-    edges_set = set()  # Track unique edges
-    edge_type = {}  # Store type of each edge
+    edges_map = defaultdict(lambda: { "weight": 0, "type": None }) # weight is based on the number of traceroutes and neighbor info packets
     used_nodes = set()  # This will track nodes involved in edges (including traceroutes)
     since = datetime.timedelta(hours=48)
     traceroutes = []
@@ -1396,8 +1395,8 @@ async def nodegraph(request):
         # Add traceroute edges with their type and update used_nodes
         for i in range(len(path) - 1):
             edge_pair = (path[i], path[i + 1])
-            edges_set.add(edge_pair)
-            edge_type[edge_pair] = "traceroute"
+            edges_map[edge_pair]["weight"] += 1
+            edges_map[edge_pair]["type"] = "traceroute"
             used_nodes.add(path[i])  # Add all nodes in the traceroute path
             used_nodes.add(path[i + 1])  # Add all nodes in the traceroute path
 
@@ -1412,24 +1411,21 @@ async def nodegraph(request):
                 used_nodes.add(node.node_id)
 
                 edge_pair = (node.node_id, packet.from_node_id)
-                if edge_pair not in edges_set:
-                    edges_set.add(edge_pair)
-                    edge_type[edge_pair] = "neighbor"
+                edges_map[edge_pair]["weight"] += 1
+                edges_map[edge_pair]["type"] = "neighbor" # Overrides an existing traceroute pairing with neighbor
         except Exception as e:
             print(f"Error decoding NeighborInfo packet: {e}")
 
-    # Convert edges_set to a list of dicts with colors
+    # Convert edges_map to a list of dicts with colors
+    max_weight = max(i['weight'] for i in edges_map.values()) if edges_map else 1
     edges = [
         {
             "from": frm,
             "to": to,
-            "originalColor": "#ff5733" if edge_type[(frm, to)] == "traceroute" else "#3388ff",  # Red for traceroute, Blue for neighbor
-            "lineStyle": {
-                "color": "#ff5733" if edge_type[(frm, to)] == "traceroute" else "#3388ff",
-                "width": 2
-            }
+            "type": info["type"],
+            "weight": max([info['weight'] / float(max_weight) * 10, 1]),
         }
-        for frm, to in edges_set
+        for (frm, to), info in edges_map.items()
     ]
 
     # Filter nodes to only include those involved in edges (including traceroutes)
