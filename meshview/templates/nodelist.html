@@ -19,6 +19,9 @@ th {
     background-color: #1f1f1f;
     color: white;
     cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 2;
 }
 
 tr:nth-child(even) {
@@ -27,6 +30,10 @@ tr:nth-child(even) {
 
 tr:nth-child(odd) {
     background-color: #222;
+}
+
+tr:hover {
+    background-color: #2a2a2a;
 }
 
 .search-container {
@@ -70,147 +77,185 @@ tr:nth-child(odd) {
 {% endblock %}
 
 {% block body %}
-    <div id="node-list">
-        <div class="search-container">
-            <input class="search" placeholder="Search nodes..." />
+<div id="node-list">
+    <div class="search-container">
+        <input class="search" placeholder="Search nodes..." />
 
-            <!-- Filter by Role -->
-            <select class="filter-role" onchange="applyFilters()">
-                <option value="">Filter by Role</option>
-                {% for node in nodes|groupby('role') %}
-                    <option value="{{ node.grouper }}">{{ node.grouper }}</option>
-                {% endfor %}
-            </select>
+        <select class="filter-role" onchange="applyFilters()">
+            <option value="">Filter by Role</option>
+        </select>
 
-            <!-- Filter by Channel -->
-            <select class="filter-channel" onchange="applyFilters()">
-                <option value="">Filter by Channel</option>
-                {% for node in nodes|groupby('channel') %}
-                    <option value="{{ node.grouper }}">{{ node.grouper }}</option>
-                {% endfor %}
-            </select>
+        <select class="filter-channel" onchange="applyFilters()">
+            <option value="">Filter by Channel</option>
+        </select>
 
-            <!-- Filter by HW Model -->
-            <select class="filter-hw_model" onchange="applyFilters()">
-                <option value="">Filter by HW Model</option>
-                {% for node in nodes|groupby('hw_model') %}
-                    <option value="{{ node.grouper }}">{{ node.grouper }}</option>
-                {% endfor %}
-            </select>
+        <select class="filter-hw_model" onchange="applyFilters()">
+            <option value="">Filter by HW Model</option>
+        </select>
 
-            <button class="export-btn" onclick="exportToCSV()">Export to CSV</button>
-        </div>
-
-        <!-- Count Display -->
-        <div class="count-container">Showing <span id="node-count-value">0</span> nodes</div>
-
-        {% if nodes %}
-            <table id="node-table">
-                <thead>
-                    <tr>
-                        <th class="sort" data-sort="long_name">Long Name</th>
-                        <th class="sort" data-sort="short_name">Short Name</th>
-                        <th class="sort" data-sort="hw_model">HW Model</th>
-                        <th class="sort" data-sort="firmware">Firmware</th>
-                        <th class="sort" data-sort="role">Role</th>
-                        <th class="sort" data-sort="last_lat">Last Latitude</th>
-                        <th class="sort" data-sort="last_long">Last Longitude</th>
-                        <th class="sort" data-sort="channel">Channel</th>
-                        <th class="sort" data-sort="last_update" data-order="desc">Last Update</th>
-                    </tr>
-                </thead>
-                <tbody class="list">
-                    {% for node in nodes %}
-                        <tr>
-                            <td class="long_name"> <a href="/packet_list/{{ node.node_id }}">{{ node.long_name }}</a></td>
-                            <td class="short_name">{{ node.short_name }}</td>
-                            <td class="hw_model">{{ node.hw_model if node.hw_model else "N/A" }}</td>
-                            <td class="firmware">{{ node.firmware if node.firmware else "N/A" }}</td>
-                            <td class="role">{{ node.role if node.role else "N/A" }}</td>
-                            <td class="last_lat">{{ "{:.7f}".format(node.last_lat / 10**7) if node.last_lat else "N/A" }}</td>
-                            <td class="last_long">{{ "{:.7f}".format(node.last_long / 10**7) if node.last_long else "N/A" }}</td>
-                            <td class="channel">{{ node.channel if node.channel else "N/A" }}</td>
-                            <td class="last_update" data-timestamp="{{ node.last_update.timestamp() if node.last_update else 0 }}">
-                                {{ node.last_update.strftime('%-I:%M:%S %p - %m-%d-%Y') if node.last_update else "N/A" }}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p>No nodes found.</p>
-        {% endif %}
+        <button class="export-btn" onclick="exportToCSV()">Export to CSV</button>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.min.js"></script>
-    <script>
-        var nodeList;
+    <div class="count-container">Showing <span id="node-count-value">0</span> nodes</div>
 
-        document.addEventListener("DOMContentLoaded", function () {
-            var options = {
+    <table id="node-table">
+        <thead>
+            <tr>
+                <th class="sort" data-sort="long_name">Long Name</th>
+                <th class="sort" data-sort="short_name">Short Name</th>
+                <th class="sort" data-sort="hw_model">HW Model</th>
+                <th class="sort" data-sort="firmware">Firmware</th>
+                <th class="sort" data-sort="role">Role</th>
+                <th class="sort" data-sort="last_lat">Last Latitude</th>
+                <th class="sort" data-sort="last_long">Last Longitude</th>
+                <th class="sort" data-sort="channel">Channel</th>
+                <th class="sort" data-sort="last_update" data-order="desc">Last Update</th>
+            </tr>
+        </thead>
+        <tbody class="list"></tbody>
+    </table>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.min.js"></script>
+<script>
+    let nodeList;
+    const searchInput = document.querySelector(".search");
+    const roleFilter = document.querySelector(".filter-role");
+    const channelFilter = document.querySelector(".filter-channel");
+    const hwFilter = document.querySelector(".filter-hw_model");
+    const countDisplay = document.getElementById("node-count-value");
+    const tbody = document.querySelector("#node-table tbody");
+
+    document.addEventListener("DOMContentLoaded", async function () {
+        try {
+            const response = await fetch("/api/nodes?days_active=3");
+            if (!response.ok) throw new Error("Failed to fetch nodes");
+            const data = await response.json();
+
+            // Insert rows
+            data.nodes.forEach(node => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td class="long_name"><a href="/packet_list/${node.node_id}">${node.long_name || "N/A"}</a></td>
+                    <td class="short_name">${node.short_name || "N/A"}</td>
+                    <td class="hw_model">${node.hw_model || "N/A"}</td>
+                    <td class="firmware">${node.firmware || "N/A"}</td>
+                    <td class="role">${node.role || "N/A"}</td>
+                    <td class="last_lat">${node.last_lat ? (node.last_lat / 1e7).toFixed(7) : "N/A"}</td>
+                    <td class="last_long">${node.last_long ? (node.last_long / 1e7).toFixed(7) : "N/A"}</td>
+                    <td class="channel">${node.channel || "N/A"}</td>
+                    <td class="last_update" data-timestamp="${node.last_update ? Date.parse(node.last_update) / 1000 : 0}">
+                        ${node.last_update ? new Date(node.last_update).toLocaleString() : "N/A"}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            populateFilters(data.nodes);
+
+            // Init list.js
+            nodeList = new List("node-list", {
                 valueNames: [
                     "long_name", "short_name", "hw_model", "firmware", "role",
-                    "last_lat", "last_long", "channel", { name: "last_update", attr: "data-timestamp" }
+                    "last_lat", "last_long", "channel",
+                    { name: "last_update", attr: "data-timestamp", type: "number" }
                 ]
-            };
+            });
 
-            nodeList = new List("node-list", options);
+            // Default sort by last_update DESC
+            nodeList.sort("last_update", { order: "desc" });
 
             updateCount();
+            nodeList.on("updated", updateCount);
 
-            nodeList.on("updated", function () {
-                updateCount();
-            });
+            searchInput.addEventListener("input", applyFilters);
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="9" style="color:red; text-align:center;">Error loading nodes: ${err.message}</td></tr>`;
+        }
+    });
+
+    function populateFilters(nodes) {
+        const sets = {
+            role: new Set(),
+            channel: new Set(),
+            hw: new Set()
+        };
+
+        nodes.forEach(n => {
+            if (n.role) sets.role.add(n.role);
+            if (n.channel) sets.channel.add(n.channel);
+            if (n.hw_model) sets.hw.add(n.hw_model);
         });
 
-        function applyFilters() {
-            var selectedRole = document.querySelector(".filter-role").value;
-            var selectedChannel = document.querySelector(".filter-channel").value;
-            var selectedHWModel = document.querySelector(".filter-hw_model").value;
+        fillSelect(roleFilter, [...sets.role]);
+        fillSelect(channelFilter, [...sets.channel]);
+        fillSelect(hwFilter, [...sets.hw]);
+    }
 
-            nodeList.filter(function (item) {
-                var matchesRole = selectedRole === "" || item.values().role === selectedRole;
-                var matchesChannel = selectedChannel === "" || item.values().channel === selectedChannel;
-                var matchesHWModel = selectedHWModel === "" || item.values().hw_model === selectedHWModel;
-                return matchesRole && matchesChannel && matchesHWModel;
-            });
+    function fillSelect(select, values) {
+        values.forEach(v => {
+            const option = document.createElement("option");
+            option.value = v;
+            option.textContent = v;
+            select.appendChild(option);
+        });
+    }
 
-            updateCount();
-        }
+    function applyFilters() {
+        const selectedRole = roleFilter.value.toLowerCase();
+        const selectedChannel = channelFilter.value.toLowerCase();
+        const selectedHW = hwFilter.value.toLowerCase();
+        const searchText = searchInput.value.toLowerCase();
 
-        function updateCount() {
-            var visibleRows = document.querySelectorAll("#node-table tbody tr:not([style*='display: none'])").length;
-            document.getElementById("node-count-value").innerText = visibleRows;
-        }
+        nodeList.filter(item => {
+            const values = item.values();
+            const matchesRole = !selectedRole || (values.role || "").toLowerCase() === selectedRole;
+            const matchesChannel = !selectedChannel || (values.channel || "").toLowerCase() === selectedChannel;
+            const matchesHW = !selectedHW || (values.hw_model || "").toLowerCase() === selectedHW;
+            const matchesSearch = !searchText || Object.values(values).some(v =>
+                (v || "").toString().toLowerCase().includes(searchText)
+            );
+            return matchesRole && matchesChannel && matchesHW && matchesSearch;
+        });
 
-        function exportToCSV() {
-            var table = document.getElementById("node-table");
-            var rows = table.querySelectorAll("tr");
-            var csvContent = [];
+        updateCount();
+    }
 
-            var headers = [];
-            table.querySelectorAll("th").forEach(th => headers.push(th.innerText));
-            csvContent.push(headers.join(","));
+    function updateCount() {
+        const visibleRows = document.querySelectorAll("#node-table tbody tr:not([style*='display: none'])").length;
+        countDisplay.innerText = visibleRows;
+    }
 
-            rows.forEach(row => {
-                if (row.style.display !== "none") {
-                    var cells = row.querySelectorAll("td");
-                    if (cells.length > 0) {
-                        var rowData = [];
-                        cells.forEach(cell => {
-                            rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
-                        });
-                        csvContent.push(rowData.join(","));
-                    }
+    function exportToCSV() {
+        const table = document.getElementById("node-table");
+        const rows = table.querySelectorAll("tr");
+        const csvContent = [];
+
+        const headers = [];
+        table.querySelectorAll("th").forEach(th => headers.push(th.innerText));
+        csvContent.push(headers.join(","));
+
+        rows.forEach(row => {
+            if (row.style.display !== "none") {
+                const cells = row.querySelectorAll("td");
+                if (cells.length > 0) {
+                    const rowData = [];
+                    cells.forEach(cell => {
+                        rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
+                    });
+                    csvContent.push(rowData.join(","));
                 }
-            });
+            }
+        });
 
-            var csvString = csvContent.join("\n");
-            var blob = new Blob([csvString], { type: "text/csv" });
-            var a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = "nodes_list.csv";
-            a.click();
-        }
-    </script>
+        const csvString = csvContent.join("\n");
+        const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
+
+        const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `nodes_list_${dateStr}.csv`;
+        a.click();
+    }
+</script>
 {% endblock %}

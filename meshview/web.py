@@ -1054,94 +1054,24 @@ async def graph_network(request):
 @routes.get("/nodelist")
 async def nodelist(request):
     try:
-        role = request.query.get("role")
-        channel = request.query.get("channel")
-        hw_model = request.query.get("hw_model")
-        nodes= await store.get_nodes(role,channel, hw_model, days_active=3)
         template = env.get_template("nodelist.html")
         return web.Response(
             text=template.render(
-                nodes=nodes,
-                site_config = CONFIG,
+                site_config=CONFIG,
                 SOFTWARE_RELEASE=SOFTWARE_RELEASE
             ),
             content_type="text/html",
         )
-    except Exception as e:
+    except Exception:
         template = env.get_template("error.html")
         rendered = template.render(
-            error_message="An error occurred while processing your request.",
+            error_message="An error occurred while loading the node list page.",
             error_details=traceback.format_exc(),
             site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         )
         return web.Response(text=rendered, status=500, content_type="text/html")
 
-@routes.get("/api/nodes")
-async def api_nodes(request):
-    try:
-        # Extract optional query parameters
-        role = request.query.get("role")
-        channel = request.query.get("channel")
-        hw_model = request.query.get("hw_model")
-
-        # Fetch filtered nodes
-        nodes = await store.get_nodes(role, channel, hw_model)
-
-        # Convert node objects to dictionaries for JSON output
-        nodes_json = [node.to_dict() for node in nodes]
-
-        # Return a pretty-printed JSON response
-        return web.json_response(
-            {"nodes": nodes_json},
-            dumps=lambda obj: json.dumps(obj, indent=2)  # Pretty print for development
-        )
-
-    except Exception as e:
-        # Log error and stack trace to console
-        print("Error in /api endpoint:", str(e))
-
-        # Return a plain-text error response
-        return web.Response(
-            text=f"An error occurred: {str(e)}",
-            status=500,
-            content_type="text/plain"
-        )
-
-@routes.get("/api2/packets")
-async def api_packets(request):
-    try:
-        node_id = request.query.get("node_id")
-        packets = await store.get_packets(node_id)
-
-        packets_json = [
-            {
-                "id": packet.id,
-                "from_node_id": packet.from_node_id,
-                "from_node": packet.from_node.long_name if packet.from_node else None,
-                "to_node_id": packet.to_node_id,
-                "to_node": packet.to_node.long_name if packet.to_node else None,
-                "portnum": packet.portnum,
-                "payload": packet.payload,
-                "import_time": packet.import_time.isoformat(),
-            }
-            for packet in packets
-        ]
-
-        return web.json_response(
-            {"packets": packets_json},
-            dumps=lambda obj: json.dumps(obj, indent=2)
-        )
-
-    except Exception as e:
-        print("Error in /api/packets endpoint:", str(e))
-
-
-        return web.Response(
-            text=f"An error occurred: {str(e)}",
-            status=500,
-            content_type="text/plain"
-        )
 
 
 @routes.get("/net")
@@ -1503,62 +1433,52 @@ async def api_chat(request):
         )
 
 
-
-# Client to pass ?hours=1 or ?days=7 to filter
-
 @routes.get("/api/nodes")
 async def api_nodes(request):
     try:
-        # Query params
-        hours = request.query.get("hours")
-        days = request.query.get("days")
-        last_seen_after = None
+        # Optional query parameters
+        role = request.query.get("role")
+        channel = request.query.get("channel")
+        hw_model = request.query.get("hw_model")
+        days_active = request.query.get("days_active")
 
-        # Determine cutoff time
-        if hours:
+        if days_active:
             try:
-                last_seen_after = datetime.datetime.now() - datetime.timedelta(hours=int(hours))
+                days_active = int(days_active)
             except ValueError:
-                pass
-        elif days:
-            try:
-                last_seen_after = datetime.datetime.now() - datetime.timedelta(days=int(days))
-            except ValueError:
-                pass
-        else:
-            # Fallback: if a direct ISO timestamp is provided
-            last_seen_str = request.query.get("last_seen_after")
-            if last_seen_str:
-                try:
-                    last_seen_after = datetime.datetime.fromisoformat(last_seen_str)
-                except Exception as e:
-                    print(f"Failed to parse last_seen_after '{last_seen_str}': {e}")
+                days_active = None
 
-        # Fetch nodes
-        nodes = await store.get_nodes()
+        # Fetch nodes from database using your get_nodes function
+        nodes = await store.get_nodes(
+            role=role,
+            channel=channel,
+            hw_model=hw_model,
+            days_active=days_active
+        )
 
-        # Apply filter
-        if last_seen_after:
-            nodes = [n for n in nodes if n.last_seen and n.last_seen > last_seen_after]
-
-        # Prepare response
-        nodes_data = [{
-            "node_id": n.id,
-            "long_name": n.long_name,
-            "short_name": n.short_name,
-            "channel": n.channel,
-            "last_seen": n.last_seen.isoformat() if n.last_seen else None,
-            "last_lat": getattr(n, "last_lat", None),
-            "last_long": getattr(n, "last_long", None),
-            "hardware": n.hardware,
-            "firmware": n.firmware,
-            "role": n.role,
-        } for n in nodes]
+        # Prepare the JSON response
+        nodes_data = []
+        for n in nodes:
+            nodes_data.append({
+                "id": getattr(n, "id", None),
+                "node_id": n.node_id,
+                "long_name": n.long_name,
+                "short_name": n.short_name,
+                "hw_model": n.hw_model,
+                "firmware": n.firmware,
+                "role": n.role,
+                "last_lat": getattr(n, "last_lat", None),
+                "last_long": getattr(n, "last_long", None),
+                "channel": n.channel,
+                "last_update": n.last_update.isoformat()
+            })
 
         return web.json_response({"nodes": nodes_data})
+
     except Exception as e:
         print("Error in /api/nodes:", e)
         return web.json_response({"error": "Failed to fetch nodes"}, status=500)
+
 
 @routes.get("/api/packets")
 async def api_packets(request):
