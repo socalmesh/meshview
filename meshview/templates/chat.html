@@ -25,13 +25,16 @@
 
 /* Nested reply style below the message */
 .replying-to {
-    background-color: #444;
-    padding: 4px 8px;
+    font-size: 0.85em;
+    color: #aaa;           /* gray text */
     margin-top: 4px;
-    border-left: 3px solid #ffe066;
-    border-radius: 4px;
-    font-size: 0.9em;
-    color: #fff;
+    padding-left: 20px;    /* increased indentation */
+
+.replying-to .reply-preview {
+    color: #aaa;
+}
+
+
 }
 {% endblock %}
 
@@ -69,27 +72,28 @@ function renderPacket(packet, highlight = false) {
   const formattedTimestamp = `${formattedTime} - ${formattedDate}`;
 
   // Try to resolve the reply target
-  let replyHtml = "";
-  if (packet.reply_id) {
-    const parent = packetMap.get(packet.reply_id);
-    if (parent) {
-      replyHtml = `
-        <div class="replying-to">
-          <div class="reply-preview">
-            <strong>${escapeHtml((parent.long_name || "").trim() || `Node ${parent.from_node_id}`)}</strong>:
-            ${escapeHtml(parent.payload || "")}
+    let replyHtml = "";
+    if (packet.reply_id) {
+      const parent = packetMap.get(packet.reply_id);
+      if (parent) {
+        replyHtml = `
+          <div class="replying-to">
+            <div class="reply-preview">
+              <i>Replying to: ${escapeHtml((parent.long_name || "").trim() || `Node ${parent.from_node_id}`)}:
+              ${escapeHtml(parent.payload || "")}</i>
+            </div>
           </div>
-        </div>
-      `;
-    } else {
-      // fallback if parent not loaded yet
-      replyHtml = `
-        <div class="replying-to">
-         <a href="/packet/${packet.reply_id}">${packet.reply_id}</a>
-        </div>
-      `;
+        `;
+      } else {
+        // fallback if parent not loaded yet
+        replyHtml = `
+          <div class="replying-to">
+            <i>Replying to: <a href="/packet/${packet.reply_id}">${packet.reply_id}</a></i>
+          </div>
+        `;
+      }
     }
-  }
+
 
   const div = document.createElement("div");
   div.className = "row chat-packet" + (highlight ? " flash" : "");
