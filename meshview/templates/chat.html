@@ -79,7 +79,7 @@ function renderPacket(packet, highlight = false) {
         replyHtml = `
           <div class="replying-to">
             <div class="reply-preview">
-              <i>Replying to: ${escapeHtml((parent.long_name || "").trim() || `Node ${parent.from_node_id}`)}:
+              <i>Replying to: <strong>${escapeHtml((parent.long_name || "").trim() || `Node ${parent.from_node_id}`)}</strong>:
               ${escapeHtml(parent.payload || "")}</i>
             </div>
           </div>
