@@ -256,8 +256,6 @@ async def node_match(request):
     return web.Response(
         text=template.render(
             node_options=node_options,
-            site_config = CONFIG
-
         ),
         content_type="text/html",
     )
