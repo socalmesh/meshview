@@ -276,7 +276,7 @@ async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
             query = query.where(Node.last_update != "")
 
             # Order results by long_name in ascending order
-            query = query.order_by(Node.long_name.asc())
+            query = query.order_by(Node.short_name.asc())
 
             # Execute the query and retrieve results
             result = await session.execute(query)
