@@ -4,9 +4,7 @@
 table {
     width: 80%;
     border-collapse: collapse;
-    margin-top: 1em;
-    margin-left: auto;
-    margin-right: auto;
+    margin: 1em auto;
 }
 
 th, td {
@@ -18,10 +16,15 @@ th, td {
 th {
     background-color: #1f1f1f;
     color: white;
-    cursor: pointer;
     position: sticky;
     top: 0;
     z-index: 2;
+    cursor: pointer;
+}
+
+.sort-icon {
+    font-size: 0.7em;
+    margin-left: 4px;
 }
 
 tr:nth-child(even) {
@@ -36,164 +39,172 @@ tr:hover {
     background-color: #2a2a2a;
 }
 
-.search-container {
+.filter-container {
+    width: 80%;
+    margin: 1em auto;
     display: flex;
     gap: 10px;
-    margin-bottom: 10px;
-    width: 80%;
-    margin-left: auto;
-    margin-right: auto;
+    flex-wrap: wrap;
 }
 
-.search, .filter-role, .filter-channel, .filter-hw_model, .export-btn {
-    padding: 8px;
-    border: 1px solid #333;
+select, .export-btn, .search-box, .clear-btn {
+    padding: 6px;
     border-radius: 4px;
+    border: 1px solid #333;
+    cursor: pointer;
 }
 
-.filter-role, .filter-channel, .filter-hw_model {
-    cursor: pointer;
+.search-box {
+    flex: 1;
 }
 
 .export-btn {
-    background: #28a745;
+    background-color: #28a745;
     color: white;
     border: none;
-    cursor: pointer;
 }
 
 .export-btn:hover {
-    background: #218838;
+    background-color: #218838;
+}
+
+.clear-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+}
+
+.clear-btn:hover {
+    background-color: #c82333;
 }
 
 .count-container {
-    margin-bottom: 10px;
+    width: 80%;
+    margin: 0 auto 10px;
     font-weight: bold;
     color: white;
-    width: 80%;
-    margin-left: auto;
-    margin-right: auto;
 }
 {% endblock %}
 
 {% block body %}
+<div class="filter-container">
+    <input type="text" id="search-box" class="search-box" placeholder="Search by name or ID..." />
+
+    <select id="role-filter">
+        <option value="">All Roles</option>
+    </select>
+
+    <select id="channel-filter">
+        <option value="">All Channels</option>
+    </select>
+
+    <select id="hw-filter">
+        <option value="">All HW Models</option>
+    </select>
+
+    <select id="firmware-filter">
+        <option value="">All Firmware</option>
+    </select>
+
+    <button class="export-btn" id="export-btn">Export CSV</button>
+    <button class="clear-btn" id="clear-btn">Clear Filters</button>
+</div>
+
+<div class="count-container">
+    Showing <span id="node-count">0</span> nodes
+</div>
+
 <div id="node-list">
-    <div class="search-container">
-        <input class="search" placeholder="Search nodes..." />
-
-        <select class="filter-role" onchange="applyFilters()">
-            <option value="">Filter by Role</option>
-        </select>
-
-        <select class="filter-channel" onchange="applyFilters()">
-            <option value="">Filter by Channel</option>
-        </select>
-
-        <select class="filter-hw_model" onchange="applyFilters()">
-            <option value="">Filter by HW Model</option>
-        </select>
-
-        <button class="export-btn" onclick="exportToCSV()">Export to CSV</button>
-    </div>
-
-    <div class="count-container">Showing <span id="node-count-value">0</span> nodes</div>
-
-    <table id="node-table">
+    <table>
         <thead>
             <tr>
-                <th class="sort" data-sort="long_name">Long Name</th>
-                <th class="sort" data-sort="short_name">Short Name</th>
-                <th class="sort" data-sort="hw_model">HW Model</th>
-                <th class="sort" data-sort="firmware">Firmware</th>
-                <th class="sort" data-sort="role">Role</th>
-                <th class="sort" data-sort="last_lat">Last Latitude</th>
-                <th class="sort" data-sort="last_long">Last Longitude</th>
-                <th class="sort" data-sort="channel">Channel</th>
-                <th class="sort" data-sort="last_update" data-order="desc">Last Update</th>
+                <th>Short<span class="sort-icon">▲</span></th>
+                <th>Long Name <span class="sort-icon"></span></th>
+                <th>HW Model <span class="sort-icon"></span></th>
+                <th>Firmware <span class="sort-icon"></span></th>
+                <th>Role <span class="sort-icon"></span></th>
+                <th>Last Latitude <span class="sort-icon"></span></th>
+                <th>Last Longitude <span class="sort-icon"></span></th>
+                <th>Channel <span class="sort-icon"></span></th>
+                <th>Last Update <span class="sort-icon"></span></th>
             </tr>
         </thead>
-        <tbody class="list"></tbody>
+        <tbody id="node-table-body">
+            <tr><td colspan="9" style="text-align:center; color:white;">Loading nodes...</td></tr>
+        </tbody>
     </table>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.min.js"></script>
 <script>
-    let nodeList;
-    const searchInput = document.querySelector(".search");
-    const roleFilter = document.querySelector(".filter-role");
-    const channelFilter = document.querySelector(".filter-channel");
-    const hwFilter = document.querySelector(".filter-hw_model");
-    const countDisplay = document.getElementById("node-count-value");
-    const tbody = document.querySelector("#node-table tbody");
+let allNodes = [];
+let sortColumn = "short_name"; // default sorted column
+let sortAsc = true; // default ascending
 
-    document.addEventListener("DOMContentLoaded", async function () {
-        try {
-            const response = await fetch("/api/nodes?days_active=3");
-            if (!response.ok) throw new Error("Failed to fetch nodes");
-            const data = await response.json();
+// Declare headers and keyMap BEFORE any function that uses them
+const headers = document.querySelectorAll("thead th");
+const keyMap = ["short_name","long_name","hw_model","firmware","role","last_lat","last_long","channel","last_update"];
 
-            // Insert rows
-            data.nodes.forEach(node => {
-                const row = document.createElement("tr");
-                row.innerHTML = `
-                    <td class="long_name"><a href="/packet_list/${node.node_id}">${node.long_name || "N/A"}</a></td>
-                    <td class="short_name">${node.short_name || "N/A"}</td>
-                    <td class="hw_model">${node.hw_model || "N/A"}</td>
-                    <td class="firmware">${node.firmware || "N/A"}</td>
-                    <td class="role">${node.role || "N/A"}</td>
-                    <td class="last_lat">${node.last_lat ? (node.last_lat / 1e7).toFixed(7) : "N/A"}</td>
-                    <td class="last_long">${node.last_long ? (node.last_long / 1e7).toFixed(7) : "N/A"}</td>
-                    <td class="channel">${node.channel || "N/A"}</td>
-                    <td class="last_update" data-timestamp="${node.last_update ? Date.parse(node.last_update) / 1000 : 0}">
-                        ${node.last_update ? new Date(node.last_update).toLocaleString() : "N/A"}
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
+document.addEventListener("DOMContentLoaded", async function() {
+    const tbody = document.getElementById("node-table-body");
+    const roleFilter = document.getElementById("role-filter");
+    const channelFilter = document.getElementById("channel-filter");
+    const hwFilter = document.getElementById("hw-filter");
+    const firmwareFilter = document.getElementById("firmware-filter");
+    const searchBox = document.getElementById("search-box");
+    const countSpan = document.getElementById("node-count");
+    const exportBtn = document.getElementById("export-btn");
+    const clearBtn = document.getElementById("clear-btn");
 
-            populateFilters(data.nodes);
+    try {
+        const response = await fetch("/api/nodes?days_active=3");
+        if (!response.ok) throw new Error("Failed to fetch nodes");
+        const data = await response.json();
+        allNodes = data.nodes;
+        populateFilters(allNodes);
+        renderTable(allNodes);
+        updateSortIcons();
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:red;">Error loading nodes: ${err.message}</td></tr>`;
+    }
 
-            // Init list.js
-            nodeList = new List("node-list", {
-                valueNames: [
-                    "long_name", "short_name", "hw_model", "firmware", "role",
-                    "last_lat", "last_long", "channel",
-                    { name: "last_update", attr: "data-timestamp", type: "number" }
-                ]
-            });
+    roleFilter.addEventListener("change", applyFilters);
+    channelFilter.addEventListener("change", applyFilters);
+    hwFilter.addEventListener("change", applyFilters);
+    firmwareFilter.addEventListener("change", applyFilters);
+    searchBox.addEventListener("input", applyFilters);
+    exportBtn.addEventListener("click", exportToCSV);
+    clearBtn.addEventListener("click", clearFilters);
 
-            // Default sort by last_update DESC
-            nodeList.sort("last_update", { order: "desc" });
-
-            updateCount();
-            nodeList.on("updated", updateCount);
-
-            searchInput.addEventListener("input", applyFilters);
-        } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="9" style="color:red; text-align:center;">Error loading nodes: ${err.message}</td></tr>`;
-        }
+    headers.forEach((th, index) => {
+        th.addEventListener("click", () => {
+            const key = keyMap[index];
+            sortAsc = (sortColumn === key) ? !sortAsc : true;
+            sortColumn = key;
+            applyFilters(); // apply filters and sort
+        });
     });
 
     function populateFilters(nodes) {
-        const sets = {
-            role: new Set(),
-            channel: new Set(),
-            hw: new Set()
-        };
+        const roles = new Set();
+        const channels = new Set();
+        const hws = new Set();
+        const firmwares = new Set();
 
         nodes.forEach(n => {
-            if (n.role) sets.role.add(n.role);
-            if (n.channel) sets.channel.add(n.channel);
-            if (n.hw_model) sets.hw.add(n.hw_model);
+            if (n.role) roles.add(n.role);
+            if (n.channel) channels.add(n.channel);
+            if (n.hw_model) hws.add(n.hw_model);
+            if (n.firmware) firmwares.add(n.firmware);
         });
 
-        fillSelect(roleFilter, [...sets.role]);
-        fillSelect(channelFilter, [...sets.channel]);
-        fillSelect(hwFilter, [...sets.hw]);
+        fillSelect(roleFilter, roles);
+        fillSelect(channelFilter, channels);
+        fillSelect(hwFilter, hws);
+        fillSelect(firmwareFilter, firmwares);
     }
 
     function fillSelect(select, values) {
-        values.forEach(v => {
+        [...values].sort().forEach(v => {
             const option = document.createElement("option");
             option.value = v;
             option.textContent = v;
@@ -202,60 +213,115 @@ tr:hover {
     }
 
     function applyFilters() {
-        const selectedRole = roleFilter.value.toLowerCase();
-        const selectedChannel = channelFilter.value.toLowerCase();
-        const selectedHW = hwFilter.value.toLowerCase();
-        const searchText = searchInput.value.toLowerCase();
+        const searchTerm = searchBox.value.trim().toLowerCase();
 
-        nodeList.filter(item => {
-            const values = item.values();
-            const matchesRole = !selectedRole || (values.role || "").toLowerCase() === selectedRole;
-            const matchesChannel = !selectedChannel || (values.channel || "").toLowerCase() === selectedChannel;
-            const matchesHW = !selectedHW || (values.hw_model || "").toLowerCase() === selectedHW;
-            const matchesSearch = !searchText || Object.values(values).some(v =>
-                (v || "").toString().toLowerCase().includes(searchText)
-            );
-            return matchesRole && matchesChannel && matchesHW && matchesSearch;
+        let filtered = allNodes.filter(node => {
+            const roleMatch = !roleFilter.value || node.role === roleFilter.value;
+            const channelMatch = !channelFilter.value || node.channel === channelFilter.value;
+            const hwMatch = !hwFilter.value || node.hw_model === hwFilter.value;
+            const firmwareMatch = !firmwareFilter.value || node.firmware === firmwareFilter.value;
+
+            const searchMatch = !searchTerm ||
+                (node.long_name && node.long_name.toLowerCase().includes(searchTerm)) ||
+                (node.short_name && node.short_name.toLowerCase().includes(searchTerm)) ||
+                (node.node_id && node.node_id.toString().includes(searchTerm)) ||
+                (node.id && node.id.toString().includes(searchTerm));
+
+            return roleMatch && channelMatch && hwMatch && firmwareMatch && searchMatch;
         });
 
-        updateCount();
+        if (sortColumn) {
+            filtered = sortNodes(filtered, sortColumn, sortAsc);
+        }
+
+        renderTable(filtered);
+        updateSortIcons();
     }
 
-    function updateCount() {
-        const visibleRows = document.querySelectorAll("#node-table tbody tr:not([style*='display: none'])").length;
-        countDisplay.innerText = visibleRows;
+    function renderTable(nodes) {
+        tbody.innerHTML = "";
+        if (!nodes.length) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:white;">No nodes found</td></tr>';
+        } else {
+            nodes.forEach(node => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${node.short_name || "N/A"}</td>
+                    <td><a href="/packet_list/${node.node_id}">${node.long_name || "N/A"}</a></td>
+                    <td>${node.hw_model || "N/A"}</td>
+                    <td>${node.firmware || "N/A"}</td>
+                    <td>${node.role || "N/A"}</td>
+                    <td>${node.last_lat ? (node.last_lat / 1e7).toFixed(7) : "N/A"}</td>
+                    <td>${node.last_long ? (node.last_long / 1e7).toFixed(7) : "N/A"}</td>
+                    <td>${node.channel || "N/A"}</td>
+                    <td>${node.last_update ? new Date(node.last_update).toLocaleString() : "N/A"}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        countSpan.textContent = nodes.length;
+    }
+
+    function clearFilters() {
+        roleFilter.value = "";
+        channelFilter.value = "";
+        hwFilter.value = "";
+        firmwareFilter.value = "";
+        searchBox.value = "";
+        sortColumn = "short_name";
+        sortAsc = true;
+        renderTable(allNodes);
+        updateSortIcons();
     }
 
     function exportToCSV() {
-        const table = document.getElementById("node-table");
-        const rows = table.querySelectorAll("tr");
-        const csvContent = [];
+        const rows = [];
+        const headersText = Array.from(headers).map(th => `"${th.innerText.replace(/▲|▼/g,'')}"`);
+        rows.push(headersText.join(","));
 
-        const headers = [];
-        table.querySelectorAll("th").forEach(th => headers.push(th.innerText));
-        csvContent.push(headers.join(","));
-
-        rows.forEach(row => {
-            if (row.style.display !== "none") {
-                const cells = row.querySelectorAll("td");
-                if (cells.length > 0) {
-                    const rowData = [];
-                    cells.forEach(cell => {
-                        rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
-                    });
-                    csvContent.push(rowData.join(","));
-                }
+        const visibleRows = tbody.querySelectorAll("tr");
+        visibleRows.forEach(tr => {
+            if (tr.children.length === 9) {
+                const row = Array.from(tr.children).map(td => `"${td.innerText.replace(/"/g, '""')}"`);
+                rows.push(row.join(","));
             }
         });
 
-        const csvString = csvContent.join("\n");
-        const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
-
-        const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `nodes_list_${dateStr}.csv`;
-        a.click();
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.join("\n");
+        const link = document.createElement("a");
+        link.href = encodeURI(csvContent);
+        const dateStr = new Date().toISOString().slice(0,10);
+        link.download = `nodes_list_${dateStr}.csv`;
+        link.click();
     }
+
+    function sortNodes(nodes, key, asc) {
+        return [...nodes].sort((a, b) => {
+            let valA = a[key] || "";
+            let valB = b[key] || "";
+
+            if (key === "last_lat" || key === "last_long") {
+                valA = Number(valA) || 0;
+                valB = Number(valB) || 0;
+            }
+            if (key === "last_update") {
+                valA = valA ? new Date(valA).getTime() : 0;
+                valB = valB ? new Date(valB).getTime() : 0;
+            }
+
+            if (valA < valB) return asc ? -1 : 1;
+            if (valA > valB) return asc ? 1 : -1;
+            return 0;
+        });
+    }
+
+    function updateSortIcons() {
+        headers.forEach((th, index) => {
+            const span = th.querySelector(".sort-icon");
+            if (!span) return;
+            span.textContent = (keyMap[index] === sortColumn) ? (sortAsc ? "▲" : "▼") : "";
+        });
+    }
+});
 </script>
 {% endblock %}
