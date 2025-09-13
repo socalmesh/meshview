@@ -46,11 +46,9 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
-
-<!-- Leaflet PolylineDecorator for arrowheads -->
-<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylinedecorator.js" 
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylinedecorator.js"
         integrity="sha384-FhPn/2P/fJGhQLeNWDn9B/2Gml2bPOrKJwFqJXgR3xOPYxWg5mYQ5XZdhUSugZT0"
-        crossorigin=""></script>
+        crossorigin></script>
 
 <script>
     // ---- Map Setup ----
@@ -199,13 +197,8 @@
             let checkbox = document.getElementById(`filter-${category.replace(/\s+/g,'-').toLowerCase()}`);
             let shouldShow = checkbox.checked && (!showRoutersOnly || node.isRouter);
             let marker = markerById[node.id];
-            if (shouldShow) map.addLayer(marker);
-            else {
-                map.removeLayer(marker);
-                if (marker.tooltip) {
-                    map.removeLayer(marker.tooltip);
-                    marker.tooltip = null;
-                }
+            if (marker) {
+                marker.setStyle({ fillOpacity: shouldShow ? 1 : 0 });
             }
         });
     }
@@ -219,7 +212,6 @@
     var edgesData = null;
     let selectedNodeId = null;
 
-    // Preload edges on page load
     fetch('/api/edges')
         .then(res => res.json())
         .then(data => { edgesData = data.edges; })
@@ -229,34 +221,26 @@
         if (selectedNodeId != node.id) {
             selectedNodeId = node.id;
             edgeLayer.clearLayers();
-            console.log(`Clicked node: ${node.long_name}`);
-            if (!edgesData) {
-                console.log("Edges not loaded yet");
-                return;
-            }
+            if (!edgesData) return;
 
             if (!map.hasLayer(edgeLayer)) edgeLayer.addTo(map);
 
             edgesData.forEach(edge => {
                 if (edge.from !== node.id && edge.to !== node.id) return;
-
                 const fromNode = nodeMap.get(edge.from);
                 const toNode = nodeMap.get(edge.to);
                 if (!fromNode || !toNode) return;
                 if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
 
-                const lineColor = edge.type === "neighbor" ? "darkred" : "black"; //different than the node category colors
+                const lineColor = edge.type === "neighbor" ? "darkred" : "black";
                 const dash = edge.type === "traceroute" ? "5,5" : null;
                 const weight = edge.type === "neighbor" ? 3 : 2;
 
                 const polyline = L.polyline(
                     [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
                     { color: lineColor, weight, opacity: 1, dashArray: dash }
-                )
-                .addTo(edgeLayer)
-                .bringToFront();
+                ).addTo(edgeLayer).bringToFront();
 
-                // Add arrowhead
                 if (edge.type === "traceroute") {
                     L.polylineDecorator(polyline, {
                         patterns: [
@@ -264,21 +248,16 @@
                         ]
                     }).addTo(edgeLayer);
                 }
-
-                console.log(`Edge type: To: ${toNode.long_name} (${toNode.lat},${toNode.long})`);
             });
         }
     }
 
-    // Clear edges only if the click was not on a marker
     map.on('click', function(e) {
         if (!e.originalEvent.target.classList.contains('leaflet-interactive')) {
             edgeLayer.clearLayers();
             selectedNodeId = null;
         }
     });
-
-
 
     // ---- Blinking Nodes ----
     var lastFetchTime = null;
@@ -296,7 +275,6 @@
 
     function blinkNode(marker, longName, portnum) {
         if (!map.hasLayer(marker)) return;
-
         if (activeBlinks.has(marker)) {
             clearInterval(activeBlinks.get(marker));
             marker.setStyle({ fillColor: marker.originalColor });
@@ -352,10 +330,13 @@
 
     // ---- Polling Control ----
     let packetInterval = null;
+    const mapInterval = {{ site_config["site"]["map_interval"] | default(3) }}; // seconds
+
     function startPacketFetcher() {
+        if (mapInterval <= 0) return; // Don't fetch if interval is 0
         if (!packetInterval) {
             fetchLatestPacket();
-            packetInterval = setInterval(fetchNewPackets, 1000);
+            packetInterval = setInterval(fetchNewPackets, mapInterval * 1000);
         }
     }
 
@@ -372,7 +353,10 @@
     });
 
     // Init
-    fetchLatestPacket();
-    startPacketFetcher();
+    if (mapInterval > 0) {
+        fetchLatestPacket();
+        startPacketFetcher();
+    }
+
 </script>
 {% endblock %}
