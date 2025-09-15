@@ -309,24 +309,40 @@
         activeBlinks.set(marker, interval);
     }
 
-    function fetchNewPackets() {
-        if (!lastFetchTime) return;
-        fetch(`/api/packets?since=${lastFetchTime}`)
-            .then(res => res.json())
-            .then(data => {
-                if (!data.packets || data.packets.length === 0) return;
-                data.packets.forEach(packet => {
-                    let marker = markerById[packet.from_node_id];
-                    if (marker) {
-                        let nodeData = nodeMap.get(packet.from_node_id);
-                        if (nodeData) blinkNode(marker, nodeData.long_name, packet.portnum);
-                    }
-                });
-                let latestPacket = data.packets[data.packets.length - 1];
-                if (latestPacket && latestPacket.import_time) lastFetchTime = latestPacket.import_time;
-            })
-            .catch(err => console.error(err));
-    }
+function fetchNewPackets() {
+    if (!lastFetchTime) return;
+    fetch(`/api/packets?since=${lastFetchTime}`)
+        .then(res => res.json())
+        .then(data => {
+            console.log("===== New Fetch =====");
+            if (!data.packets || data.packets.length === 0) {
+                console.log("No new packets");
+                return;
+            }
+
+            data.packets.forEach(packet => {
+                console.log(
+                    `Packet ID: ${packet.id}, From Node: ${packet.from_node_id}, Port: ${packet.portnum}`
+                );
+
+                let marker = markerById[packet.from_node_id];
+                if (marker) {
+                    let nodeData = nodeMap.get(packet.from_node_id);
+                    if (nodeData) blinkNode(marker, nodeData.long_name, packet.portnum);
+                }
+            });
+
+            let latestPacket = data.packets[0];
+            if (latestPacket && latestPacket.import_time) {
+                lastFetchTime = latestPacket.import_time;
+            }
+
+
+            console.log("===== End Fetch =====");
+        })
+        .catch(err => console.error("Fetch error:", err));
+}
+
 
     // ---- Polling Control code ----
     let packetInterval = null;
