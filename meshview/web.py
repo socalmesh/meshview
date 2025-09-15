@@ -24,7 +24,7 @@ import traceback
 import pathlib
 
 SEQ_REGEX = re.compile(r"seq \d+")
-SOFTWARE_RELEASE= "2.0.6 ~ 09-12-25"
+SOFTWARE_RELEASE= "2.0.6 ~ 09-15-25"
 CONFIG = config.CONFIG
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
