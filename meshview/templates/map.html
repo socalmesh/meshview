@@ -79,29 +79,22 @@
         {% endfor %}
     ];
 
-    // ---- Helpers ----
-    const portMap = {
-        1: "Text", 67: "Telemetry", 3: "Position",
-        70: "Traceroute", 4: "Node Info", 71: "Neighbour Info", 73: "Map Report"
-    };
+    const portMap = {1: "Text", 67: "Telemetry", 3: "Position", 70: "Traceroute", 4: "Node Info", 71: "Neighbour Info", 73: "Map Report"};
 
     function timeAgo(date) {
-        var now = Date.now();
-        var diff = now - new Date(date);
-        var seconds = Math.floor(diff / 1000);
-        var minutes = Math.floor(seconds / 60);
-        var hours = Math.floor(minutes / 60);
-        var days = Math.floor(hours / 24);
+        const now = Date.now();
+        const diff = now - new Date(date);
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
         if (days > 0) return days + "d";
         if (hours > 0) return hours + "h";
         if (minutes > 0) return minutes + "m";
         return seconds + "s";
     }
 
-    const palette = [
-        "#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe",
-        "#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"
-    ];
+    const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"];
     const colorMap = new Map();
     let nextColorIndex = 0;
 
@@ -118,15 +111,8 @@
 
     function isInvalidCoord(node) {
         if (!node) return true;
-        let { lat, long } = node;
-        lat = Math.round(lat);
-        long = Math.round(long);
-        return (
-            lat === null || long === null ||
-            lat === undefined || long === undefined ||
-            lat === 0 || long === 0 ||
-            Number.isNaN(lat) || Number.isNaN(long)
-        );
+        let {lat, long} = node;
+        return !lat || !long || lat === 0 || long === 0 || Number.isNaN(lat) || Number.isNaN(long);
     }
 
     // ---- Marker Plotting ----
@@ -139,14 +125,7 @@
             channels.add(category);
             let color = hashToColor(category);
 
-            let markerOptions = {
-                radius: node.isRouter ? 9 : 7,
-                color: "white",
-                fillColor: color,
-                fillOpacity: 1,
-                weight: 0.7
-            };
-
+            let markerOptions = { radius: node.isRouter ? 9 : 7, color: "white", fillColor: color, fillOpacity: 1, weight: 0.7 };
             let popupContent = `<b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
                                 <b>Channel:</b> ${node.channel}<br>
                                 <b>Model:</b> ${node.hw_model}<br>
@@ -172,7 +151,6 @@
         }
     });
 
-    // Fit map bounds
     var bayAreaBounds = [
         [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
         [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
@@ -197,32 +175,24 @@
             let checkbox = document.getElementById(`filter-${category.replace(/\s+/g,'-').toLowerCase()}`);
             let shouldShow = checkbox.checked && (!showRoutersOnly || node.isRouter);
             let marker = markerById[node.id];
-            if (marker) {
-                marker.setStyle({ fillOpacity: shouldShow ? 1 : 0 });
-            }
+            if (marker) marker.setStyle({ fillOpacity: shouldShow ? 1 : 0 });
         });
     }
 
-    document.querySelectorAll(".filter-checkbox").forEach(input => {
-        input.addEventListener("change", updateMarkers);
-    });
+    document.querySelectorAll(".filter-checkbox").forEach(input => input.addEventListener("change", updateMarkers));
 
     // ---- Edges ----
     var edgeLayer = L.layerGroup().addTo(map);
     var edgesData = null;
     let selectedNodeId = null;
 
-    fetch('/api/edges')
-        .then(res => res.json())
-        .then(data => { edgesData = data.edges; })
-        .catch(err => console.error(err));
+    fetch('/api/edges').then(res => res.json()).then(data => { edgesData = data.edges; }).catch(err => console.error(err));
 
     function onNodeClick(node) {
         if (selectedNodeId != node.id) {
             selectedNodeId = node.id;
             edgeLayer.clearLayers();
             if (!edgesData) return;
-
             if (!map.hasLayer(edgeLayer)) edgeLayer.addTo(map);
 
             edgesData.forEach(edge => {
@@ -236,16 +206,11 @@
                 const dash = edge.type === "traceroute" ? "5,5" : null;
                 const weight = edge.type === "neighbor" ? 3 : 2;
 
-                const polyline = L.polyline(
-                    [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
-                    { color: lineColor, weight, opacity: 1, dashArray: dash }
-                ).addTo(edgeLayer).bringToFront();
+                const polyline = L.polyline([[fromNode.lat, fromNode.long],[toNode.lat, toNode.long]], { color: lineColor, weight, opacity: 1, dashArray: dash }).addTo(edgeLayer).bringToFront();
 
                 if (edge.type === "traceroute") {
                     L.polylineDecorator(polyline, {
-                        patterns: [
-                            { offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({ pixelSize: 5, polygon: false, pathOptions: { stroke: true, color: lineColor } }) }
-                        ]
+                        patterns: [{ offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({ pixelSize: 5, polygon: false, pathOptions: { stroke: true, color: lineColor } }) }]
                     }).addTo(edgeLayer);
                 }
             });
@@ -260,99 +225,106 @@
     });
 
     // ---- Blinking Nodes ----
-    var lastFetchTime = null;
-    const activeBlinks = new Map();
+    var activeBlinks = new Map();
+
+        function blinkNode(marker, longName, portnum) {
+            if (!map.hasLayer(marker)) return;
+            if (activeBlinks.has(marker)) {
+                clearInterval(activeBlinks.get(marker));
+                marker.setStyle({ fillColor: marker.originalColor });
+                if (marker.tooltip) map.removeLayer(marker.tooltip);
+            }
+
+            let blinkCount = 0;
+            let portName = portMap[portnum] || `Port ${portnum}`;
+            let tooltip = L.tooltip({
+                permanent: true,
+                direction: 'top',
+                offset: [0, -marker.options.radius - 5],
+                className: 'blinking-tooltip'
+            }).setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng());
+            tooltip.addTo(map);
+            marker.tooltip = tooltip;
+
+            let interval = setInterval(() => {
+                if (map.hasLayer(marker)) {
+                    // Alternate color
+                    marker.setStyle({ fillColor: blinkCount % 2 === 0 ? 'yellow' : marker.originalColor });
+                    // Bring marker to top
+                    marker.bringToFront();
+                }
+                blinkCount++;
+                if (blinkCount > 7) {
+                    clearInterval(interval);
+                    marker.setStyle({ fillColor: marker.originalColor });
+                    map.removeLayer(tooltip);
+                    activeBlinks.delete(marker);
+                }
+            }, 500);
+
+            activeBlinks.set(marker, interval);
+        }
+
+
+    // ---- Packet Fetching ----
+    let lastImportTime = null;
 
     function fetchLatestPacket() {
         fetch(`/api/packets?limit=1`)
             .then(res => res.json())
             .then(data => {
-                if (data.packets && data.packets.length > 0) lastFetchTime = data.packets[0].import_time;
-                else lastFetchTime = new Date().toISOString();
+                if (data.packets && data.packets.length > 0) {
+                    lastImportTime = data.packets[0].import_time;
+                    console.log("Initial lastImportTime:", lastImportTime);
+                } else {
+                    lastImportTime = new Date().toISOString();
+                    console.log("No packets, setting lastImportTime to now:", lastImportTime);
+                }
             })
             .catch(err => console.error("Error fetching latest packet:", err));
     }
 
-    function blinkNode(marker, longName, portnum) {
-        if (!map.hasLayer(marker)) return;
-        if (activeBlinks.has(marker)) {
-            clearInterval(activeBlinks.get(marker));
-            marker.setStyle({ fillColor: marker.originalColor });
-            if (marker.tooltip) map.removeLayer(marker.tooltip);
-        }
+    function fetchNewPackets() {
+        if (!lastImportTime) return;
+        fetch(`/api/packets?since=${lastImportTime}`)
+            .then(res => res.json())
+            .then(data => {
+                console.log("===== New Fetch =====");
+                if (!data.packets || data.packets.length === 0) {
+                    console.log("No new packets");
+                    return;
+                }
 
-        let blinkCount = 0;
-        let portName = portMap[portnum] || `Port ${portnum}`;
-        let tooltip = L.tooltip({
-            permanent: true,
-            direction: 'top',
-            offset: [0, -marker.options.radius - 5],
-            className: 'blinking-tooltip'
-        }).setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng());
-        tooltip.addTo(map);
-        marker.tooltip = tooltip;
+                let latestSeen = lastImportTime;
 
-        let interval = setInterval(() => {
-            if (map.hasLayer(marker)) {
-                marker.setStyle({ fillColor: blinkCount % 2 === 0 ? 'yellow' : marker.originalColor });
-                marker.bringToFront();
-            }
-            blinkCount++;
-            if (blinkCount > 7) {
-                clearInterval(interval);
-                marker.setStyle({ fillColor: marker.originalColor });
-                map.removeLayer(tooltip);
-                activeBlinks.delete(marker);
-            }
-        }, 500);
+                data.packets.forEach(packet => {
+                    console.log(`Packet ID: ${packet.id}, From Node: ${packet.from_node_id}, Port: ${packet.portnum}, Time: ${packet.import_time}`);
+                    if (packet.import_time && (!latestSeen || packet.import_time > latestSeen)) latestSeen = packet.import_time;
 
-        activeBlinks.set(marker, interval);
+                    let marker = markerById[packet.from_node_id];
+                    if (marker) {
+                        let nodeData = nodeMap.get(packet.from_node_id);
+                        if (nodeData) blinkNode(marker, nodeData.long_name, packet.portnum);
+                    }
+                });
+
+                if (latestSeen) lastImportTime = latestSeen;
+                console.log("Updated lastImportTime:", lastImportTime);
+                console.log("===== End Fetch =====");
+            })
+            .catch(err => console.error("Fetch error:", err));
     }
 
-function fetchNewPackets() {
-    if (!lastFetchTime) return;
-    fetch(`/api/packets?since=${lastFetchTime}`)
-        .then(res => res.json())
-        .then(data => {
-            console.log("===== New Fetch =====");
-            if (!data.packets || data.packets.length === 0) {
-                console.log("No new packets");
-                return;
-            }
-
-            data.packets.forEach(packet => {
-                console.log(
-                    `Packet ID: ${packet.id}, From Node: ${packet.from_node_id}, Port: ${packet.portnum}`
-                );
-
-                let marker = markerById[packet.from_node_id];
-                if (marker) {
-                    let nodeData = nodeMap.get(packet.from_node_id);
-                    if (nodeData) blinkNode(marker, nodeData.long_name, packet.portnum);
-                }
-            });
-
-            let latestPacket = data.packets[0];
-            if (latestPacket && latestPacket.import_time) {
-                lastFetchTime = latestPacket.import_time;
-            }
-
-
-            console.log("===== End Fetch =====");
-        })
-        .catch(err => console.error("Fetch error:", err));
-}
-
-
-    // ---- Polling Control code ----
+    // ---- Polling Control ----
     let packetInterval = null;
-    const mapInterval = {{ site_config["site"]["map_interval"] | default(3) }}; // seconds
+    const mapInterval = {{ site_config["site"]["map_interval"] | default(3) }};
 
     function startPacketFetcher() {
-        if (mapInterval <= 0) return; // Don't fetch if interval is 0
+        if (mapInterval <= 0) return;
         if (!packetInterval) {
             fetchLatestPacket();
             packetInterval = setInterval(fetchNewPackets, mapInterval * 1000);
+            console.log("Packet fetcher started, interval:", mapInterval, "seconds");
         }
     }
 
@@ -360,6 +332,7 @@ function fetchNewPackets() {
         if (packetInterval) {
             clearInterval(packetInterval);
             packetInterval = null;
+            console.log("Packet fetcher stopped");
         }
     }
 
@@ -368,11 +341,8 @@ function fetchNewPackets() {
         else startPacketFetcher();
     });
 
-    // Init
-    if (mapInterval > 0) {
-        fetchLatestPacket();
-        startPacketFetcher();
-    }
-
+    // ---- Initialize ----
+    if (mapInterval > 0) startPacketFetcher();
 </script>
+
 {% endblock %}
