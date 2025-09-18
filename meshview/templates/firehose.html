@@ -45,7 +45,7 @@ let portnum = "{{ portnum if portnum is not none else '' }}";
 let updatesPaused = false;
 
 // Use firehose_interval from config (seconds), default to 3s if not set
-const firehoseInterval = {{ site_config["site"]["firehose_interal"] | default(3) }};
+const firehoseInterval = {{ site_config["site"]["firehose_interval"] | default(3) }};
 if (firehoseInterval < 0) firehoseInterval = 0;
 
 function fetchUpdates() {
