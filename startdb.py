@@ -112,9 +112,9 @@ async def main():
     mqtt_topics = json.loads(CONFIG["mqtt"]["topics"])
 
     db_file = CONFIG["database"]["connection_string"].replace("sqlite+aiosqlite:///", "")
-    cleanup_enabled = get_bool(CONFIG, "cleanup", "enabled", True)
+    cleanup_enabled = get_bool(CONFIG, "cleanup", "enabled", False)
     cleanup_days = get_int(CONFIG, "cleanup", "days_to_keep", 14)
-    vacuum_db = get_bool(CONFIG, "cleanup", "vacuum", True)
+    vacuum_db = get_bool(CONFIG, "cleanup", "vacuum", False)
     cleanup_hour = get_int(CONFIG, "cleanup", "hour", 2)
     cleanup_minute = get_int(CONFIG, "cleanup", "minute", 0)
     batch_size = get_int(CONFIG, "cleanup", "batch_size", 100)
