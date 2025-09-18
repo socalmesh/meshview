@@ -86,18 +86,19 @@
 <div class="main-container">
     <h2 class="main-header">Mesh Statistics - Summary </h2>
 
-<div class="summary-card">
-    <p>Total Nodes</p>
-    <div class="summary-count">{{ "{:,}".format(total_nodes) }}</div>
-</div>
-<div class="summary-card">
-    <p>Total Packets</p>
-    <div class="summary-count">{{ "{:,}".format(total_packets) }}</div>
-</div>
-
-<div class="summary-card">
-    <p>Total Packets Seen</p>
-    <div class="summary-count">{{ "{:,}".format(total_packets_seen) }}</div>
+<div class="summary-container" style="display:flex; justify-content:space-between; gap:10px; margin-bottom:20px;">
+    <div class="summary-card" style="flex:1;">
+        <p>Total Nodes</p>
+        <div class="summary-count">{{ "{:,}".format(total_nodes) }}</div>
+    </div>
+    <div class="summary-card" style="flex:1;">
+        <p>Total Packets</p>
+        <div class="summary-count">{{ "{:,}".format(total_packets) }}</div>
+    </div>
+    <div class="summary-card" style="flex:1;">
+        <p>Total Packets Seen</p>
+        <div class="summary-count">{{ "{:,}".format(total_packets_seen) }}</div>
+    </div>
 </div>
 
 
