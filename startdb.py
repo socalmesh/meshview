@@ -78,7 +78,7 @@ async def daily_cleanup_at(db_file: str, hour: int = 2, minute: int = 0, days_to
                         total_deleted += deleted
                         if deleted == 0:
                             break
-                        await asyncio.sleep(0)  # yield to event loop
+                        await asyncio.yield_now()
 
                     cleanup_logger.info(f"Deleted a total of {total_deleted} rows from {table}")
 
