@@ -55,7 +55,7 @@ async def daily_cleanup_at(
         cleanup_logger.info(f"Next cleanup scheduled at {next_run}")
         await asyncio.sleep(delay)
 
-        cutoff = datetime.datetime.now() - datetime.timedelta(days=days_to_keep)
+        cutoff = (datetime.datetime.now() - datetime.timedelta(days=days_to_keep)).strftime("%Y-%m-%d %H:%M:%S")
         cleanup_logger.info(f"Running cleanup for records older than {cutoff}...")
 
         try:
