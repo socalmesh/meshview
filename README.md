@@ -179,6 +179,20 @@ password = large4cats
 [database]
 # SQLAlchemy connection string. This one uses SQLite with asyncio support.
 connection_string = sqlite+aiosqlite:///packets.db
+
+# -------------------------
+# Database Cleanup Configuration
+# -------------------------
+[cleanup]
+# Enable or disable daily cleanup
+enabled = False
+# Number of days to keep records in the database
+days_to_keep = 14
+# Time to run daily cleanup (24-hour format)
+hour = 2
+minute = 00
+# Run VACUUM after cleanup
+vacuum = False
 ```
 
 ---
@@ -306,6 +320,27 @@ sudo systemctl daemon-reload
 ```
 
 ## 5. Database Maintenance
+### Database maintnance can now be done via the script itself here is the section from the configuration file.
+- Simple to setup
+- It will not drop any packets
+```
+# -------------------------
+# Database Cleanup Configuration
+# -------------------------
+[cleanup]
+# Enable or disable daily cleanup
+enabled = False
+# Number of days to keep records in the database
+days_to_keep = 14
+# Time to run daily cleanup (24-hour format)
+hour = 2
+minute = 00
+# Run VACUUM after cleanup
+vacuum = False
+```
+Once changes are done you need to restart the script for changes to load.
+
+### Alternatively we can do it via your OS 
 - Create and save bash script below. (Modify /path/to/file/ to the correct path)
 - Name it cleanup.sh
 - Make it executable.
