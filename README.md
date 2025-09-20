@@ -50,7 +50,6 @@ Samples of currently running instances:
 - https://meshview.mt.gt (Canadaverse)
 - https://meshview.meshtastic.es (Spain)
 - https://view.mtnme.sh/ (North Georgia / East Tennessee)
-- https://socalmesh.w4hac.com  (Southern California)
 - https://meshview.lsinfra.de (Hessen - Germany)
 - https://map.nswmesh.au/ (Sydney - Australia)
 - https://meshview.pvmesh.org/ (Pioneer Valley, Massachusetts)
