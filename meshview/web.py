@@ -1340,6 +1340,17 @@ async def get_config(request):
 # The response includes "latest_import_time" for frontend to keep track of the newest message timestamp.
 # The backend fetches extra packets (limit*5) to account for filtering messages like "seq N" and since filtering.
 
+@routes.get("/api/channels")
+async def api_channels(request: web.Request):
+    period_type = request.query.get("period_type", "hour")
+    length = int(request.query.get("length", 24))
+
+    try:
+        channels = await store.get_channels_in_period(period_type, length)
+        return web.json_response({"channels": channels})
+    except Exception as e:
+        return web.json_response({"channels": [], "error": str(e)})
+
 
 @routes.get("/api/chat")
 async def api_chat(request):
