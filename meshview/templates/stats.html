@@ -110,33 +110,34 @@
         </div>
     </div>
 
-    <!-- Daily Charts -->
-    <div class="card-section">
-        <p class="section-header">Packets per Day - All Ports (Last 14 Days)</p>
-        <div id="total_daily_all" class="total-count">Total: 0</div>
-        <button class="expand-btn" data-chart="chart_daily_all">Expand Chart</button>
-        <button class="export-btn" data-chart="chart_daily_all">Export CSV</button>
-        <div id="chart_daily_all" class="chart"></div>
-    </div>
+<!-- Daily Charts -->
+<div class="card-section">
+    <p class="section-header">Packets per Day - All Ports (Last 14 Days)</p>
+    <div id="total_daily_all" class="total-count">Total: 0</div>
+    <button class="expand-btn" data-chart="chart_daily_all">Expand Chart</button>
+    <button class="export-btn" data-chart="chart_daily_all">Export CSV</button>
+    <div id="chart_daily_all" class="chart"></div>
+</div>
 
-    <div class="card-section">
-        <p class="section-header">Packets per Day - Text Messages (Port 1, Last 14 Days)</p>
-        <div id="total_daily_portnum_1" class="total-count">Total: 0</div>
-        <button class="expand-btn" data-chart="chart_daily_portnum_1">Expand Chart</button>
-        <button class="export-btn" data-chart="chart_daily_portnum_1">Export CSV</button>
-        <div id="chart_daily_portnum_1" class="chart"></div>
-    </div>
+<!-- Packet Types Pie Chart with Channel Selector (moved here) -->
+<div class="card-section">
+    <p class="section-header">Packet Types - Last 24 Hours</p>
+    <select id="channelSelect">
+        <option value="">All Channels</option>
+    </select>
+    <button class="expand-btn" data-chart="chart_packet_types">Expand Chart</button>
+    <button class="export-btn" data-chart="chart_packet_types">Export CSV</button>
+    <div id="chart_packet_types" class="chart"></div>
+</div>
 
-    <!-- Packet Types Pie Chart with Channel Selector (moved here) -->
-    <div class="card-section">
-        <p class="section-header">Packet Types - Last 24 Hours</p>
-        <select id="channelSelect">
-            <option value="">All Channels</option>
-        </select>
-        <button class="expand-btn" data-chart="chart_packet_types">Expand Chart</button>
-        <button class="export-btn" data-chart="chart_packet_types">Export CSV</button>
-        <div id="chart_packet_types" class="chart"></div>
-    </div>
+<div class="card-section">
+    <p class="section-header">Packets per Day - Text Messages (Port 1, Last 14 Days)</p>
+    <div id="total_daily_portnum_1" class="total-count">Total: 0</div>
+    <button class="expand-btn" data-chart="chart_daily_portnum_1">Expand Chart</button>
+    <button class="export-btn" data-chart="chart_daily_portnum_1">Export CSV</button>
+    <div id="chart_daily_portnum_1" class="chart"></div>
+</div>
+
 
     <!-- Hourly Charts -->
     <div class="card-section">
