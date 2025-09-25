@@ -141,6 +141,9 @@ title = Bay Area Mesh
 # A brief message shown on the homepage.
 message = Real time data from around the bay area and beyond.
 
+# Starting URL when loading the index page.
+starting = /chat
+
 # Enable or disable site features (as strings: "True" or "False").
 nodes = True
 conversations = True
@@ -157,10 +160,14 @@ map_top_left_lon = -123
 map_bottom_right_lat = 36
 map_bottom_right_lon = -121
 
+# Updates intervals in seconds, zero or negative number means no updates
+# defaults will be 3 seconds
+map_interval=3
+firehose_interal=3
+
 # Weekly net details
 weekly_net_message = Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins. The message format should be (LONG NAME) - (CITY YOU ARE IN) #BayMeshNet.
 net_tag = #BayMeshNet
-
 
 # -------------------------
 # MQTT Broker Configuration
@@ -170,7 +177,7 @@ net_tag = #BayMeshNet
 server = mqtt.bayme.sh
 
 # Topics to subscribe to (as JSON-like list, but still a string).
-topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#", "msh/US/CA/sacvalley/#"]
+topics = ["msh/US/bayarea/#", "msh/US/CA/mrymesh/#", "msh/US/CA/sacvalley"]
 
 # Port used by MQTT (typically 1883 for unencrypted).
 port = 1883
@@ -186,6 +193,7 @@ password = large4cats
 [database]
 # SQLAlchemy connection string. This one uses SQLite with asyncio support.
 connection_string = sqlite+aiosqlite:///packets.db
+
 
 # -------------------------
 # Database Cleanup Configuration
