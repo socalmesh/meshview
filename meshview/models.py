@@ -2,11 +2,12 @@ from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase, foreign
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import mapped_column, relationship, Mapped
-from sqlalchemy import ForeignKey, BigInteger
+from sqlalchemy import ForeignKey, BigInteger, Index, desc
 
 
 class Base(AsyncAttrs, DeclarativeBase):
     pass
+
 
 # Node
 class Node(Base):
@@ -23,13 +24,17 @@ class Node(Base):
     channel: Mapped[str] = mapped_column(nullable=True)
     last_update: Mapped[datetime] = mapped_column(nullable=True)
 
+    __table_args__ = (
+        Index("idx_node_node_id", "node_id"),
+    )
+
     def to_dict(self):
-        """Convert SQLAlchemy object to a dictionary, excluding last_update."""
         return {
             column.name: getattr(self, column.name)
             for column in self.__table__.columns
-            if column.name != "last_update"  # Exclude last_update
+            if column.name != "last_update"
         }
+
 
 class Packet(Base):
     __tablename__ = "packet"
@@ -39,13 +44,21 @@ class Packet(Base):
     from_node: Mapped["Node"] = relationship(
         primaryjoin="Packet.from_node_id == foreign(Node.node_id)", lazy="joined"
     )
-    to_node_id: Mapped[int] = mapped_column(BigInteger,nullable=True)
+    to_node_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
     to_node: Mapped["Node"] = relationship(
-        primaryjoin="Packet.to_node_id == foreign(Node.node_id)", lazy="joined", overlaps="from_node"
+        primaryjoin="Packet.to_node_id == foreign(Node.node_id)",
+        lazy="joined",
+        overlaps="from_node",
     )
     payload: Mapped[bytes] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
     channel: Mapped[str] = mapped_column(nullable=True)
+
+    __table_args__ = (
+        Index("idx_packet_from_node_id", "from_node_id"),
+        Index("idx_packet_to_node_id", "to_node_id"),
+        Index("idx_packet_import_time", desc("import_time")),
+    )
 
 
 class PacketSeen(Base):
@@ -53,7 +66,9 @@ class PacketSeen(Base):
     packet_id = mapped_column(ForeignKey("packet.id"), primary_key=True)
     node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     node: Mapped["Node"] = relationship(
-        lazy="joined", primaryjoin="PacketSeen.node_id == foreign(Node.node_id)", overlaps="from_node,to_node"
+        lazy="joined",
+        primaryjoin="PacketSeen.node_id == foreign(Node.node_id)",
+        overlaps="from_node,to_node",
     )
     rx_time: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     hop_limit: Mapped[int] = mapped_column(nullable=True)
@@ -63,6 +78,10 @@ class PacketSeen(Base):
     rx_rssi: Mapped[int] = mapped_column(nullable=True)
     topic: Mapped[str] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
+
+    __table_args__ = (
+        Index("idx_packet_seen_node_id", "node_id"),
+    )
 
 
 class Traceroute(Base):

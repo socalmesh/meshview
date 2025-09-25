@@ -110,8 +110,7 @@ async def process_envelope(topic, env):
                 if user and user.id:
                     node_id = int(user.id[1:], 16) if user.id[0] == "!" else None
                     hw_model = HardwareModel.Name(user.hw_model) if user.hw_model in HardwareModel.values() else f"unknown({user.hw_model})"
-                    role = Config.DeviceConfig.Role.Name(user.role) if hasattr(Config.DeviceConfig.Role,
-                                                                               'Name') else "unknown"
+                    role = Config.DeviceConfig.Role.Name(user.role) if hasattr(Config.DeviceConfig.Role,'Name') else "unknown"
 
                     node = (await session.execute(select(Node).where(Node.id == user.id))).scalar_one_or_none()
 

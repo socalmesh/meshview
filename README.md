@@ -2,7 +2,17 @@
 # Meshview
 ![Start Page](screenshots/animated.gif)
 
-The project serves as a real-time monitoring and diagnostic tool for the Meshtastic mesh network. It provides detailed insights into the network's activity, including message traffic, node positions, and telemetry data.
+The project serves as a real-time monitoring and diagnostic tool for the Meshtastic mesh network. It provides detailed insights into network activity, including message traffic, node positions, and telemetry data.
+
+### Version 2.0.7 update - September 2025
+* New database maintenance capability to automatically keep a specific number of days of data.
+* Added configuration for update intervals for both the Live Map and the Firehose pages.
+
+### Version 2.0.6 update - August 2025
+* New Live Map (Shows packet feed live)
+* New API /api/config (See API documentation)
+* New API /api/edges (See API documentation)
+* Adds edges to the map (click to see traceroute and neighbours)
 
 ### Version 2.0.4 update - August 2025
 * New statistic page with more data.
@@ -31,18 +41,18 @@ The project serves as a real-time monitoring and diagnostic tool for the Meshtas
 
 Samples of currently running instances:
 
-- https://meshview.bayme.sh   (SF Bay Area)
+- https://meshview.bayme.sh (SF Bay Area)
 - https://www.svme.sh/ (Sacramento Valley)
 - https://meshview.nyme.sh/   (New York)
+- https://meshview.socalmesh.org/ (LA Area)
 - https://map.wpamesh.net/ (Western Pennsylvania)
 - https://meshview.chicagolandmesh.org/ (Chicago)
 - https://meshview.mt.gt (Canadaverse)
 - https://meshview.meshtastic.es (Spain)
 - https://view.mtnme.sh/ (North Georgia / East Tennessee)
-- https://socalmesh.w4hac.com  (Southern California)
 - https://meshview.lsinfra.de (Hessen - Germany)
 - https://map.nswmesh.au/ (Sydney - Australia)
-
+- https://meshview.pvmesh.org/ (Pioneer Valley, Massachusetts)
 ---
 
 ## Installing
@@ -54,11 +64,6 @@ Clone the repo from GitHub:
 ```bash
 git clone https://github.com/pablorevilla-meshtastic/meshview.git
 ```
-
-> **NOTE**  
-> DO NOT include the `--recurse-submodules` flag! There appears to be a broken submodule in the meshtastic/python repo.
-
-Initialize submodule (non-recursively) and create symlink:
 
 ```bash
 cd meshview
@@ -181,6 +186,20 @@ password = large4cats
 [database]
 # SQLAlchemy connection string. This one uses SQLite with asyncio support.
 connection_string = sqlite+aiosqlite:///packets.db
+
+# -------------------------
+# Database Cleanup Configuration
+# -------------------------
+[cleanup]
+# Enable or disable daily cleanup
+enabled = False
+# Number of days to keep records in the database
+days_to_keep = 14
+# Time to run daily cleanup (24-hour format)
+hour = 2
+minute = 00
+# Run VACUUM after cleanup
+vacuum = False
 ```
 
 ---
@@ -308,6 +327,27 @@ sudo systemctl daemon-reload
 ```
 
 ## 5. Database Maintenance
+### Database maintnance can now be done via the script itself here is the section from the configuration file.
+- Simple to setup
+- It will not drop any packets
+```
+# -------------------------
+# Database Cleanup Configuration
+# -------------------------
+[cleanup]
+# Enable or disable daily cleanup
+enabled = False
+# Number of days to keep records in the database
+days_to_keep = 14
+# Time to run daily cleanup (24-hour format)
+hour = 2
+minute = 00
+# Run VACUUM after cleanup
+vacuum = False
+```
+Once changes are done you need to restart the script for changes to load.
+
+### Alternatively we can do it via your OS 
 - Create and save bash script below. (Modify /path/to/file/ to the correct path)
 - Name it cleanup.sh
 - Make it executable.

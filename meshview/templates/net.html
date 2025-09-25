@@ -15,13 +15,16 @@
 .chat-packet:nth-of-type(even){
     background-color: #333333; /* Slightly lighter than the previous #181818 */
 }
-
 {% endblock %}
-{% block body %}
 
-    <div class="container" > {{ site_config["site"]["weekly_net_message"] }} <br><br>
- </div>
-    <div class="container">
+{% block body %}
+<div class="container">
+    {{ site_config["site"]["weekly_net_message"] }} <br><br>
+
+    <h5>Number of Check-ins: {{ packets|length }}</h5>
+</div>
+
+<div class="container">
   {% for packet in packets %}
   <div
       class="row chat-packet"
