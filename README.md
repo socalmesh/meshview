@@ -65,10 +65,15 @@ Clone the repo from GitHub:
 git clone https://github.com/pablorevilla-meshtastic/meshview.git
 ```
 
-Create a Python virtual environment:
-
 ```bash
 cd meshview
+git submodule update --init
+ln -s ../python/meshtastic/protobuf meshtastic/protobuf
+```
+Create a Python virtual environment:
+
+from the meshview directory...
+```bash
 python3 -m venv env
 ```
 
