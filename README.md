@@ -62,7 +62,7 @@ Requires **`python3.11`** or above.
 Clone the repo from GitHub:
 
 ```bash
-git clone https://github.com/pablorevilla-meshtastic/meshview.git
+git clone -recurse-submodules https://github.com/pablorevilla-meshtastic/meshview.git
 ```
 
 ```bash
