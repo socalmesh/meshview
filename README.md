@@ -164,7 +164,7 @@ map_bottom_right_lon = -121
 # Updates intervals in seconds, zero or negative number means no updates
 # defaults will be 3 seconds
 map_interval=3
-firehose_interal=3
+firehose_interval=3
 
 # Weekly net details
 weekly_net_message = Weekly Mesh check-in. We will keep it open on every Wednesday from 5:00pm for checkins. The message format should be (LONG NAME) - (CITY YOU ARE IN) #BayMeshNet.
