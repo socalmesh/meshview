@@ -1,6 +1,7 @@
 env/*
 __pycache__/*
 meshview/__pycache__/*
+meshtastic/protobuf/*
 packets.db
 /table_details.py
 config.ini

@@ -74,19 +74,20 @@ Create a Python virtual environment:
 
 from the meshview directory...
 ```bash
-python3 -m venv env
+uv venv env || python3 -m venv env
 ```
 
 Install the environment requirements:
 
 ```bash
-./env/bin/pip install -r requirements.txt
+uv pip install -r requirements.txt || ./env/bin/pip install -r requirements.txt
 ```
 
-Install `graphviz`:
+Install `graphviz` on MacOS or Debian/Ubuntu Linux:
 
 ```bash
-sudo apt-get install graphviz
+[ "$(uname)" = "Darwin" ] && brew install graphviz
+[ "$(uname)" = "Linux" ] && sudo apt-get install graphviz
 ```
 
 Copy `sample.config.ini` to `config.ini`:
@@ -155,6 +156,7 @@ map = True
 top = True
 
 # Map boundaries (used for the map view).
+# Defaults will show the San Francisco Bay Area
 map_top_left_lat = 39
 map_top_left_lon = -123
 map_bottom_right_lat = 36
@@ -214,7 +216,7 @@ vacuum = False
 
 ## Running Meshview
 
-Start the database:
+Start the database manager:
 
 ```bash
 ./env/bin/python startdb.py
