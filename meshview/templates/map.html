@@ -27,6 +27,22 @@
     .filter-checkbox {
         margin: 0 10px;
     }
+    #share-button {
+        margin-left: 20px;
+        padding: 5px 15px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    #share-button:hover {
+        background-color: #45a049;
+    }
+    #share-button:active {
+        background-color: #3d8b40;
+    }
     .blinking-tooltip {
         background: white;
         color: black;
@@ -41,6 +57,9 @@
 <div id="map" style="width: 100%; height: calc(100vh - 270px)"></div>
 <div id="filter-container">
     <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
+</div>
+<div style="text-align: center; margin-top: 5px;">
+    <button id="share-button" onclick="shareCurrentView()">🔗 Share This View</button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -57,6 +76,17 @@
         maxZoom: 19,
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
+
+    // Custom view from URL parameters
+    {% if custom_view %}
+    var customView = {
+        lat: {{ custom_view.lat }},
+        lng: {{ custom_view.lng }},
+        zoom: {{ custom_view.zoom }}
+    };
+    {% else %}
+    var customView = null;
+    {% endif %}
 
     // ---- Node Data ----
     var markers = {};
@@ -155,7 +185,13 @@
         [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
         [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
     ];
-    map.fitBounds(bayAreaBounds);
+    
+    // Apply custom view or default bounds
+    if (customView) {
+        map.setView([customView.lat, customView.lng], customView.zoom);
+    } else {
+        map.fitBounds(bayAreaBounds);
+    }
 
     // ---- Filters ----
     let filterContainer = document.getElementById("filter-container");
@@ -340,6 +376,32 @@
         if (document.hidden) stopPacketFetcher();
         else startPacketFetcher();
     });
+
+    // ---- Share Current View ----
+    function shareCurrentView() {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const lat = center.lat.toFixed(6);
+        const lng = center.lng.toFixed(6);
+        
+        const shareUrl = `${window.location.origin}/map?lat=${lat}&lng=${lng}&zoom=${zoom}`;
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            const button = document.getElementById('share-button');
+            const originalText = button.textContent;
+            button.textContent = '✓ Link Copied!';
+            button.style.backgroundColor = '#2196F3';
+            
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.backgroundColor = '#4CAF50';
+            }, 2000);
+        }).catch(err => {
+            // Fallback for older browsers
+            alert('Share this link:\n' + shareUrl);
+        });
+    }
 
     // ---- Initialize ----
     if (mapInterval > 0) startPacketFetcher();
