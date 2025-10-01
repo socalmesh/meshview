@@ -114,7 +114,10 @@
         <div><span class="legend-box circle" style="background-color: #00c3ff"></span> <code>CLIENT_MUTE</code></div>
     </div>
     <div class="legend-category">
+        <div><span class="legend-box circle" style="background-color: #049acd"></span> <code>CLIENT_BASE</code></div>
         <div><span class="legend-box circle" style="background-color: #ffbf00"></span> Other</div>
+    </div>
+    <div class="legend-category">
         <div><span class="legend-box circle" style="background-color: #6c757d"></span> Unknown</div>
     </div>
 </div>
@@ -132,6 +135,7 @@ const colors = {
         ROUTER_LATE: '#b65224',
         CLIENT: '#007bff',
         CLIENT_MUTE: '#00c3ff',
+        CLIENT_BASE: '#049acd',
         other: '#ffbf00',
         unknown: '#6c757d',
     },
@@ -148,6 +152,7 @@ function getSymbolSize (role) {
     switch (role) {
         case 'ROUTER': return 30;
         case 'ROUTER_LATE': return 30;
+        case 'CLIENT_BASE': return 18;
         case 'CLIENT': return 15;
         case 'CLIENT_MUTE': return 7;
         default: return 15; // Unknown or other roles
@@ -157,6 +162,7 @@ function getSymbolSize (role) {
 function getLabel (role, short_name, long_name) {
     if (role === 'ROUTER') return long_name;
     if (role === 'ROUTER_LATE') return long_name;
+    if (role === 'CLIENT_BASE') return short_name;
     if (role === 'CLIENT') return short_name;
     if (role === 'CLIENT_MUTE') return short_name;
     return short_name || '';
