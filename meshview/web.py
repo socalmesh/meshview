@@ -1632,31 +1632,39 @@ async def api_edges(request):
 
     edges = {}
 
-    # Traceroutes
-    async for tr in store.get_traceroutes(since):
-        route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
-        path = [tr.packet.from_node_id] + list(route.route)
-        path.append(tr.packet.to_node_id if tr.done else tr.gateway_node_id)
+    # Only build traceroute edges if requested
+    if filter_type in (None, "traceroute"):
+        async for tr in store.get_traceroutes(since):
+            try:
+                route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
+            except Exception as e:
+                print(f"Error decoding Traceroute {tr.id}: {e}")
+                continue
 
-        for a, b in zip(path, path[1:]):
-            edges[(a, b)] = "traceroute"
+            path = [tr.packet.from_node_id] + list(route.route)
+            path.append(tr.packet.to_node_id if tr.done else tr.gateway_node_id)
 
-    # NeighborInfo
-    for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since):
-        try:
-            _, neighbor_info = decode_payload.decode(packet)
-            for node in neighbor_info.neighbors:
-                edges.setdefault((node.node_id, packet.from_node_id), "neighbor")
-        except Exception as e:
-            print(f"Error decoding NeighborInfo packet: {e}")
+            for a, b in zip(path, path[1:]):
+                edges[(a, b)] = "traceroute"
+
+    # Only build neighbor edges if requested
+    if filter_type in (None, "neighbor"):
+        packets = await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since)
+        for packet in packets:
+            try:
+                _, neighbor_info = decode_payload.decode(packet)
+                for node in neighbor_info.neighbors:
+                    edges.setdefault((node.node_id, packet.from_node_id), "neighbor")
+            except Exception as e:
+                print(f"Error decoding NeighborInfo packet {getattr(packet, 'id', '?')}: {e}")
 
     return web.json_response({
         "edges": [
             {"from": a, "to": b, "type": typ}
             for (a, b), typ in edges.items()
-            if filter_type is None or typ == filter_type
         ]
     })
+
 
 
 # Generic static HTML route
