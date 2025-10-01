@@ -899,7 +899,7 @@ async def graph_network(request):
     node_ids = set()
 
     traceroutes = []
-    for tr in await store.get_traceroutes(since):
+    async for tr in store.get_traceroutes(since):
         node_ids.add(tr.gateway_node_id)
         node_ids.add(tr.packet.from_node_id)
         node_ids.add(tr.packet.to_node_id)
@@ -1244,7 +1244,7 @@ async def nodegraph(request):
     traceroutes = []
 
     # Fetch traceroutes
-    for tr in await store.get_traceroutes(since):
+    async for tr in store.get_traceroutes(since):
         node_ids.add(tr.gateway_node_id)
         node_ids.add(tr.packet.from_node_id)
         node_ids.add(tr.packet.to_node_id)
@@ -1608,48 +1608,36 @@ async def api_config(request):
 
 @routes.get("/api/edges")
 async def api_edges(request):
-    edges_set = set()
-    edge_type = {}
     since = datetime.datetime.now() - datetime.timedelta(hours=48)
+    filter_type = request.query.get("type")
 
-    # Get optional type filter from query string
-    filter_type = request.query.get("type")  # None if not provided
+    edges = {}
 
-    # Fetch traceroutes
-    for tr in await store.get_traceroutes(since):
+    # Traceroutes
+    async for tr in store.get_traceroutes(since):
         route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
         path = [tr.packet.from_node_id] + list(route.route)
-        if tr.done:
-            path.append(tr.packet.to_node_id)
-        else:
-            if path[-1] != tr.gateway_node_id:
-                path.append(tr.gateway_node_id)
+        path.append(tr.packet.to_node_id if tr.done else tr.gateway_node_id)
 
-        for i in range(len(path) - 1):
-            edge_pair = (path[i], path[i + 1])
-            edges_set.add(edge_pair)
-            edge_type[edge_pair] = "traceroute"
+        for a, b in zip(path, path[1:]):
+            edges[(a, b)] = "traceroute"
 
-    # Fetch NeighborInfo packets
+    # NeighborInfo
     for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since):
         try:
             _, neighbor_info = decode_payload.decode(packet)
             for node in neighbor_info.neighbors:
-                edge_pair = (node.node_id, packet.from_node_id)
-                if edge_pair not in edges_set:
-                    edges_set.add(edge_pair)
-                    edge_type[edge_pair] = "neighbor"
+                edges.setdefault((node.node_id, packet.from_node_id), "neighbor")
         except Exception as e:
             print(f"Error decoding NeighborInfo packet: {e}")
 
-    # Prepare edges with optional filtering by type
-    edges = [
-        {"from": frm, "to": to, "type": typ}
-        for (frm, to), typ in edge_type.items()
-        if filter_type is None or typ == filter_type
-    ]
-
-    return web.json_response({"edges": edges})
+    return web.json_response({
+        "edges": [
+            {"from": a, "to": b, "type": typ}
+            for (a, b), typ in edges.items()
+            if filter_type is None or typ == filter_type
+        ]
+    })
 
 
 # Generic static HTML route

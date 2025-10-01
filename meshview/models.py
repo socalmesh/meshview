@@ -84,8 +84,10 @@ class PacketSeen(Base):
     )
 
 
+
 class Traceroute(Base):
     __tablename__ = "traceroute"
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     packet_id = mapped_column(ForeignKey("packet.id"))
     packet: Mapped["Packet"] = relationship(
@@ -95,3 +97,7 @@ class Traceroute(Base):
     done: Mapped[bool] = mapped_column(nullable=True)
     route: Mapped[bytes] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
+
+    __table_args__ = (
+        Index("idx_traceroute_import_time", "import_time"),
+    )

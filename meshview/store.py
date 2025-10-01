@@ -111,13 +111,16 @@ async def get_traceroute(packet_id):
 
 async def get_traceroutes(since):
     async with database.async_session() as session:
-        result = await session.execute(
-                select(Traceroute)
-                .join(Packet)
-                .where(Traceroute.import_time > (datetime.now() - since))
-                .order_by(Traceroute.import_time)
+        stmt = (
+            select(Traceroute)
+            .join(Packet)
+            .where(Traceroute.import_time > since)
+            .order_by(Traceroute.import_time)
         )
-        return result.scalars()
+        stream = await session.stream_scalars(stmt)
+        async for tr in stream:
+            yield tr
+
 
 
 async def get_mqtt_neighbors(since):

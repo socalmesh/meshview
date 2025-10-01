@@ -42,17 +42,18 @@ The project serves as a real-time monitoring and diagnostic tool for the Meshtas
 Samples of currently running instances:
 
 - https://meshview.bayme.sh (SF Bay Area)
-- https://www.svme.sh/ (Sacramento Valley)
-- https://meshview.nyme.sh/   (New York)
-- https://meshview.socalmesh.org/ (LA Area)
-- https://map.wpamesh.net/ (Western Pennsylvania)
-- https://meshview.chicagolandmesh.org/ (Chicago)
+- https://www.svme.sh (Sacramento Valley)
+- https://meshview.nyme.sh   (New York)
+- https://meshview.socalmesh.org (LA Area)
+- https://map.wpamesh.net (Western Pennsylvania)
+- https://meshview.chicagolandmesh.org (Chicago)
 - https://meshview.mt.gt (Canadaverse)
 - https://meshview.meshtastic.es (Spain)
-- https://view.mtnme.sh/ (North Georgia / East Tennessee)
+- https://view.mtnme.sh (North Georgia / East Tennessee)
 - https://meshview.lsinfra.de (Hessen - Germany)
-- https://map.nswmesh.au/ (Sydney - Australia)
-- https://meshview.pvmesh.org/ (Pioneer Valley, Massachusetts)
+- https://map.nswmesh.au (Sydney - Australia)
+- https://meshview.pvmesh.org (Pioneer Valley, Massachusetts)
+- https://meshview.louisianamesh.org (Louisiana)
 ---
 
 ## Installing
@@ -62,13 +63,11 @@ Requires **`python3.11`** or above.
 Clone the repo from GitHub:
 
 ```bash
-git clone --recurse-submodules https://github.com/pablorevilla-meshtastic/meshview.git
+git clone https://github.com/pablorevilla-meshtastic/meshview.git
 ```
 
 ```bash
 cd meshview
-git submodule update --init
-ln -s ../python/meshtastic/protobuf meshtastic/protobuf
 ```
 Create a Python virtual environment:
 
