@@ -1135,11 +1135,30 @@ async def map(request):
         for node in nodes:
             if hasattr(node, "last_update") and isinstance(node.last_update, datetime.datetime):
                 node.last_update = node.last_update.isoformat()
+        
+        # Parse optional URL parameters for custom view
+        map_center_lat = request.query.get("lat")
+        map_center_lng = request.query.get("lng")
+        map_zoom = request.query.get("zoom")
+        
+        # Validate and convert parameters if provided
+        custom_view = None
+        if map_center_lat and map_center_lng:
+            try:
+                lat = float(map_center_lat)
+                lng = float(map_center_lng)
+                zoom = int(map_zoom) if map_zoom else 13
+                custom_view = {"lat": lat, "lng": lng, "zoom": zoom}
+            except (ValueError, TypeError):
+                # Invalid parameters, ignore and use defaults
+                pass
+        
         template = env.get_template("map.html")
 
         return web.Response(
             text=template.render(
                 nodes=nodes,
+                custom_view=custom_view,
                 site_config=CONFIG,
                 SOFTWARE_RELEASE=SOFTWARE_RELEASE),
             content_type="text/html",
