@@ -207,6 +207,6 @@ async def process_envelope(topic, env):
 
         await session.commit()
 
-        if new_packet:
-            await packet.awaitable_attrs.to_node
-            await packet.awaitable_attrs.from_node
+        #if new_packet:
+        #    await packet.awaitable_attrs.to_node
+        #    await packet.awaitable_attrs.from_node
