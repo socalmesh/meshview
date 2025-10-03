@@ -74,20 +74,19 @@ Create a Python virtual environment:
 
 from the meshview directory...
 ```bash
-uv venv env || python3 -m venv env
+python3 -m venv env
 ```
 
 Install the environment requirements:
 
 ```bash
-uv pip install -r requirements.txt || ./env/bin/pip install -r requirements.txt
+./env/bin/pip install -r requirements.txt
 ```
 
 Install `graphviz` on MacOS or Debian/Ubuntu Linux:
 
 ```bash
-[ "$(uname)" = "Darwin" ] && brew install graphviz
-[ "$(uname)" = "Linux" ] && sudo apt-get install graphviz
+sudo apt-get install graphviz
 ```
 
 Copy `sample.config.ini` to `config.ini`:
