@@ -210,6 +210,17 @@ hour = 2
 minute = 00
 # Run VACUUM after cleanup
 vacuum = False
+
+
+# -------------------------
+# Logging Configuration
+# -------------------------
+[logging]
+# Enable or disable HTTP access logs from the web server
+# When disabled, request logs like "GET /api/chat" will not appear
+# Application logs (errors, startup messages, etc.) are unaffected
+# Set to True to enable, False to disable (default: False)
+access_log = False
 ```
 
 ---
@@ -402,5 +413,3 @@ Add schedule to the bottom of the file (modify /path/to/file/ to the correct pat
 ```
 
 Check the log file to see it the script run at the specific time.
-
-

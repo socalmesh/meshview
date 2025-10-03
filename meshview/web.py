@@ -2,6 +2,7 @@ import asyncio
 import datetime
 from datetime import timedelta
 import json
+import logging
 import os
 import ssl
 from collections import Counter, defaultdict
@@ -22,6 +23,14 @@ from aiohttp import web
 import re
 import traceback
 import pathlib
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(filename)s:%(lineno)d [pid:%(process)d] %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+logger = logging.getLogger(__name__)
 
 SEQ_REGEX = re.compile(r"seq \d+")
 SOFTWARE_RELEASE= "2.0.7 ~ 09-17-25"
@@ -439,7 +448,7 @@ async def firehose_updates(request):
             try:
                 last_time = datetime.datetime.fromisoformat(last_time_str)
             except Exception as e:
-                print(f"Failed to parse last_time '{last_time_str}': {e}")
+                logger.error(f"Failed to parse last_time '{last_time_str}': {e}")
                 last_time = None
 
         # Query packets after last_time (microsecond precision)
@@ -462,7 +471,7 @@ async def firehose_updates(request):
         return web.json_response(response)
 
     except Exception as e:
-        print("Error in /firehose/updates:", e)
+        logger.error(f"Error in /firehose/updates: {e}")
         return web.json_response({"error": "Failed to fetch updates"}, status=500)
 
 
@@ -1112,7 +1121,7 @@ async def net(request):
         raise  # Let aiohttp handle HTTP exceptions properly
 
     except Exception as e:
-        print("Error processing net request")
+        logger.error(f"Error processing net request: {e}")
         template = env.get_template("error.html")
         rendered = template.render(
             error_message="An internal server error occurred.",
@@ -1219,7 +1228,7 @@ async def top(request):
             content_type="text/html",
         )
     except Exception as e:
-        print("Error in /top:", e)
+        logger.error(f"Error in /top: {e}")
         template = env.get_template("error.html")
         rendered = template.render(
             error_message="An error occurred in /top",
@@ -1241,7 +1250,7 @@ async def chat(request):
             content_type="text/html",
         )
     except Exception as e:
-        print("Error in /chat:", e)
+        logger.error(f"Error in /chat: {e}")
         template = env.get_template("error.html")
         rendered = template.render(
             error_message="An error occurred while processing your request.",
@@ -1301,7 +1310,7 @@ async def nodegraph(request):
                 edges_map[edge_pair]["weight"] += 1
                 edges_map[edge_pair]["type"] = "neighbor" # Overrides an existing traceroute pairing with neighbor
         except Exception as e:
-            print(f"Error decoding NeighborInfo packet: {e}")
+            logger.error(f"Error decoding NeighborInfo packet: {e}")
 
     # Convert edges_map to a list of dicts with colors
     max_weight = max(i['weight'] for i in edges_map.values()) if edges_map else 1
@@ -1390,7 +1399,7 @@ async def api_chat(request):
             try:
                 since = datetime.datetime.fromisoformat(since_str)
             except Exception as e:
-                print(f"Failed to parse since '{since_str}': {e}")
+                logger.error(f"Failed to parse since '{since_str}': {e}")
 
         # Fetch packets from store
         packets = await store.get_packets(
@@ -1456,7 +1465,7 @@ async def api_chat(request):
         })
 
     except Exception as e:
-        print("Error in /api/chat:", e)
+        logger.error(f"Error in /api/chat: {e}")
         return web.json_response(
             {"error": "Failed to fetch chat data", "details": str(e)},
             status=500
@@ -1506,7 +1515,7 @@ async def api_nodes(request):
         return web.json_response({"nodes": nodes_data})
 
     except Exception as e:
-        print("Error in /api/nodes:", e)
+        logger.error(f"Error in /api/nodes: {e}")
         return web.json_response({"error": "Failed to fetch nodes"}, status=500)
 
 
@@ -1523,7 +1532,7 @@ async def api_packets(request):
             try:
                 since_time = datetime.datetime.fromisoformat(since_str)
             except Exception as e:
-                print(f"Failed to parse 'since' timestamp '{since_str}': {e}")
+                logger.error(f"Failed to parse 'since' timestamp '{since_str}': {e}")
 
         # Fetch last N packets
         packets = await store.get_packets(
@@ -1545,7 +1554,7 @@ async def api_packets(request):
         return web.json_response({"packets": packets_json})
 
     except Exception as e:
-        print("Error in /api/packets:", str(e))
+        logger.error(f"Error in /api/packets: {e}")
         return web.json_response(
             {"error": "Failed to fetch packets"},
             status=500
@@ -1638,7 +1647,7 @@ async def api_edges(request):
             try:
                 route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
             except Exception as e:
-                print(f"Error decoding Traceroute {tr.id}: {e}")
+                logger.error(f"Error decoding Traceroute {tr.id}: {e}")
                 continue
 
             path = [tr.packet.from_node_id] + list(route.route)
@@ -1656,7 +1665,7 @@ async def api_edges(request):
                 for node in neighbor_info.neighbors:
                     edges.setdefault((node.node_id, packet.from_node_id), "neighbor")
             except Exception as e:
-                print(f"Error decoding NeighborInfo packet {getattr(packet, 'id', '?')}: {e}")
+                logger.error(f"Error decoding NeighborInfo packet {getattr(packet, 'id', '?')}: {e}")
 
     return web.json_response({
         "edges": [
@@ -1687,15 +1696,27 @@ async def serve_page(request):
 async def run_server():
     app = web.Application()
     app.add_routes(routes)
-    runner = web.AppRunner(app)
+    
+    # Check if access logging should be disabled
+    enable_access_log = CONFIG.get("logging", {}).get("access_log", "False").lower() == "true"
+    access_log_handler = None if not enable_access_log else logging.getLogger("aiohttp.access")
+    
+    runner = web.AppRunner(app, access_log=access_log_handler)
     await runner.setup()
     if CONFIG["server"]["tls_cert"]:
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.load_cert_chain(CONFIG["server"]["tls_cert"])
+        logger.info(f"TLS enabled with certificate: {CONFIG['server']['tls_cert']}")
     else:
         ssl_context = None
+        logger.info("TLS disabled")
     if host := CONFIG["server"]["bind"]:
-        site = web.TCPSite(runner, host, CONFIG["server"]["port"], ssl_context=ssl_context)
+        port = CONFIG["server"]["port"]
+        protocol = "https" if ssl_context else "http"
+        site = web.TCPSite(runner, host, port, ssl_context=ssl_context)
         await site.start()
+        # Display localhost instead of wildcard addresses for usability
+        display_host = "localhost" if host in ("0.0.0.0", "*", "::") else host
+        logger.info(f"Web server started at {protocol}://{display_host}:{port}")
     while True:
         await asyncio.sleep(3600)  # sleep forever
