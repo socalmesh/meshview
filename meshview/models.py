@@ -1,8 +1,8 @@
 from datetime import datetime
-from sqlalchemy.orm import DeclarativeBase, foreign
+
+from sqlalchemy import BigInteger, ForeignKey, Index, desc
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import mapped_column, relationship, Mapped
-from sqlalchemy import ForeignKey, BigInteger, Index, desc
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -24,9 +24,7 @@ class Node(Base):
     channel: Mapped[str] = mapped_column(nullable=True)
     last_update: Mapped[datetime] = mapped_column(nullable=True)
 
-    __table_args__ = (
-        Index("idx_node_node_id", "node_id"),
-    )
+    __table_args__ = (Index("idx_node_node_id", "node_id"),)
 
     def to_dict(self):
         return {
@@ -79,10 +77,7 @@ class PacketSeen(Base):
     topic: Mapped[str] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
 
-    __table_args__ = (
-        Index("idx_packet_seen_node_id", "node_id"),
-    )
-
+    __table_args__ = (Index("idx_packet_seen_node_id", "node_id"),)
 
 
 class Traceroute(Base):
@@ -98,6 +93,4 @@ class Traceroute(Base):
     route: Mapped[bytes] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
 
-    __table_args__ = (
-        Index("idx_traceroute_import_time", "import_time"),
-    )
+    __table_args__ = (Index("idx_traceroute_import_time", "import_time"),)
