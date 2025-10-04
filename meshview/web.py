@@ -31,7 +31,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
 SEQ_REGEX = re.compile(r"seq \d+")
 SOFTWARE_RELEASE= "2.0.7 ~ 09-17-25"
 CONFIG = config.CONFIG
@@ -40,6 +39,9 @@ env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape
 
 # Start Database
 database.init_database(CONFIG["database"]["connection_string"])
+
+BASE_DIR = os.path.dirname(__file__)
+LANG_DIR = os.path.join(BASE_DIR, "lang")
 
 with open(os.path.join(os.path.dirname(__file__), '1x1.png'), 'rb') as png:
     empty_png = png.read()
@@ -1623,10 +1625,13 @@ async def api_config(request):
     try:
         site = CONFIG.get("site", {})
         safe_site = {
-            "map_interval": site.get("map_interval", 3),        # default 3 if missing
-            "firehose_interval": site.get("firehose_interval", 3)  # default 3 if missing
+            "map_interval": site.get("map_interval", 3),
+            "firehose_interval": site.get("firehose_interval", 3),
+            "map_top_left_lat": site.get("map_top_left_lat", 3),
+            "map_top_left_lon": site.get("map_top_left_lon", 3),
+            "map_bottom_right_lat": site.get("map_bottom_right_lat", 3),
+            "map_bottom_right_lon": site.get("map_bottom_right_lon", 3),
         }
-
         safe_config = {"site": safe_site}
 
         return web.json_response(safe_config)
@@ -1674,6 +1679,32 @@ async def api_edges(request):
         ]
     })
 
+@routes.get("/api/lang")
+async def api_lang(request):
+    # Language from ?lang=xx, fallback to config, then to "en"
+    lang_code = request.query.get("lang") or CONFIG.get("general", {}).get("language", "en")
+    section = request.query.get("section")  # new: section name
+
+    lang_file = os.path.join(LANG_DIR, f"{lang_code}.json")
+    if not os.path.exists(lang_file):
+        lang_file = os.path.join(LANG_DIR, "en.json")
+
+    # Load JSON translations
+    with open(lang_file, "r", encoding="utf-8") as f:
+        translations = json.load(f)
+
+    if section:
+        section = section.lower()
+        if section in translations:
+            return web.json_response(translations[section])
+        else:
+            return web.json_response(
+                {"error": f"Section '{section}' not found in {lang_code}"},
+                status=404
+            )
+
+    # if no section requested → return full translation file
+    return web.json_response(translations)
 
 
 # Generic static HTML route
