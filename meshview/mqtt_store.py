@@ -1,17 +1,17 @@
 import datetime
 import re
+
 from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
 from meshtastic.protobuf.config_pb2 import Config
+from meshtastic.protobuf.mesh_pb2 import HardwareModel
 from meshtastic.protobuf.portnums_pb2 import PortNum
-from meshtastic.protobuf.mesh_pb2 import User, HardwareModel
-from meshview import mqtt_database
-from meshview import decode_payload
-from meshview.models import Packet, PacketSeen, Node, Traceroute
+from meshview import decode_payload, mqtt_database
+from meshview.models import Node, Packet, PacketSeen, Traceroute
 
 
 async def process_envelope(topic, env):
-
     # MAP_REPORT_APP
     if env.packet.decoded.portnum == PortNum.MAP_REPORT_APP:
         node_id = getattr(env.packet, "from")
@@ -73,22 +73,26 @@ async def process_envelope(topic, env):
 
     async with mqtt_database.async_session() as session:
         # --- Packet insert with ON CONFLICT DO NOTHING
-        result = await session.execute(
-            select(Packet).where(Packet.id == env.packet.id)
-        )
-        new_packet = False
+        result = await session.execute(select(Packet).where(Packet.id == env.packet.id))
+        # FIXME: Not Used
+        # new_packet = False
         packet = result.scalar_one_or_none()
         if not packet:
-            new_packet = True
-            stmt = sqlite_insert(Packet).values(
-                id=env.packet.id,
-                portnum=env.packet.decoded.portnum,
-                from_node_id=getattr(env.packet, "from"),
-                to_node_id=env.packet.to,
-                payload=env.packet.SerializeToString(),
-                import_time=datetime.datetime.now(),
-                channel=env.channel_id,
-            ).on_conflict_do_nothing(index_elements=["id"])
+            # FIXME: Not Used
+            # new_packet = True
+            stmt = (
+                sqlite_insert(Packet)
+                .values(
+                    id=env.packet.id,
+                    portnum=env.packet.decoded.portnum,
+                    from_node_id=getattr(env.packet, "from"),
+                    to_node_id=env.packet.to,
+                    payload=env.packet.SerializeToString(),
+                    import_time=datetime.datetime.now(),
+                    channel=env.channel_id,
+                )
+                .on_conflict_do_nothing(index_elements=["id"])
+            )
             await session.execute(stmt)
 
         # --- PacketSeen (no conflict handling here, normal insert)
@@ -138,9 +142,7 @@ async def process_envelope(topic, env):
                     )
 
                     node = (
-                        await session.execute(
-                            select(Node).where(Node.id == user.id)
-                        )
+                        await session.execute(select(Node).where(Node.id == user.id))
                     ).scalar_one_or_none()
 
                     if node:
@@ -174,9 +176,7 @@ async def process_envelope(topic, env):
             if position and position.latitude_i and position.longitude_i:
                 from_node_id = getattr(env.packet, "from")
                 node = (
-                    await session.execute(
-                        select(Node).where(Node.node_id == from_node_id)
-                    )
+                    await session.execute(select(Node).where(Node.node_id == from_node_id))
                 ).scalar_one_or_none()
                 if node:
                     node.last_lat = position.latitude_i
@@ -207,6 +207,6 @@ async def process_envelope(topic, env):
 
         await session.commit()
 
-        #if new_packet:
+        # if new_packet:
         #    await packet.awaitable_attrs.to_node
         #    await packet.awaitable_attrs.from_node

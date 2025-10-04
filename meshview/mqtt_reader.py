@@ -1,11 +1,13 @@
-import base64
 import asyncio
+import base64
+import logging
 import random
 import time
+
 import aiomqtt
-import logging
-from google.protobuf.message import DecodeError
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from google.protobuf.message import DecodeError
+
 from meshtastic.protobuf.mqtt_pb2 import ServiceEnvelope
 
 KEY = base64.b64decode("1PG7OiApB1nwvP+rz05pAQ==")
@@ -13,7 +15,7 @@ KEY = base64.b64decode("1PG7OiApB1nwvP+rz05pAQ==")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(filename)s:%(lineno)d [pid:%(process)d] %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +50,6 @@ async def get_topic_envelopes(mqtt_server, mqtt_port, topics, mqtt_user, mqtt_pa
                 password=mqtt_passwd,
                 identifier=identifier,
             ) as client:
-
                 logger.info(f"Connected to MQTT broker at {mqtt_server}:{mqtt_port}")
                 for topic in topics:
                     logger.info(f"Subscribing to: {topic}")
@@ -76,10 +77,14 @@ async def get_topic_envelopes(mqtt_server, mqtt_port, topics, mqtt_user, mqtt_pa
 
                     msg_count += 1
                     # FIXME: make this interval configurable or time based
-                    if msg_count % 10000 == 0:  # Log notice every 10000 messages (approx every hour at 3/sec)
+                    if (
+                        msg_count % 10000 == 0
+                    ):  # Log notice every 10000 messages (approx every hour at 3/sec)
                         elapsed_time = time.time() - start_time
                         msg_rate = msg_count / elapsed_time if elapsed_time > 0 else 0
-                        logger.info(f"Processed {msg_count} messages so far... ({msg_rate:.2f} msg/sec)")
+                        logger.info(
+                            f"Processed {msg_count} messages so far... ({msg_rate:.2f} msg/sec)"
+                        )
 
                     yield msg.topic.value, envelope
 
