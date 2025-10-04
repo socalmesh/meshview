@@ -821,10 +821,6 @@ async def graph_traceroute2(request):
         for node_id in node_ids:
             nodes[node_id] = tg.create_task(store.get_node(node_id))
 
-    # Initialize graph for traceroute
-    # FIXME: This is not used
-    # graph = pydot.Dot('traceroute', graph_type="digraph")
-
     paths = set()
     node_color = {}
     mqtt_nodes = set()
@@ -1065,20 +1061,9 @@ async def graph_network(request):
                 href=f"/graph/network?root={node_id}&amp;depth={depth - 1}",
             )
         )
-
-    # FIXME: Not used
-    # if edges:
-    #     max_edge_count = edges.most_common(1)[0][1]
-    # else:
-    #     max_edge_count = 1
-    # size_ratio = 2.0 / max_edge_count
-
     edge_added = set()
 
     for (src, dest), _ in edges.items():
-        # FIXME: These are not used
-        # size = max(size_ratio * edge_count, 0.25)
-        # arrowsize = max(size_ratio * edge_count, 0.5)
         if edge_type[(src, dest)] in ('ni'):
             color = '#FF0000'
         elif edge_type[(src, dest)] in ('sni'):
@@ -1350,9 +1335,7 @@ async def nodegraph(request):
 
                 edge_pair = (node.node_id, packet.from_node_id)
                 edges_map[edge_pair]["weight"] += 1
-                edges_map[edge_pair]["type"] = (
-                    "neighbor"  # Overrides an existing traceroute pairing with neighbor
-                )
+                edges_map[edge_pair]["type"] = ("neighbor")
         except Exception as e:
             logger.error(f"Error decoding NeighborInfo packet: {e}")
 
