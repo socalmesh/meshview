@@ -26,7 +26,7 @@ jobs:
           key: ruff-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/ruff.toml') }}
 
       - name: Install Ruff
-        run: pip install "ruff==0.6.9"
+        run: pip install "ruff==0.13.3"
 
       # Lint (with GitHub annotation format for inline PR messages)
       - name: Ruff check
