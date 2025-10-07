@@ -1693,8 +1693,7 @@ async def api_edges(request):
 
     # Convert edges dict to list format for JSON response
     edges_list = [
-        {"from": frm, "to": to, "type": edge_type}
-        for (frm, to), edge_type in edges.items()
+        {"from": frm, "to": to, "type": edge_type} for (frm, to), edge_type in edges.items()
     ]
 
     return web.json_response({"edges": edges_list})
