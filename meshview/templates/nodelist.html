@@ -84,6 +84,36 @@ select, .export-btn, .search-box, .clear-btn {
     font-weight: bold;
     color: white;
 }
+
+.favorite-star {
+    cursor: pointer;
+    font-size: 1.2em;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.favorite-star:hover {
+    transform: scale(1.2);
+}
+
+.favorite-star.active {
+    color: #ffd700;
+}
+
+.favorites-btn {
+    background-color: #ffd700;
+    color: #000;
+    border: none;
+}
+
+.favorites-btn:hover {
+    background-color: #ffed4e;
+}
+
+.favorites-btn.active {
+    background-color: #ff6b6b;
+    color: white;
+}
 {% endblock %}
 
 {% block body %}
@@ -106,6 +136,7 @@ select, .export-btn, .search-box, .clear-btn {
         <option value="">All Firmware</option>
     </select>
 
+    <button class="favorites-btn" id="favorites-btn">⭐ Show Favorites</button>
     <button class="export-btn" id="export-btn">Export CSV</button>
     <button class="clear-btn" id="clear-btn">Clear Filters</button>
 </div>
@@ -127,6 +158,7 @@ select, .export-btn, .search-box, .clear-btn {
                 <th>Last Longitude <span class="sort-icon"></span></th>
                 <th>Channel <span class="sort-icon"></span></th>
                 <th>Last Update <span class="sort-icon"></span></th>
+                <th>Favorite</th>
             </tr>
         </thead>
         <tbody id="node-table-body">
@@ -139,10 +171,37 @@ select, .export-btn, .search-box, .clear-btn {
 let allNodes = [];
 let sortColumn = "short_name"; // default sorted column
 let sortAsc = true; // default ascending
+let showOnlyFavorites = false;
 
 // Declare headers and keyMap BEFORE any function that uses them
 const headers = document.querySelectorAll("thead th");
 const keyMap = ["short_name","long_name","hw_model","firmware","role","last_lat","last_long","channel","last_update"];
+
+// LocalStorage functions for favorites
+function getFavorites() {
+    const favorites = localStorage.getItem('nodelist_favorites');
+    return favorites ? JSON.parse(favorites) : [];
+}
+
+function saveFavorites(favorites) {
+    localStorage.setItem('nodelist_favorites', JSON.stringify(favorites));
+}
+
+function toggleFavorite(nodeId) {
+    let favorites = getFavorites();
+    const index = favorites.indexOf(nodeId);
+    if (index > -1) {
+        favorites.splice(index, 1);
+    } else {
+        favorites.push(nodeId);
+    }
+    saveFavorites(favorites);
+    applyFilters();
+}
+
+function isFavorite(nodeId) {
+    return getFavorites().includes(nodeId);
+}
 
 document.addEventListener("DOMContentLoaded", async function() {
     const tbody = document.getElementById("node-table-body");
@@ -154,6 +213,7 @@ document.addEventListener("DOMContentLoaded", async function() {
     const countSpan = document.getElementById("node-count");
     const exportBtn = document.getElementById("export-btn");
     const clearBtn = document.getElementById("clear-btn");
+    const favoritesBtn = document.getElementById("favorites-btn");
 
     try {
         const response = await fetch("/api/nodes?days_active=3");
@@ -174,6 +234,31 @@ document.addEventListener("DOMContentLoaded", async function() {
     searchBox.addEventListener("input", applyFilters);
     exportBtn.addEventListener("click", exportToCSV);
     clearBtn.addEventListener("click", clearFilters);
+    favoritesBtn.addEventListener("click", toggleFavoritesFilter);
+    
+    // Use event delegation for star clicks
+    tbody.addEventListener("click", (e) => {
+        if (e.target.classList.contains('favorite-star')) {
+            const nodeId = parseInt(e.target.getAttribute('data-node-id'));
+            
+            // Get current favorites
+            let favorites = getFavorites();
+            const index = favorites.indexOf(nodeId);
+            const isNowFavorite = index === -1; // Will it be a favorite after toggle?
+            
+            // Update the star immediately for instant feedback
+            if (isNowFavorite) {
+                e.target.classList.add('active');
+                e.target.textContent = '★';
+            } else {
+                e.target.classList.remove('active');
+                e.target.textContent = '☆';
+            }
+            
+            // Save to localStorage
+            toggleFavorite(nodeId);
+        }
+    });
 
     headers.forEach((th, index) => {
         th.addEventListener("click", () => {
@@ -212,6 +297,18 @@ document.addEventListener("DOMContentLoaded", async function() {
         });
     }
 
+    function toggleFavoritesFilter() {
+        showOnlyFavorites = !showOnlyFavorites;
+        if (showOnlyFavorites) {
+            favoritesBtn.textContent = "⭐ Show All";
+            favoritesBtn.classList.add("active");
+        } else {
+            favoritesBtn.textContent = "⭐ Show Favorites";
+            favoritesBtn.classList.remove("active");
+        }
+        applyFilters();
+    }
+
     function applyFilters() {
         const searchTerm = searchBox.value.trim().toLowerCase();
 
@@ -227,7 +324,9 @@ document.addEventListener("DOMContentLoaded", async function() {
                 (node.node_id && node.node_id.toString().includes(searchTerm)) ||
                 (node.id && node.id.toString().includes(searchTerm));
 
-            return roleMatch && channelMatch && hwMatch && firmwareMatch && searchMatch;
+            const favoriteMatch = !showOnlyFavorites || isFavorite(node.node_id);
+
+            return roleMatch && channelMatch && hwMatch && firmwareMatch && searchMatch && favoriteMatch;
         });
 
         if (sortColumn) {
@@ -241,10 +340,14 @@ document.addEventListener("DOMContentLoaded", async function() {
     function renderTable(nodes) {
         tbody.innerHTML = "";
         if (!nodes.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:white;">No nodes found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:white;">No nodes found</td></tr>';
         } else {
             nodes.forEach(node => {
                 const row = document.createElement("tr");
+                const isFav = isFavorite(node.node_id);
+                const starClass = isFav ? 'favorite-star active' : 'favorite-star';
+                const starIcon = isFav ? '★' : '☆';
+                
                 row.innerHTML = `
                     <td>${node.short_name || "N/A"}</td>
                     <td><a href="/packet_list/${node.node_id}">${node.long_name || "N/A"}</a></td>
@@ -255,7 +358,9 @@ document.addEventListener("DOMContentLoaded", async function() {
                     <td>${node.last_long ? (node.last_long / 1e7).toFixed(7) : "N/A"}</td>
                     <td>${node.channel || "N/A"}</td>
                     <td>${node.last_update ? new Date(node.last_update).toLocaleString() : "N/A"}</td>
+                    <td style="text-align:center;"><span class="${starClass}" data-node-id="${node.node_id}">${starIcon}</span></td>
                 `;
+                
                 tbody.appendChild(row);
             });
         }
@@ -270,6 +375,9 @@ document.addEventListener("DOMContentLoaded", async function() {
         searchBox.value = "";
         sortColumn = "short_name";
         sortAsc = true;
+        showOnlyFavorites = false;
+        favoritesBtn.textContent = "⭐ Show Favorites";
+        favoritesBtn.classList.remove("active");
         renderTable(allNodes);
         updateSortIcons();
     }

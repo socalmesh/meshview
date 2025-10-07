@@ -43,6 +43,22 @@
     #share-button:active {
         background-color: #3d8b40;
     }
+    #reset-filters-button {
+        margin-left: 10px;
+        padding: 5px 15px;
+        background-color: #f44336;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    #reset-filters-button:hover {
+        background-color: #da190b;
+    }
+    #reset-filters-button:active {
+        background-color: #c41e0d;
+    }
     .blinking-tooltip {
         background: white;
         color: black;
@@ -60,6 +76,7 @@
 </div>
 <div style="text-align: center; margin-top: 5px;">
     <button id="share-button" onclick="shareCurrentView()">🔗 Share This View</button>
+    <button id="reset-filters-button" onclick="resetFiltersToDefaults()">↺ Reset Filters To Defaults</button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -193,6 +210,78 @@
         map.fitBounds(bayAreaBounds);
     }
 
+    // ---- LocalStorage for Filter Preferences ----
+    const FILTER_STORAGE_KEY = 'meshview_map_filters';
+    
+    function getDefaultFilters() {
+        return {
+            routersOnly: false,
+            channels: {}
+        };
+    }
+    
+    function saveFiltersToLocalStorage() {
+        const filters = {
+            routersOnly: document.getElementById("filter-routers-only").checked,
+            channels: {}
+        };
+        
+        channels.forEach(channel => {
+            let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
+            let checkbox = document.getElementById(filterId);
+            if (checkbox) {
+                filters.channels[channel] = checkbox.checked;
+            }
+        });
+        
+        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+        console.log('Filters saved to localStorage:', filters);
+    }
+    
+    function loadFiltersFromLocalStorage() {
+        try {
+            const stored = localStorage.getItem(FILTER_STORAGE_KEY);
+            if (stored) {
+                const filters = JSON.parse(stored);
+                console.log('Filters loaded from localStorage:', filters);
+                return filters;
+            }
+        } catch (error) {
+            console.error('Error loading filters from localStorage:', error);
+        }
+        return null;
+    }
+    
+    function resetFiltersToDefaults() {
+        localStorage.removeItem(FILTER_STORAGE_KEY);
+        console.log('Filters reset to defaults');
+        
+        // Reset routers only filter
+        document.getElementById("filter-routers-only").checked = false;
+        
+        // Reset all channel filters to checked (default)
+        channels.forEach(channel => {
+            let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
+            let checkbox = document.getElementById(filterId);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+        
+        updateMarkers();
+        
+        // Show feedback to user
+        const button = document.getElementById('reset-filters-button');
+        const originalText = button.textContent;
+        button.textContent = '✓ Filters Reset!';
+        button.style.backgroundColor = '#2196F3';
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.backgroundColor = '#f44336';
+        }, 2000);
+    }
+
     // ---- Filters ----
     let filterContainer = document.getElementById("filter-container");
     channels.forEach(channel => {
@@ -203,6 +292,22 @@
         label.innerHTML = `<input type="checkbox" class="filter-checkbox" id="${filterId}" checked> ${channel}`;
         filterContainer.appendChild(label);
     });
+    
+    // Load saved filters from localStorage
+    const savedFilters = loadFiltersFromLocalStorage();
+    if (savedFilters) {
+        // Apply routers only filter
+        document.getElementById("filter-routers-only").checked = savedFilters.routersOnly || false;
+        
+        // Apply channel filters
+        channels.forEach(channel => {
+            let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
+            let checkbox = document.getElementById(filterId);
+            if (checkbox && savedFilters.channels.hasOwnProperty(channel)) {
+                checkbox.checked = savedFilters.channels[channel];
+            }
+        });
+    }
 
     function updateMarkers() {
         let showRoutersOnly = document.getElementById("filter-routers-only").checked;
@@ -213,9 +318,15 @@
             let marker = markerById[node.id];
             if (marker) marker.setStyle({ fillOpacity: shouldShow ? 1 : 0 });
         });
+        
+        // Save filters to localStorage whenever they change
+        saveFiltersToLocalStorage();
     }
 
     document.querySelectorAll(".filter-checkbox").forEach(input => input.addEventListener("change", updateMarkers));
+    
+    // Apply initial filters (from localStorage or defaults)
+    updateMarkers();
 
     // ---- Edges ----
     var edgeLayer = L.layerGroup().addTo(map);
