@@ -1691,6 +1691,14 @@ async def api_edges(request):
                     f"Error decoding NeighborInfo packet {getattr(packet, 'id', '?')}: {e}"
                 )
 
+    # Convert edges dict to list format for JSON response
+    edges_list = [
+        {"from": frm, "to": to, "type": edge_type}
+        for (frm, to), edge_type in edges.items()
+    ]
+
+    return web.json_response({"edges": edges_list})
+
 
 @routes.get("/api/lang")
 async def api_lang(request):
