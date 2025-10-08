@@ -56,6 +56,8 @@ class Packet(Base):
         Index("idx_packet_from_node_id", "from_node_id"),
         Index("idx_packet_to_node_id", "to_node_id"),
         Index("idx_packet_import_time", desc("import_time")),
+        # Composite index for /top endpoint performance - filters by from_node_id AND import_time
+        Index("idx_packet_from_node_time", "from_node_id", desc("import_time")),
     )
 
 
@@ -77,7 +79,11 @@ class PacketSeen(Base):
     topic: Mapped[str] = mapped_column(nullable=True)
     import_time: Mapped[datetime] = mapped_column(nullable=True)
 
-    __table_args__ = (Index("idx_packet_seen_node_id", "node_id"),)
+    __table_args__ = (
+        Index("idx_packet_seen_node_id", "node_id"),
+        # Index for /top endpoint performance - JOIN on packet_id
+        Index("idx_packet_seen_packet_id", "packet_id"),
+    )
 
 
 class Traceroute(Base):
