@@ -20,9 +20,11 @@ The script will:
 
 import asyncio
 import time
-from meshview.config import CONFIG
-from sqlalchemy.ext.asyncio import create_async_engine
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from meshview.config import CONFIG
 
 
 async def add_indexes():
