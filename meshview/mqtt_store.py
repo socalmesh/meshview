@@ -96,10 +96,18 @@ async def process_envelope(topic, env):
             await session.execute(stmt)
 
         # --- PacketSeen (no conflict handling here, normal insert)
+
+        if not env.gateway_id:
+            print("WARNING: Missing gateway_id, skipping PacketSeen entry")
+            # Most likely a misconfiguration of a mqtt publisher?
+            return
+        else:
+            node_id = int(env.gateway_id[1:], 16)
+
         result = await session.execute(
             select(PacketSeen).where(
                 PacketSeen.packet_id == env.packet.id,
-                PacketSeen.node_id == int(env.gateway_id[1:], 16),
+                PacketSeen.node_id == node_id,
                 PacketSeen.rx_time == env.packet.rx_time,
             )
         )
