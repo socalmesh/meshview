@@ -1743,7 +1743,7 @@ async def api_edges(request):
 @routes.get("/api/lang")
 async def api_lang(request):
     # Language from ?lang=xx, fallback to config, then to "en"
-    lang_code = request.query.get("lang") or CONFIG.get("general", {}).get("language", "en")
+    lang_code = request.query.get("lang") or CONFIG.get("site", {}).get("language", "en")
     section = request.query.get("section")  # new: section name
 
     lang_file = os.path.join(LANG_DIR, f"{lang_code}.json")
