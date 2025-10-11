@@ -18,7 +18,6 @@
   .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
   .legend-color { width: 16px; height: 16px; margin-right: 6px; border-radius: 4px; }
 
-  /* Floating pulse label style */
   .pulse-label span {
     background: rgba(0,0,0,0.6);
     padding: 2px 4px;
@@ -35,166 +34,176 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  const map = L.map("map");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+const map = L.map("map");
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
 
-  const nodeMarkers = new Map();
-  let lastPacketTime = null;
+const nodeMarkers = new Map();
+let lastPacketTime = null;
 
-  const portColors = {
-    1:"red",
-    67:"cyan",
-    3:"orange",
-    70:"purple",
-    4:"yellow",
-    71:"brown",
-    73:"pink"
-  };
-  const portLabels = {
-    1:"Text",
-    67:"Telemetry",
-    3:"Position",
-    70:"Traceroute",
-    4:"Node Info",
-    71:"Neighbour Info",
-    73:"Map Report"
-  };
-  function getPulseColor(portnum) { return portColors[portnum] || "green"; }
+const portColors = {
+  1:"red",
+  67:"cyan",
+  3:"orange",
+  70:"purple",
+  4:"yellow",
+  71:"brown",
+  73:"pink"
+};
+const portLabels = {
+  1:"Text",
+  67:"Telemetry",
+  3:"Position",
+  70:"Traceroute",
+  4:"Node Info",
+  71:"Neighbour Info",
+  73:"Map Report"
+};
+function getPulseColor(portnum) { return portColors[portnum] || "green"; }
 
-  // Generate legend dynamically
-  const legend = document.getElementById("legend");
-  for (const [port, color] of Object.entries(portColors)) {
-    const item = document.createElement("div");
-    item.className = "legend-item";
-    const colorBox = document.createElement("div");
-    colorBox.className = "legend-color";
-    colorBox.style.background = color;
-    const label = document.createElement("span");
-    label.textContent = `${portLabels[port] || "Custom"} (${port})`;
-    item.appendChild(colorBox);
-    item.appendChild(label);
-    legend.appendChild(item);
-  }
+// Legend
+const legend = document.getElementById("legend");
+for (const [port, color] of Object.entries(portColors)) {
+  const item = document.createElement("div");
+  item.className = "legend-item";
+  const colorBox = document.createElement("div");
+  colorBox.className = "legend-color";
+  colorBox.style.background = color;
+  const label = document.createElement("span");
+  label.textContent = `${portLabels[port] || "Custom"} (${port})`;
+  item.appendChild(colorBox);
+  item.appendChild(label);
+  legend.appendChild(item);
+}
 
-  // Pulse marker with floating label on top
-  function pulseMarker(marker, highlightColor = "red") {
-    if (!marker) return;
-    if (marker.activePulse) return;
-    marker.activePulse = true;
+// Pulse marker
+function pulseMarker(marker, highlightColor = "red") {
+  if (!marker || marker.activePulse) return;
+  marker.activePulse = true;
 
-    const originalColor = marker.options.originalColor;
-    const originalRadius = marker.options.originalRadius;
-    marker.bringToFront();
+  const originalColor = marker.options.originalColor;
+  const originalRadius = marker.options.originalRadius;
+  marker.bringToFront();
 
-    const nodeInfo = marker.options.nodeInfo || {};
-    const portLabel = marker.currentPortLabel || "";
-    const displayName = `${nodeInfo.long_name || nodeInfo.short_name || "Unknown"}${portLabel ? ` (<i>${portLabel}</i>)` : ""}`;
+  const nodeInfo = marker.options.nodeInfo || {};
+  const portLabel = marker.currentPortLabel || "";
+  const displayName = `${nodeInfo.long_name || nodeInfo.short_name || "Unknown"}${portLabel ? ` (<i>${portLabel}</i>)` : ""}`;
 
-    marker.bindTooltip(displayName, {
-      permanent: true,
-      direction: 'top',
-      className: 'pulse-label',
-      offset: [0, -10],
-      html: true // Allow italics
-    }).openTooltip();
+  marker.bindTooltip(displayName, {
+    permanent: true,
+    direction: 'top',
+    className: 'pulse-label',
+    offset: [0, -10],
+    html: true
+  }).openTooltip();
 
-    const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius + 5;
-    let flashTime = 0;
+  const flashDuration = 2000, fadeDuration = 1000, flashInterval = 100, maxRadius = originalRadius + 5;
+  let flashTime = 0;
 
-    const flashTimer = setInterval(() => {
-      flashTime += flashInterval;
-      const isOn = (flashTime / flashInterval) % 2 === 0;
-      marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
+  const flashTimer = setInterval(() => {
+    flashTime += flashInterval;
+    const isOn = (flashTime / flashInterval) % 2 === 0;
+    marker.setStyle({ fillColor: isOn ? highlightColor : originalColor, radius: isOn ? maxRadius : originalRadius });
 
-      if (flashTime >= flashDuration) {
-        clearInterval(flashTimer);
-        const fadeStart = performance.now();
-        function fade(now) {
-          const t = Math.min((now - fadeStart) / fadeDuration, 1);
-          const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
-          marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
-          if (t < 1) requestAnimationFrame(fade);
-          else {
-            marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
-            marker.unbindTooltip();
-            marker.activePulse = false;
-          }
+    if (flashTime >= flashDuration) {
+      clearInterval(flashTimer);
+      const fadeStart = performance.now();
+      function fade(now) {
+        const t = Math.min((now - fadeStart) / fadeDuration, 1);
+        const radius = originalRadius + (maxRadius - originalRadius) * (1 - t);
+        marker.setStyle({ fillColor: highlightColor, radius: radius, fillOpacity: 1 });
+        if (t < 1) requestAnimationFrame(fade);
+        else {
+          marker.setStyle({ fillColor: originalColor, radius: originalRadius, fillOpacity: 1 });
+          marker.unbindTooltip();
+          marker.activePulse = false;
         }
-        requestAnimationFrame(fade);
       }
-    }, flashInterval);
-  }
-
-  async function loadNodes() {
-    try {
-      const res = await fetch("/api/nodes");
-      const nodes = (await res.json()).nodes;
-
-      nodes.forEach(node => {
-        const color = "blue";
-        const lat = node.last_lat, lng = node.last_long;
-        if(lat && lng) {
-          const marker = L.circleMarker([lat/1e7,lng/1e7], {
-            radius:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7
-          }).addTo(map);
-          marker.options.originalColor=color;
-          marker.options.originalRadius=7;
-          marker.options.nodeInfo=node;
-          marker.bindPopup(`<b>${node.long_name||node.short_name||"Unknown"}</b><br>ID: ${node.node_id}<br>Role: ${node.role}`);
-          nodeMarkers.set(node.node_id, marker);
-        } else {
-          nodeMarkers.set(node.node_id, {options:{nodeInfo:node}});
-        }
-      });
-
-      const markersWithCoords = Array.from(nodeMarkers.values()).filter(m=>m instanceof L.CircleMarker);
-      if(markersWithCoords.length>0) {
-        await setMapBoundsFromConfig();
-      } else {
-        map.setView([37.77,-122.42],9);
-      }
-    } catch(err){ console.error(err); }
-  }
-
-  async function setMapBoundsFromConfig() {
-    try {
-      const res = await fetch("/api/config");
-      const config = await res.json();
-      const topLeft = [ parseFloat(config.site.map_top_left_lat), parseFloat(config.site.map_top_left_lon) ];
-      const bottomRight = [ parseFloat(config.site.map_bottom_right_lat), parseFloat(config.site.map_bottom_right_lon) ];
-      map.fitBounds([topLeft, bottomRight]);
-    } catch(err) {
-      console.error("Failed to load map bounds from config:", err);
-      map.setView([37.77,-122.42],9);
+      requestAnimationFrame(fade);
     }
-  }
+  }, flashInterval);
+}
 
+// --- Load nodes ---
+async function loadNodes() {
+  try {
+    const res = await fetch("/api/nodes");
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const data = await res.json();
+    const nodes = data.nodes || [];
+
+    nodes.forEach(node => {
+      const lat = node.last_lat / 1e7;
+      const lng = node.last_long / 1e7;
+      if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+        const color = "blue";
+        const marker = L.circleMarker([lat,lng], {
+          radius:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7
+        }).addTo(map);
+        marker.options.originalColor = color;
+        marker.options.originalRadius = 7;
+        marker.options.nodeInfo = node;
+        marker.bindPopup(`<b>${node.long_name||node.short_name||"Unknown"}</b><br>ID: ${node.node_id}<br>Role: ${node.role}`);
+        nodeMarkers.set(node.node_id, marker);
+      } else {
+        nodeMarkers.set(node.node_id, {options:{nodeInfo:node}});
+      }
+    });
+
+    const markersWithCoords = Array.from(nodeMarkers.values()).filter(m=>m instanceof L.CircleMarker);
+    if(markersWithCoords.length>0) await setMapBoundsFromConfig();
+    else map.setView([37.77,-122.42],9);
+
+  } catch(err){
+    console.error("Failed to load nodes:", err);
+  }
+}
+
+// --- Map bounds ---
+async function setMapBoundsFromConfig() {
+  try {
+    const res = await fetch("/api/config");
+    const config = await res.json();
+    const topLat = parseFloat(config.site.map_top_left_lat);
+    const topLon = parseFloat(config.site.map_top_left_lon);
+    const bottomLat = parseFloat(config.site.map_bottom_right_lat);
+    const bottomLon = parseFloat(config.site.map_bottom_right_lon);
+
+    if ([topLat, topLon, bottomLat, bottomLon].some(v => isNaN(v))) {
+      throw new Error("Map bounds contain NaN");
+    }
+
+    map.fitBounds([[topLat, topLon], [bottomLat, bottomLon]]);
+  } catch(err) {
+    console.error("Failed to load map bounds from config:", err);
+    map.setView([37.77,-122.42],9);
+  }
+}
+
+// --- Poll packets ---
 async function pollPackets() {
   try {
     let url = "/api/packets?limit=10";
     if (lastPacketTime) url += `&since=${lastPacketTime}`;
-    const packets = (await (await fetch(url)).json()).packets || [];
-    if (packets.length > 0) lastPacketTime = packets[0].import_time;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const data = await res.json();
+    const packets = data.packets || [];
+    if (packets.length) lastPacketTime = packets[0].import_time;
 
     packets.forEach(pkt => {
       const marker = nodeMarkers.get(pkt.from_node_id);
-
-      // 🔍 Debug log
-      const nodeName = marker?.options?.nodeInfo?.short_name || marker?.options?.nodeInfo?.long_name || "Unknown";
-      console.log(`Packet received: port=${pkt.portnum}, node=${nodeName}`);
-
-      if (marker instanceof L.CircleMarker) {
-        marker.currentPortLabel = portLabels[pkt.portnum] || `${pkt.portnum}`; // Save label
+      if (marker instanceof L.CircleMarker) { // only real markers
+        marker.currentPortLabel = portLabels[pkt.portnum] || `${pkt.portnum}`;
         pulseMarker(marker, getPulseColor(pkt.portnum));
       }
     });
-  } catch (err) {
-    console.error(err);
+  } catch(err){
+    console.error("Failed to fetch packets:", err);
   }
 }
-1
 
-  loadNodes().then(()=>{ setInterval(pollPackets,1000); });
+// --- Initialize ---
+loadNodes().then(() => setInterval(pollPackets, 1000));
 </script>
 </body>
 </html>
