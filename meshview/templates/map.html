@@ -72,10 +72,10 @@
 {% block body %}
 <div id="map" style="width: 100%; height: calc(100vh - 270px)"></div>
 <div id="filter-container">
-    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
+    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> <span id="filter-routers-label">Show Routers Only</span>
 </div>
 <div style="text-align: center; margin-top: 5px;">
-    <button id="share-button" onclick="shareCurrentView()">🔗 Share This View</button>
+    <button id="share-button">🔗 Share This View</button>
     <button id="reset-filters-button" onclick="resetFiltersToDefaults()">↺ Reset Filters To Defaults</button>
 </div>
 
@@ -87,6 +87,21 @@
         crossorigin></script>
 
 <script>
+async function loadTranslations() {
+    const langCode = "{{ site_config.get('site', {}).get('language','en') }}";
+    try {
+        const res = await fetch(`/api/lang?lang=${langCode}&section=map`);
+        window.mapTranslations = await res.json();
+    } catch(err) {
+        console.error("Map translation load failed:", err);
+        window.mapTranslations = {};
+    }
+}
+
+// Initialize map AFTER translations are loaded
+loadTranslations().then(() => {
+    const t = window.mapTranslations || {};
+
     // ---- Map Setup ----
     var map = L.map('map');
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -94,13 +109,8 @@
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
-    // Custom view from URL parameters
     {% if custom_view %}
-    var customView = {
-        lat: {{ custom_view.lat }},
-        lng: {{ custom_view.lng }},
-        zoom: {{ custom_view.zoom }}
-    };
+    var customView = { lat: {{ custom_view.lat }}, lng: {{ custom_view.lng }}, zoom: {{ custom_view.zoom }} };
     {% else %}
     var customView = null;
     {% endif %}
@@ -111,8 +121,8 @@
     var nodes = [
         {% for node in nodes %}
         {
-            lat: {{ ((node.last_lat / 10**7) + (range(-9,9) | random) / 30000) | round(7) }},
-            long: {{ ((node.last_long / 10**7) + (range(-9,9) | random) / 30000) | round(7) if node.last_long is not none else "null" }},
+            lat: {{ ((node.last_lat / 10**7) + (range(-9,9) | random) / 10000) | round(7) }},
+            long: {{ ((node.last_long / 10**7) + (range(-9,9) | random) / 10000) | round(7) if node.last_long is not none else "null" }},
             long_name: {{ (node.long_name or "") | tojson }},
             short_name: {{ (node.short_name or "") | tojson }},
             channel: {{ (node.channel or "") | tojson }},
@@ -144,7 +154,6 @@
     const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"];
     const colorMap = new Map();
     let nextColorIndex = 0;
-
     function hashToColor(str) {
         if (colorMap.has(str)) return colorMap.get(str);
         const color = palette[nextColorIndex % palette.length];
@@ -155,12 +164,7 @@
 
     const nodeMap = new Map();
     nodes.forEach(n => nodeMap.set(n.id, n));
-
-    function isInvalidCoord(node) {
-        if (!node) return true;
-        let {lat, long} = node;
-        return !lat || !long || lat === 0 || long === 0 || Number.isNaN(lat) || Number.isNaN(long);
-    }
+    function isInvalidCoord(node) { return !node || !node.lat || !node.long || node.lat===0 || node.long===0 || Number.isNaN(node.lat) || Number.isNaN(node.long); }
 
     // ---- Marker Plotting ----
     var bounds = L.latLngBounds();
@@ -172,43 +176,38 @@
             channels.add(category);
             let color = hashToColor(category);
 
-            let markerOptions = { radius: node.isRouter ? 9 : 7, color: "white", fillColor: color, fillOpacity: 1, weight: 0.7 };
             let popupContent = `<b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
-                                <b>Channel:</b> ${node.channel}<br>
-                                <b>Model:</b> ${node.hw_model}<br>
-                                <b>Role:</b> ${node.role}<br>`;
-            if (node.last_update) popupContent += `<b>Last seen:</b> ${timeAgo(node.last_update)}<br>`;
-            if (node.firmware) popupContent += `<b>Firmware:</b> ${node.firmware}<br>`;
+                                <b>${t.channel||'Channel:'}</b> ${node.channel}<br>
+                                <b>${t.model||'Model:'}</b> ${node.hw_model}<br>
+                                <b>${t.role||'Role:'}</b> ${node.role}<br>`;
+            if (node.last_update) popupContent += `<b>${t.last_seen||'Last seen:'}</b> ${timeAgo(node.last_update)}<br>`;
+            if (node.firmware) popupContent += `<b>${t.firmware||'Firmware:'}</b> ${node.firmware}<br>`;
 
-            var marker = L.circleMarker([node.lat, node.long], markerOptions).addTo(map);
+            var marker = L.circleMarker([node.lat, node.long], { radius: node.isRouter?9:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7 }).addTo(map);
             marker.nodeId = node.id;
             marker.originalColor = color;
             markerById[node.id] = marker;
 
-            marker.on('click', function(e) {
+            marker.on('click', e => {
                 e.originalEvent.stopPropagation();
                 marker.bindPopup(popupContent).openPopup();
                 setTimeout(() => marker.closePopup(), 3000);
                 onNodeClick(node);
             });
 
-            if (!markers[category]) markers[category] = [];
-            markers[category].push({ marker, isRouter: node.isRouter });
+            if (!markers[category]) markers[category]=[];
+            markers[category].push({marker,isRouter:node.isRouter});
             bounds.extend(marker.getLatLng());
         }
     });
 
-    var bayAreaBounds = [
+    // ---- Map bounds ----
+    var areaBounds = [
         [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
         [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
     ];
-    
-    // Apply custom view or default bounds
-    if (customView) {
-        map.setView([customView.lat, customView.lng], customView.zoom);
-    } else {
-        map.fitBounds(bayAreaBounds);
-    }
+    if (customView) map.setView([customView.lat,customView.lng],customView.zoom);
+    else map.fitBounds(areaBounds);
 
     // ---- LocalStorage for Filter Preferences ----
     const FILTER_STORAGE_KEY = 'meshview_map_filters';
@@ -283,13 +282,16 @@
     }
 
     // ---- Filters ----
+    const filterLabel = document.getElementById("filter-routers-label");
+    filterLabel.textContent = t.show_routers_only || "Show Routers Only";
+
     let filterContainer = document.getElementById("filter-container");
     channels.forEach(channel => {
-        let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
+        let filterId = `filter-${channel.replace(/\s+/g,'-').toLowerCase()}`;
         let color = hashToColor(channel);
         let label = document.createElement('label');
-        label.style.color = color;
-        label.innerHTML = `<input type="checkbox" class="filter-checkbox" id="${filterId}" checked> ${channel}`;
+        label.style.color=color;
+        label.innerHTML=`<input type="checkbox" class="filter-checkbox" id="${filterId}" checked> ${channel}`;
         filterContainer.appendChild(label);
     });
     
@@ -312,28 +314,48 @@
     function updateMarkers() {
         let showRoutersOnly = document.getElementById("filter-routers-only").checked;
         nodes.forEach(node => {
-            let category = node.channel;
-            let checkbox = document.getElementById(`filter-${category.replace(/\s+/g,'-').toLowerCase()}`);
-            let shouldShow = checkbox.checked && (!showRoutersOnly || node.isRouter);
-            let marker = markerById[node.id];
-            if (marker) marker.setStyle({ fillOpacity: shouldShow ? 1 : 0 });
+            let category=node.channel;
+            let checkbox=document.getElementById(`filter-${category.replace(/\s+/g,'-').toLowerCase()}`);
+            let shouldShow=checkbox.checked && (!showRoutersOnly || node.isRouter);
+            let marker=markerById[node.id];
+            if(marker) marker.setStyle({fillOpacity:shouldShow?1:0});
         });
         
         // Save filters to localStorage whenever they change
         saveFiltersToLocalStorage();
     }
 
-    document.querySelectorAll(".filter-checkbox").forEach(input => input.addEventListener("change", updateMarkers));
+    document.querySelectorAll(".filter-checkbox").forEach(input=>input.addEventListener("change",updateMarkers));
     
     // Apply initial filters (from localStorage or defaults)
     updateMarkers();
+
+    // ---- Share button ----
+    const shareBtn = document.getElementById("share-button");
+    shareBtn.textContent = `🔗 ${t.share_view || "Share This View"}`;
+    shareBtn.onclick = function() {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const lat = center.lat.toFixed(6);
+        const lng = center.lng.toFixed(6);
+        const shareUrl = `${window.location.origin}/map?lat=${lat}&lng=${lng}&zoom=${zoom}`;
+        navigator.clipboard.writeText(shareUrl).then(()=>{
+            const orig = shareBtn.textContent;
+            shareBtn.textContent = '✓ Link Copied!';
+            shareBtn.style.backgroundColor='#2196F3';
+            setTimeout(()=>{ shareBtn.textContent=orig; shareBtn.style.backgroundColor='#4CAF50'; },2000);
+        }).catch(()=>{ alert('Share this link:\n'+shareUrl); });
+    };
 
     // ---- Edges ----
     var edgeLayer = L.layerGroup().addTo(map);
     var edgesData = null;
     let selectedNodeId = null;
 
-    fetch('/api/edges').then(res => res.json()).then(data => { edgesData = data.edges; }).catch(err => console.error(err));
+    fetch('/api/edges')
+        .then(r => r.json())
+        .then(data => edgesData = data.edges)
+        .catch(err => console.error(err));
 
     function onNodeClick(node) {
         if (selectedNodeId != node.id) {
@@ -342,180 +364,120 @@
             if (!edgesData) return;
             if (!map.hasLayer(edgeLayer)) edgeLayer.addTo(map);
 
-            edgesData.forEach(edge => {
-                if (edge.from !== node.id && edge.to !== node.id) return;
-                const fromNode = nodeMap.get(edge.from);
-                const toNode = nodeMap.get(edge.to);
-                if (!fromNode || !toNode) return;
-                if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
+        edgesData.forEach(edge => {
+            if (edge.from !== node.id && edge.to !== node.id) return;
+            const fromNode = nodeMap.get(edge.from);
+            const toNode = nodeMap.get(edge.to);
+            if (!fromNode || !toNode) return;
+            if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
 
-                const lineColor = edge.type === "neighbor" ? "darkred" : "black";
-                const dash = edge.type === "traceroute" ? "5,5" : null;
-                const weight = edge.type === "neighbor" ? 3 : 2;
+            const lineColor = edge.type === "neighbor" ? "gray" : "orange";
+            const weight = 3;
 
-                const polyline = L.polyline([[fromNode.lat, fromNode.long],[toNode.lat, toNode.long]], { color: lineColor, weight, opacity: 1, dashArray: dash }).addTo(edgeLayer).bringToFront();
+            const polyline = L.polyline(
+                [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
+                { color: lineColor, weight, opacity: 1 }
+            ).addTo(edgeLayer).bringToFront();
 
-                if (edge.type === "traceroute") {
-                    L.polylineDecorator(polyline, {
-                        patterns: [{ offset: '100%', repeat: 0, symbol: L.Symbol.arrowHead({ pixelSize: 5, polygon: false, pathOptions: { stroke: true, color: lineColor } }) }]
-                    }).addTo(edgeLayer);
+            // ✅ Show tooltip right where the user clicks
+            polyline.on('click', e => {
+                const tooltip = L.tooltip({
+                    permanent: false,
+                    direction: 'top',
+                    offset: [0, -5],
+                    className: 'blinking-tooltip'
+                })
+                .setContent(edge.type.charAt(0).toUpperCase() + edge.type.slice(1))
+                .setLatLng(e.latlng)
+                .addTo(map);
+
+                setTimeout(() => map.removeLayer(tooltip), 3000);
+            });
+
+            if (edge.type === "traceroute") {
+                L.polylineDecorator(polyline, {
+                    patterns: [{
+                        offset: '100%',
+                        repeat: 0,
+                        symbol: L.Symbol.arrowHead({
+                            pixelSize: 5,
+                            polygon: false,
+                            pathOptions: { stroke: true, color: lineColor }
+                        })
+                    }]
+                }).addTo(edgeLayer);
+            }
+        });
+
+
+
+        }
+    }
+
+
+    map.on('click', e=>{ if(!e.originalEvent.target.classList.contains('leaflet-interactive')){ edgeLayer.clearLayers(); selectedNodeId=null; }});
+
+    // ---- Blinking ----
+    var activeBlinks=new Map();
+    function blinkNode(marker,longName,portnum){
+        if(!map.hasLayer(marker)) return;
+        if(activeBlinks.has(marker)){
+            clearInterval(activeBlinks.get(marker));
+            marker.setStyle({fillColor:marker.originalColor});
+            if(marker.tooltip) map.removeLayer(marker.tooltip);
+        }
+        let blinkCount=0;
+        let portName=portMap[portnum]||`Port ${portnum}`;
+        let tooltip=L.tooltip({permanent:true,direction:'top',offset:[0,-marker.options.radius-5],className:'blinking-tooltip'})
+                        .setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng());
+        tooltip.addTo(map);
+        marker.tooltip=tooltip;
+        let interval=setInterval(()=>{
+            if(map.hasLayer(marker)){
+                marker.setStyle({fillColor:blinkCount%2===0?'yellow':marker.originalColor});
+                marker.bringToFront();
+            }
+            blinkCount++;
+            if(blinkCount>7){
+                clearInterval(interval);
+                marker.setStyle({fillColor:marker.originalColor});
+                map.removeLayer(tooltip);
+                activeBlinks.delete(marker);
+            }
+        },500);
+        activeBlinks.set(marker,interval);
+    }
+
+    // ---- Packet fetching ----
+    let lastImportTime=null;
+    const mapInterval={{ site_config["site"]["map_interval"]|default(3) }};
+    function fetchLatestPacket(){
+        fetch(`/api/packets?limit=1`).then(r=>r.json()).then(data=>{
+            if(data.packets && data.packets.length>0) lastImportTime=data.packets[0].import_time;
+            else lastImportTime=new Date().toISOString();
+        }).catch(err=>console.error(err));
+    }
+    function fetchNewPackets(){
+        if(!lastImportTime) return;
+        fetch(`/api/packets?since=${lastImportTime}`).then(r=>r.json()).then(data=>{
+            if(!data.packets||data.packets.length===0) return;
+            let latestSeen=lastImportTime;
+            data.packets.forEach(packet=>{
+                if(packet.import_time && (!latestSeen || packet.import_time>latestSeen)) latestSeen=packet.import_time;
+                let marker=markerById[packet.from_node_id];
+                if(marker){
+                    let nodeData=nodeMap.get(packet.from_node_id);
+                    if(nodeData) blinkNode(marker,nodeData.long_name,packet.portnum);
                 }
             });
-        }
+            if(latestSeen) lastImportTime=latestSeen;
+        }).catch(err=>console.error(err));
     }
-
-    map.on('click', function(e) {
-        if (!e.originalEvent.target.classList.contains('leaflet-interactive')) {
-            edgeLayer.clearLayers();
-            selectedNodeId = null;
-        }
-    });
-
-    // ---- Blinking Nodes ----
-    var activeBlinks = new Map();
-
-        function blinkNode(marker, longName, portnum) {
-            if (!map.hasLayer(marker)) return;
-            if (activeBlinks.has(marker)) {
-                clearInterval(activeBlinks.get(marker));
-                marker.setStyle({ fillColor: marker.originalColor });
-                if (marker.tooltip) map.removeLayer(marker.tooltip);
-            }
-
-            let blinkCount = 0;
-            let portName = portMap[portnum] || `Port ${portnum}`;
-            let tooltip = L.tooltip({
-                permanent: true,
-                direction: 'top',
-                offset: [0, -marker.options.radius - 5],
-                className: 'blinking-tooltip'
-            }).setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng());
-            tooltip.addTo(map);
-            marker.tooltip = tooltip;
-
-            let interval = setInterval(() => {
-                if (map.hasLayer(marker)) {
-                    // Alternate color
-                    marker.setStyle({ fillColor: blinkCount % 2 === 0 ? 'yellow' : marker.originalColor });
-                    // Bring marker to top
-                    marker.bringToFront();
-                }
-                blinkCount++;
-                if (blinkCount > 7) {
-                    clearInterval(interval);
-                    marker.setStyle({ fillColor: marker.originalColor });
-                    map.removeLayer(tooltip);
-                    activeBlinks.delete(marker);
-                }
-            }, 500);
-
-            activeBlinks.set(marker, interval);
-        }
-
-
-    // ---- Packet Fetching ----
-    let lastImportTime = null;
-
-    function fetchLatestPacket() {
-        fetch(`/api/packets?limit=1`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.packets && data.packets.length > 0) {
-                    lastImportTime = data.packets[0].import_time;
-                    console.log("Initial lastImportTime:", lastImportTime);
-                } else {
-                    lastImportTime = new Date().toISOString();
-                    console.log("No packets, setting lastImportTime to now:", lastImportTime);
-                }
-            })
-            .catch(err => console.error("Error fetching latest packet:", err));
-    }
-
-    function fetchNewPackets() {
-        if (!lastImportTime) return;
-        fetch(`/api/packets?since=${lastImportTime}`)
-            .then(res => res.json())
-            .then(data => {
-                console.log("===== New Fetch =====");
-                if (!data.packets || data.packets.length === 0) {
-                    console.log("No new packets");
-                    return;
-                }
-
-                let latestSeen = lastImportTime;
-
-                data.packets.forEach(packet => {
-                    console.log(`Packet ID: ${packet.id}, From Node: ${packet.from_node_id}, Port: ${packet.portnum}, Time: ${packet.import_time}`);
-                    if (packet.import_time && (!latestSeen || packet.import_time > latestSeen)) latestSeen = packet.import_time;
-
-                    let marker = markerById[packet.from_node_id];
-                    if (marker) {
-                        let nodeData = nodeMap.get(packet.from_node_id);
-                        if (nodeData) blinkNode(marker, nodeData.long_name, packet.portnum);
-                    }
-                });
-
-                if (latestSeen) lastImportTime = latestSeen;
-                console.log("Updated lastImportTime:", lastImportTime);
-                console.log("===== End Fetch =====");
-            })
-            .catch(err => console.error("Fetch error:", err));
-    }
-
-    // ---- Polling Control ----
-    let packetInterval = null;
-    const mapInterval = {{ site_config["site"]["map_interval"] | default(3) }};
-
-    function startPacketFetcher() {
-        if (mapInterval <= 0) return;
-        if (!packetInterval) {
-            fetchLatestPacket();
-            packetInterval = setInterval(fetchNewPackets, mapInterval * 1000);
-            console.log("Packet fetcher started, interval:", mapInterval, "seconds");
-        }
-    }
-
-    function stopPacketFetcher() {
-        if (packetInterval) {
-            clearInterval(packetInterval);
-            packetInterval = null;
-            console.log("Packet fetcher stopped");
-        }
-    }
-
-    document.addEventListener("visibilitychange", function() {
-        if (document.hidden) stopPacketFetcher();
-        else startPacketFetcher();
-    });
-
-    // ---- Share Current View ----
-    function shareCurrentView() {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        const lat = center.lat.toFixed(6);
-        const lng = center.lng.toFixed(6);
-        
-        const shareUrl = `${window.location.origin}/map?lat=${lat}&lng=${lng}&zoom=${zoom}`;
-        
-        // Copy to clipboard
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            const button = document.getElementById('share-button');
-            const originalText = button.textContent;
-            button.textContent = '✓ Link Copied!';
-            button.style.backgroundColor = '#2196F3';
-            
-            setTimeout(() => {
-                button.textContent = originalText;
-                button.style.backgroundColor = '#4CAF50';
-            }, 2000);
-        }).catch(err => {
-            // Fallback for older browsers
-            alert('Share this link:\n' + shareUrl);
-        });
-    }
-
-    // ---- Initialize ----
-    if (mapInterval > 0) startPacketFetcher();
+    let packetInterval=null;
+    function startPacketFetcher(){ if(mapInterval<=0) return; if(!packetInterval){ fetchLatestPacket(); packetInterval=setInterval(fetchNewPackets,mapInterval*1000); } }
+    function stopPacketFetcher(){ if(packetInterval){ clearInterval(packetInterval); packetInterval=null; } }
+    document.addEventListener("visibilitychange",function(){ if(document.hidden) stopPacketFetcher(); else startPacketFetcher(); });
+    if(mapInterval>0) startPacketFetcher();
+});
 </script>
-
 {% endblock %}

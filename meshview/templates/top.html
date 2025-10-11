@@ -81,15 +81,22 @@ select {
 {% endblock %}
 
 {% block body %}
-<h1>Top Traffic Nodes (last 24 hours)</h1>
+<h1 data-translate-lang="top_traffic_nodes">Top Traffic Nodes (last 24 hours)</h1>
 
 <!-- Channel Filter Dropdown -->
 <select id="channelFilter"></select>
 
 <div id="stats">
-  <p>This chart shows a bell curve (normal distribution) based on the total <strong>"Times Seen"</strong> values for all nodes. It helps visualize how frequently nodes are heard, relative to the average.</p>
-  <p>This "Times Seen" value is the closest that we can get to Mesh utilization by node.</p>
-  <p><strong>Mean:</strong> <span id="mean"></span> - <strong>Standard Deviation:</strong> <span id="stdDev"></span></p>
+  <p data-translate-lang="chart_description_1">
+    This chart shows a bell curve (normal distribution) based on the total <strong>"Times Seen"</strong> values for all nodes. It helps visualize how frequently nodes are heard, relative to the average.
+  </p>
+  <p data-translate-lang="chart_description_2">
+    This "Times Seen" value is the closest that we can get to Mesh utilization by node.
+  </p>
+  <p>
+    <strong data-translate-lang="mean_label">Mean:</strong> <span id="mean"></span> -
+    <strong data-translate-lang="stddev_label">Standard Deviation:</strong> <span id="stdDev"></span>
+  </p>
 </div>
 
 <!-- Chart -->
@@ -97,23 +104,23 @@ select {
 
 <!-- Table -->
 {% if nodes %}
-  <div class="container">
+<div class="container">
     <table id="trafficTable">
-      <thead>
-        <tr>
-          <th onclick="sortTable(0)">Long Name</th>
-          <th onclick="sortTable(1)">Short Name</th>
-          <th onclick="sortTable(2)">Channel</th>
-          <th onclick="sortTable(3)">Packets Sent</th>
-          <th onclick="sortTable(4)">Times Seen</th>
-          <th onclick="sortTable(5)">Seen % of Mean</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
+        <thead>
+            <tr>
+                <th data-translate-lang="long_name" onclick="sortTable(0)">Long Name</th>
+                <th data-translate-lang="short_name" onclick="sortTable(1)">Short Name</th>
+                <th data-translate-lang="channel" onclick="sortTable(2)">Channel</th>
+                <th data-translate-lang="packets_sent" onclick="sortTable(3)">Packets Sent</th>
+                <th data-translate-lang="times_seen" onclick="sortTable(4)">Times Seen</th>
+                <th data-translate-lang="seen_percent" onclick="sortTable(5)">Seen % of Mean</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
     </table>
-  </div>
+</div>
 {% else %}
-  <p style="text-align: center;">No top traffic nodes available.</p>
+<p style="text-align: center;" data-translate-lang="no_nodes">No top traffic nodes available.</p>
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.2/dist/echarts.min.js"></script>
@@ -121,31 +128,45 @@ select {
 const nodes = {{ nodes | tojson }};
 let filteredNodes = [];
 
-// Chart & Stats
+// --- Language support ---
+async function loadTopTranslations() {
+    const langCode = "{{ site_config.get('site', {}).get('language','en') }}";
+    try {
+        const res = await fetch(`/api/lang?lang=${langCode}&section=top`);
+        window.topTranslations = await res.json();
+    } catch(err) {
+        console.error("Top page translation load failed:", err);
+        window.topTranslations = {};
+    }
+}
+
+function applyTopTranslations() {
+    const t = window.topTranslations || {};
+    document.querySelectorAll("[data-translate-lang]").forEach(el=>{
+        const key = el.getAttribute("data-translate-lang");
+        if(t[key]) el.textContent = t[key];
+    });
+}
+
+// --- Chart & Table code ---
 const chart = echarts.init(document.getElementById('bellCurveChart'));
 const meanEl = document.getElementById('mean');
 const stdEl = document.getElementById('stdDev');
 
-// Populate Channel Dropdown (without "All"), default to "LongFast"
+// Populate channel dropdown
 const channelSet = new Set();
 nodes.forEach(n => channelSet.add(n.channel));
 const dropdown = document.getElementById('channelFilter');
-const sortedChannels = [...channelSet].sort();
-
-sortedChannels.forEach(channel => {
+[...channelSet].sort().forEach(channel => {
     const option = document.createElement('option');
     option.value = channel;
     option.textContent = channel;
-    if (channel === "LongFast") {
-        option.selected = true;
-    }
+    if (channel === "LongFast") option.selected = true;
     dropdown.appendChild(option);
 });
 
-// Default to LongFast filter on load
+// Filter default
 filteredNodes = nodes.filter(n => n.channel === "LongFast");
-
-// Filter change handler
 dropdown.addEventListener('change', () => {
     const val = dropdown.value;
     filteredNodes = nodes.filter(n => n.channel === val);
@@ -153,18 +174,16 @@ dropdown.addEventListener('change', () => {
     updateStatsAndChart();
 });
 
-// Normal distribution function
+// Normal distribution
 function normalDistribution(x, mean, stdDev) {
-  return (1 / (stdDev * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - mean) / stdDev, 2));
+    return (1 / (stdDev * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - mean) / stdDev, 2));
 }
 
-// Update table based on filteredNodes
+// Update table
 function updateTable() {
     const tbody = document.querySelector('#trafficTable tbody');
     tbody.innerHTML = "";
-
     const mean = filteredNodes.reduce((sum, n) => sum + n.total_times_seen, 0) / (filteredNodes.length || 1);
-
     for (const node of filteredNodes) {
         const percent = mean > 0 ? ((node.total_times_seen / mean) * 100).toFixed(1) + "%" : "0%";
         const row = `<tr>
@@ -182,73 +201,52 @@ function updateTable() {
 // Update chart & stats
 function updateStatsAndChart() {
     const timesSeen = filteredNodes.map(n => n.total_times_seen);
-    const mean = timesSeen.reduce((sum, v) => sum + v, 0) / (timesSeen.length || 1);
-    const stdDev = Math.sqrt(timesSeen.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / (timesSeen.length || 1));
-
+    const mean = timesSeen.reduce((sum,v)=>sum+v,0)/(timesSeen.length||1);
+    const stdDev = Math.sqrt(timesSeen.reduce((sum,v)=>sum+Math.pow(v-mean,2),0)/(timesSeen.length||1));
     meanEl.textContent = mean.toFixed(2);
     stdEl.textContent = stdDev.toFixed(2);
 
     const min = Math.min(...timesSeen);
     const max = Math.max(...timesSeen);
     const step = (max - min) / 100;
-    const xData = [], yData = [];
+    const xData=[], yData=[];
+    for(let x=min;x<=max;x+=step){ xData.push(x); yData.push(normalDistribution(x,mean,stdDev)); }
 
-    for (let x = min; x <= max; x += step) {
-        xData.push(x);
-        yData.push(normalDistribution(x, mean, stdDev));
-    }
-
-    const option = {
-        animation: false,
-        tooltip: { trigger: 'axis' },
-        xAxis: {
-            name: 'Total Times Seen',
-            type: 'value',
-            min, max
-        },
-        yAxis: {
-            name: 'Probability Density',
-            type: 'value',
-        },
-        series: [{
-            data: xData.map((x, i) => [x, yData[i]]),
-            type: 'line',
-            smooth: true,
-            color: 'blue',
-            lineStyle: { width: 3 }
-        }]
-    };
-    chart.setOption(option);
+    chart.setOption({
+        animation:false,
+        tooltip:{ trigger:'axis' },
+        xAxis:{ name:'Total Times Seen', type:'value', min, max },
+        yAxis:{ name:'Probability Density', type:'value' },
+        series:[{ data:xData.map((x,i)=>[x,yData[i]]), type:'line', smooth:true, color:'blue', lineStyle:{ width:3 }}]
+    });
     chart.resize();
 }
 
-// Sorting
+// Sort table
 function sortTable(n) {
     const table = document.getElementById("trafficTable");
     const rows = Array.from(table.rows).slice(1);
     const header = table.rows[0].cells[n];
-    const isNumeric = !isNaN(rows[0].cells[n].innerText.replace('%', ''));
-    let sortedRows = rows.sort((a, b) => {
-        const valA = isNumeric ? parseFloat(a.cells[n].innerText.replace('%', '')) : a.cells[n].innerText.toLowerCase();
-        const valB = isNumeric ? parseFloat(b.cells[n].innerText.replace('%', '')) : b.cells[n].innerText.toLowerCase();
+    const isNumeric = !isNaN(rows[0].cells[n].innerText.replace('%',''));
+    let sortedRows = rows.sort((a,b)=>{
+        const valA = isNumeric ? parseFloat(a.cells[n].innerText.replace('%','')) : a.cells[n].innerText.toLowerCase();
+        const valB = isNumeric ? parseFloat(b.cells[n].cells[n].innerText.replace('%','')) : b.cells[n].innerText.toLowerCase();
         return valA > valB ? 1 : -1;
     });
-
-    if (header.getAttribute('data-sort-direction') === 'asc') {
-        sortedRows.reverse();
-        header.setAttribute('data-sort-direction', 'desc');
-    } else {
-        header.setAttribute('data-sort-direction', 'asc');
-    }
-
+    if(header.getAttribute('data-sort-direction')==='asc'){ sortedRows.reverse(); header.setAttribute('data-sort-direction','desc'); }
+    else header.setAttribute('data-sort-direction','asc');
     const tbody = table.tBodies[0];
-    sortedRows.forEach(row => tbody.appendChild(row));
+    sortedRows.forEach(row=>tbody.appendChild(row));
 }
 
 // Initialize
-updateTable();
-updateStatsAndChart();
-window.addEventListener('resize', () => chart.resize());
+(async ()=>{
+    await loadTopTranslations();
+    applyTopTranslations();
+    updateTable();
+    updateStatsAndChart();
+    window.addEventListener('resize',()=>chart.resize());
+})();
 </script>
 
 {% if timing_data %}

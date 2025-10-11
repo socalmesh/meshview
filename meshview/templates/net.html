@@ -19,9 +19,11 @@
 
 {% block body %}
 <div class="container">
-    {{ site_config["site"]["weekly_net_message"] }} <br><br>
+    <span>{{ site_config["site"]["weekly_net_message"] }}</span> <br><br>
 
-    <h5>Number of Check-ins: {{ packets|length }}</h5>
+    <h5>
+        <span data-translate-lang="number_of_checkins">Number of Check-ins:</span> {{ packets|length }}
+    </h5>
 </div>
 
 <div class="container">
@@ -48,7 +50,26 @@
       </span>
   </div>
   {% else %}
-  No packets found.
+  <span data-translate-lang="no_packets_found">No packets found.</span>
   {% endfor %}
 </div>
+
+<script>
+async function loadTranslations() {
+    try {
+        const langCode = "{{ site_config.get('site', {}).get('language','en') }}";
+        const res = await fetch(`/api/lang?lang=${langCode}&section=net`);
+        const translations = await res.json();
+        document.querySelectorAll("[data-translate-lang]").forEach(el => {
+            const key = el.dataset.translateLang;
+            if(el.placeholder !== undefined && el.placeholder !== "") el.placeholder = translations[key] || el.placeholder;
+            else el.textContent = translations[key] || el.textContent;
+        });
+    } catch(err) {
+        console.error("Net translations load failed:", err);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadTranslations());
+</script>
 {% endblock %}
