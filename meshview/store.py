@@ -24,7 +24,7 @@ async def get_fuzzy_nodes(query):
         return result.scalars()
 
 
-async def get_packets(node_id=None, portnum=None, after=None, before=None, limit=None):
+async def get_packets(node_id=None, portnum=None, after=None, before=None, limit=None, channel: str | None = None):
     async with database.async_session() as session:
         q = select(Packet)
 
@@ -36,6 +36,8 @@ async def get_packets(node_id=None, portnum=None, after=None, before=None, limit
             q = q.where(Packet.import_time > after)
         if before:
             q = q.where(Packet.import_time < before)
+        if channel:
+            q = q.where(func.lower(Packet.channel) == channel.lower())
 
         q = q.order_by(Packet.import_time.desc())
 
@@ -147,17 +149,21 @@ async def get_mqtt_neighbors(since):
 
 # We count the total amount of packages
 # This is to be used by /stats in web.py
-async def get_total_packet_count():
+async def get_total_packet_count(channel: str | None = None) -> int:
     async with database.async_session() as session:
         q = select(func.count(Packet.id))  # Use SQLAlchemy's func to count packets
+        if channel:
+            q = q.where(func.lower(Packet.channel) == channel.lower())
         result = await session.execute(q)
         return result.scalar()  # Return the total count of packets
 
 
 # We count the total amount of seen packets
-async def get_total_packet_seen_count():
+async def get_total_packet_seen_count(channel: str | None = None) -> int:
     async with database.async_session() as session:
         q = select(func.count(PacketSeen.node_id))  # Use SQLAlchemy's func to count nodes
+        if channel:
+            q = q.where(func.lower(PacketSeen.channel) == channel.lower())
         result = await session.execute(q)
         return result.scalar()  # Return the` total count of seen packets
 

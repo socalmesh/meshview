@@ -425,15 +425,27 @@ async def packet_details(request):
 
 @routes.get("/firehose")
 async def packet_details_firehose(request):
-    portnum = request.query.get("portnum")
-    if portnum:
-        portnum = int(portnum)
-    packets = await store.get_packets(portnum=portnum, limit=10)
+    portnum_value = request.query.get("portnum")
+    channel = request.query.get("channel")
+
+    portnum = None
+    if portnum_value:
+        try:
+            portnum = int(portnum_value)
+        except ValueError:
+            logger.warning("Invalid portnum '%s' provided to /firehose", portnum_value)
+
+    packets = await store.get_packets(portnum=portnum, limit=10, channel=channel)
+    ui_packets = [Packet.from_model(p) for p in packets]
+    latest_time = ui_packets[0].import_time.isoformat() if ui_packets else None
+
     template = env.get_template("firehose.html")
     return web.Response(
         text=template.render(
-            packets=(Packet.from_model(p) for p in packets),
+            packets=ui_packets,
             portnum=portnum,
+            channel=channel,
+            last_time=latest_time,
             site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
@@ -454,8 +466,18 @@ async def firehose_updates(request):
                 logger.error(f"Failed to parse last_time '{last_time_str}': {e}")
                 last_time = None
 
+        portnum_value = request.query.get("portnum")
+        channel = request.query.get("channel")
+
+        portnum = None
+        if portnum_value:
+            try:
+                portnum = int(portnum_value)
+            except ValueError:
+                logger.warning("Invalid portnum '%s' provided to /firehose/updates", portnum_value)
+
         # Query packets after last_time (microsecond precision)
-        packets = await store.get_packets(after=last_time, limit=10)
+        packets = await store.get_packets(after=last_time, limit=10, portnum=portnum, channel=channel)
 
         # Convert to UI model
         ui_packets = [Packet.from_model(p) for p in packets]
@@ -1458,6 +1480,7 @@ async def api_chat(request):
         # Parse query params
         limit_str = request.query.get("limit", "20")
         since_str = request.query.get("since")
+        channel_filter = request.query.get("channel")
 
         # Clamp limit between 1 and 200
         try:
@@ -1477,7 +1500,9 @@ async def api_chat(request):
         packets = await store.get_packets(
             node_id=0xFFFFFFFF,
             portnum=PortNum.TEXT_MESSAGE_APP,
+            after=since,
             limit=limit,
+            channel=channel_filter,
         )
 
         ui_packets = [Packet.from_model(p) for p in packets]
@@ -1676,6 +1701,22 @@ async def api_stats(request):
     )
 
     return web.json_response(stats)
+
+
+@routes.get("/api/stats/summary")
+async def api_stats_summary(request):
+    channel = request.query.get("channel") or None
+    total_packets = await store.get_total_packet_count(channel=channel)
+    total_nodes = await store.get_total_node_count(channel=channel)
+    total_packets_seen = await store.get_total_packet_seen_count(channel=channel)
+
+    return web.json_response(
+        {
+            "total_packets": total_packets,
+            "total_nodes": total_nodes,
+            "total_packets_seen": total_packets_seen,
+        }
+    )
 
 
 @routes.get("/api/config")
