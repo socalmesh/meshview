@@ -263,7 +263,13 @@ async def get_node_traffic(node_id: int):
         return []
 
 
-async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
+async def get_nodes(
+    role=None,
+    channel=None,
+    hw_model=None,
+    days_active=None,
+    active_within: timedelta | None = None,
+):
     """
     Fetches nodes from the database based on optional filtering criteria.
 
@@ -271,6 +277,8 @@ async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
         role (str, optional): The role of the node (converted to uppercase for consistency).
         channel (str, optional): The communication channel associated with the node.
         hw_model (str, optional): The hardware model of the node.
+        days_active (int, optional): Legacy support for filtering by a number of days.
+        active_within (timedelta, optional): Filter nodes seen within the provided window.
 
     Returns:
         list: A list of Node objects that match the given criteria.
@@ -290,8 +298,12 @@ async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
             if hw_model is not None:
                 query = query.where(Node.hw_model == hw_model)
 
-            if days_active is not None:
-                query = query.where(Node.last_update > datetime.now() - timedelta(days_active))
+            window = active_within
+            if window is None and days_active is not None:
+                window = timedelta(days=days_active)
+
+            if window is not None:
+                query = query.where(Node.last_update > datetime.now() - window)
 
             # Exclude nodes where last_update is an empty string
             query = query.where(Node.last_update != "")
@@ -358,6 +370,19 @@ async def get_packet_stats(
             "from_node": from_node,
             "data": data,
         }
+
+
+async def get_all_channels():
+    async with database.async_session() as session:
+        stmt = (
+            select(Node.channel)
+            .where(Node.channel.is_not(None))
+            .where(Node.channel != "")
+            .distinct()
+            .order_by(Node.channel.asc())
+        )
+        result = await session.execute(stmt)
+        return [row[0] for row in result]
 
 
 async def get_channels_in_period(period_type: str = "hour", length: int = 24):

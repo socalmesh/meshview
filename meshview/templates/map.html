@@ -23,9 +23,19 @@
     #filter-container {
         text-align: center;
         margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
     }
     .filter-checkbox {
         margin: 0 10px;
+    }
+    #activity-range {
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
     }
     #share-button {
         margin-left: 20px;
@@ -72,6 +82,12 @@
 {% block body %}
 <div id="map" style="width: 100%; height: calc(100vh - 270px)"></div>
 <div id="filter-container">
+    <label for="activity-range" id="activity-range-label">Active in:</label>
+    <select id="activity-range">
+        {% for value, label, _window in activity_filters %}
+        <option value="{{ value }}" {% if value == selected_activity %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
     <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> <span id="filter-routers-label">Show Routers Only</span>
 </div>
 <div style="text-align: center; margin-top: 5px;">
@@ -101,6 +117,18 @@ async function loadTranslations() {
 // Initialize map AFTER translations are loaded
 loadTranslations().then(() => {
     const t = window.mapTranslations || {};
+    const activitySelect = document.getElementById("activity-range");
+    const activityLabel = document.getElementById("activity-range-label");
+    if (activityLabel) {
+        activityLabel.textContent = t.active_within || "Active in:";
+    }
+    if (activitySelect) {
+        activitySelect.addEventListener("change", () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set("active", activitySelect.value);
+            window.location.href = url.toString();
+        });
+    }
 
     // ---- Map Setup ----
     var map = L.map('map');
@@ -135,6 +163,8 @@ loadTranslations().then(() => {
         }{{ "," if not loop.last else "" }}
         {% endfor %}
     ];
+    const providedChannels = {{ all_channels | default([], true) | tojson }};
+    const channelSet = new Set(providedChannels.filter(ch => ch));
 
     const portMap = {1: "Text", 67: "Telemetry", 3: "Position", 70: "Traceroute", 4: "Node Info", 71: "Neighbour Info", 73: "Map Report"};
 
@@ -162,18 +192,24 @@ loadTranslations().then(() => {
         return color;
     }
 
+    function channelKey(channel) {
+        if (typeof channel === 'string' && channel.trim().length > 0) {
+            return channel;
+        }
+        return 'Unknown';
+    }
+
     const nodeMap = new Map();
     nodes.forEach(n => nodeMap.set(n.id, n));
     function isInvalidCoord(node) { return !node || !node.lat || !node.long || node.lat===0 || node.long===0 || Number.isNaN(node.lat) || Number.isNaN(node.long); }
 
     // ---- Marker Plotting ----
     var bounds = L.latLngBounds();
-    var channels = new Set();
 
     nodes.forEach(node => {
         if (!isInvalidCoord(node)) {
-            let category = node.channel;
-            channels.add(category);
+            let category = channelKey(node.channel);
+            channelSet.add(category);
             let color = hashToColor(category);
 
             let popupContent = `<b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
@@ -209,6 +245,8 @@ loadTranslations().then(() => {
     if (customView) map.setView([customView.lat,customView.lng],customView.zoom);
     else map.fitBounds(areaBounds);
 
+    const channelList = Array.from(channelSet).sort();
+
     // ---- LocalStorage for Filter Preferences ----
     const FILTER_STORAGE_KEY = 'meshview_map_filters';
     
@@ -225,7 +263,7 @@ loadTranslations().then(() => {
             channels: {}
         };
         
-        channels.forEach(channel => {
+        channelList.forEach(channel => {
             let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
             let checkbox = document.getElementById(filterId);
             if (checkbox) {
@@ -259,7 +297,7 @@ loadTranslations().then(() => {
         document.getElementById("filter-routers-only").checked = false;
         
         // Reset all channel filters to checked (default)
-        channels.forEach(channel => {
+        channelList.forEach(channel => {
             let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
             let checkbox = document.getElementById(filterId);
             if (checkbox) {
@@ -286,7 +324,7 @@ loadTranslations().then(() => {
     filterLabel.textContent = t.show_routers_only || "Show Routers Only";
 
     let filterContainer = document.getElementById("filter-container");
-    channels.forEach(channel => {
+    channelList.forEach(channel => {
         let filterId = `filter-${channel.replace(/\s+/g,'-').toLowerCase()}`;
         let color = hashToColor(channel);
         let label = document.createElement('label');
@@ -302,7 +340,7 @@ loadTranslations().then(() => {
         document.getElementById("filter-routers-only").checked = savedFilters.routersOnly || false;
         
         // Apply channel filters
-        channels.forEach(channel => {
+        channelList.forEach(channel => {
             let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
             let checkbox = document.getElementById(filterId);
             if (checkbox && savedFilters.channels.hasOwnProperty(channel)) {
@@ -314,15 +352,19 @@ loadTranslations().then(() => {
     function updateMarkers() {
         let showRoutersOnly = document.getElementById("filter-routers-only").checked;
         nodes.forEach(node => {
-            let category=node.channel;
+            let category = channelKey(node.channel);
             let checkbox=document.getElementById(`filter-${category.replace(/\s+/g,'-').toLowerCase()}`);
-            let shouldShow=checkbox.checked && (!showRoutersOnly || node.isRouter);
+            let shouldShow=(!checkbox || checkbox.checked) && (!showRoutersOnly || node.isRouter);
             let marker=markerById[node.id];
             if(marker) marker.setStyle({fillOpacity:shouldShow?1:0});
         });
         
         // Save filters to localStorage whenever they change
         saveFiltersToLocalStorage();
+
+        if (!document.hidden) {
+            restartPacketFetcher();
+        }
     }
 
     document.querySelectorAll(".filter-checkbox").forEach(input=>input.addEventListener("change",updateMarkers));
@@ -338,7 +380,11 @@ loadTranslations().then(() => {
         const zoom = map.getZoom();
         const lat = center.lat.toFixed(6);
         const lng = center.lng.toFixed(6);
-        const shareUrl = `${window.location.origin}/map?lat=${lat}&lng=${lng}&zoom=${zoom}`;
+        const url = new URL(window.location.href);
+        url.searchParams.set('lat', lat);
+        url.searchParams.set('lng', lng);
+        url.searchParams.set('zoom', zoom);
+        const shareUrl = url.toString();
         navigator.clipboard.writeText(shareUrl).then(()=>{
             const orig = shareBtn.textContent;
             shareBtn.textContent = '✓ Link Copied!';
@@ -474,8 +520,25 @@ loadTranslations().then(() => {
         }).catch(err=>console.error(err));
     }
     let packetInterval=null;
-    function startPacketFetcher(){ if(mapInterval<=0) return; if(!packetInterval){ fetchLatestPacket(); packetInterval=setInterval(fetchNewPackets,mapInterval*1000); } }
+    function startPacketFetcher(resetImportTime=true){
+        if(mapInterval<=0) return;
+        if(!packetInterval){
+            if(resetImportTime || !lastImportTime){
+                fetchLatestPacket();
+            }
+            packetInterval=setInterval(fetchNewPackets,mapInterval*1000);
+            if(!resetImportTime && lastImportTime){
+                fetchNewPackets();
+            }
+        }
+    }
     function stopPacketFetcher(){ if(packetInterval){ clearInterval(packetInterval); packetInterval=null; } }
+    function restartPacketFetcher(){
+        if(mapInterval<=0) return;
+        stopPacketFetcher();
+        if(document.hidden) return;
+        startPacketFetcher(false);
+    }
     document.addEventListener("visibilitychange",function(){ if(document.hidden) stopPacketFetcher(); else startPacketFetcher(); });
     if(mapInterval>0) startPacketFetcher();
 });

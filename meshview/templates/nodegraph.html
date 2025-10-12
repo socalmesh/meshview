@@ -87,6 +87,12 @@
 <div id="mynetwork"></div>
 
 <div class="search-container">
+    <label for="activity-range" style="color:#333;">Active in:</label>
+    <select id="activity-range">
+        {% for value, label, _window in activity_filters %}
+        <option value="{{ value }}" {% if value == selected_activity %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
     <label for="channel-select" style="color:#333;">Channel:</label>
     <select id="channel-select" onchange="filterByChannel()"></select>
     <input type="text" id="node-search" placeholder="Search node...">
@@ -123,6 +129,25 @@
 </div>
 
 <script>
+const activityRangeSelect = document.getElementById('activity-range');
+const availableChannelsFromServer = {{ all_channels | default([], true) | tojson }};
+const urlParams = new URLSearchParams(window.location.search);
+const channelParam = urlParams.get('channel');
+let selectedChannel = {{ selected_channel | default('', true) | tojson }};
+const hasChannelSelection = value => value !== null && value !== undefined && value !== '';
+if (activityRangeSelect) {
+    activityRangeSelect.addEventListener('change', () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('active', activityRangeSelect.value);
+        if (hasChannelSelection(selectedChannel)) {
+            url.searchParams.set('channel', selectedChannel);
+        } else {
+            url.searchParams.delete('channel');
+        }
+        window.location.href = url.toString();
+    });
+}
+
 const chart = echarts.init(document.getElementById('mynetwork'));
 
 const colors = {
@@ -204,28 +229,62 @@ const edges = [
 
 let filteredNodes = [];
 let filteredEdges = [];
-let selectedChannel = 'LongFast';
 let lastSelectedNode = null;
+const nodeChannelSet = [...new Set(nodes.map(n => n.channel).filter(Boolean))];
+const channelOptions = Array.from(new Set([
+    ...availableChannelsFromServer.filter(Boolean),
+    ...nodeChannelSet,
+])).sort();
+
+if (!selectedChannel || !channelOptions.includes(selectedChannel)) {
+    if (channelParam && channelOptions.includes(channelParam)) {
+        selectedChannel = channelParam;
+    } else if (nodeChannelSet.length) {
+        selectedChannel = nodeChannelSet[0];
+    } else if (channelOptions.length) {
+        selectedChannel = channelOptions[0];
+    } else {
+        selectedChannel = null;
+    }
+}
 
 function populateChannelDropdown() {
     const sel = document.getElementById('channel-select');
-    const unique = [...new Set(nodes.map(n=>n.channel).filter(Boolean))].sort();
-    unique.forEach(ch=>{
+    channelOptions.forEach(ch=>{
         const opt = document.createElement('option');
         opt.value=ch; opt.text=ch;
-        if(ch==='LongFast') opt.selected=true;
+        if(selectedChannel && ch === selectedChannel) opt.selected=true;
         sel.appendChild(opt);
     });
-    selectedChannel = sel.value;
-    filterByChannel();
+    if (!selectedChannel && channelOptions.length) {
+        selectedChannel = channelOptions[0];
+        sel.value = selectedChannel;
+    }
+    filterByChannel(true);
 }
 
-function filterByChannel() {
-    selectedChannel = document.getElementById('channel-select').value;
-    filteredNodes = nodes.filter(n=>n.channel===selectedChannel);
+function filterByChannel(isInitial=false) {
+    const sel = document.getElementById('channel-select');
+    if (sel) {
+        selectedChannel = sel.value || selectedChannel;
+    }
+    if (hasChannelSelection(selectedChannel)) {
+        filteredNodes = nodes.filter(n=>n.channel===selectedChannel);
+    } else {
+        filteredNodes = [...nodes];
+    }
     const nodeSet = new Set(filteredNodes.map(n=>n.name));
     filteredEdges = edges.filter(e=>nodeSet.has(e.source) && nodeSet.has(e.target));
     lastSelectedNode=null;
+    if (!isInitial) {
+        const url = new URL(window.location.href);
+        if (hasChannelSelection(selectedChannel)) {
+            url.searchParams.set('channel', selectedChannel);
+        } else {
+            url.searchParams.delete('channel');
+        }
+        window.history.replaceState({}, '', url.toString());
+    }
     updateChart();
 }
 
