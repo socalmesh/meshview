@@ -87,12 +87,6 @@
 <div id="mynetwork"></div>
 
 <div class="search-container">
-    <label for="activity-range" style="color:#333;">Active in:</label>
-    <select id="activity-range">
-        {% for value, label, _window in activity_filters %}
-        <option value="{{ value }}" {% if value == selected_activity %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
     <label for="channel-select" style="color:#333;">Channel:</label>
     <select id="channel-select" onchange="filterByChannel()"></select>
     <input type="text" id="node-search" placeholder="Search node...">
@@ -129,23 +123,6 @@
 </div>
 
 <script>
-const activityRangeSelect = document.getElementById('activity-range');
-const urlParams = new URLSearchParams(window.location.search);
-let selectedChannel = urlParams.get('channel') || '';
-const hasChannelSelection = value => value !== null && value !== undefined && value !== '';
-if (activityRangeSelect) {
-    activityRangeSelect.addEventListener('change', () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('active', activityRangeSelect.value);
-        if (hasChannelSelection(selectedChannel)) {
-            url.searchParams.set('channel', selectedChannel);
-        } else {
-            url.searchParams.delete('channel');
-        }
-        window.location.href = url.toString();
-    });
-}
-
 const chart = echarts.init(document.getElementById('mynetwork'));
 
 const colors = {
@@ -227,80 +204,28 @@ const edges = [
 
 let filteredNodes = [];
 let filteredEdges = [];
+let selectedChannel = 'LongFast';
 let lastSelectedNode = null;
-const nodeChannelSet = [...new Set(nodes.map(n => n.channel).filter(Boolean))];
-let channelOptions = [...nodeChannelSet].sort();
-
-async function fetchChannelOptionsFromAPI() {
-    try {
-        const res = await fetch('/api/channels?period_type=day&length=30');
-        if (!res.ok) return [];
-        const data = await res.json();
-        if (!data || !Array.isArray(data.channels)) return [];
-        return data.channels.filter(ch => typeof ch === 'string' && ch.trim().length > 0);
-    } catch (err) {
-        console.error('Channel fetch failed:', err);
-        return [];
-    }
-}
-
-async function initializeChannelOptions() {
-    const fetched = await fetchChannelOptionsFromAPI();
-    const merged = new Set([...nodeChannelSet, ...fetched]);
-    if (hasChannelSelection(selectedChannel)) {
-        merged.add(selectedChannel);
-    }
-    channelOptions = Array.from(merged).sort();
-    if (!hasChannelSelection(selectedChannel) && channelOptions.length) {
-        selectedChannel = channelOptions[0];
-    }
-}
 
 function populateChannelDropdown() {
     const sel = document.getElementById('channel-select');
-    if (!sel) return;
-    sel.innerHTML = '';
-    const allOpt = document.createElement('option');
-    allOpt.value = '';
-    allOpt.textContent = 'All Channels';
-    allOpt.setAttribute('data-translate-lang','all_channels');
-    sel.appendChild(allOpt);
-    channelOptions.forEach(ch=>{
+    const unique = [...new Set(nodes.map(n=>n.channel).filter(Boolean))].sort();
+    unique.forEach(ch=>{
         const opt = document.createElement('option');
-        opt.value = ch;
-        opt.text = ch;
-        if (selectedChannel === ch) {
-            opt.selected = true;
-        }
+        opt.value=ch; opt.text=ch;
+        if(ch==='LongFast') opt.selected=true;
         sel.appendChild(opt);
     });
-    if (!hasChannelSelection(selectedChannel)) {
-        sel.value = '';
-    }
+    selectedChannel = sel.value;
+    filterByChannel();
 }
 
-function filterByChannel(isInitial=false) {
-    const sel = document.getElementById('channel-select');
-    if (sel) {
-        selectedChannel = sel.value;
-    }
-    if (hasChannelSelection(selectedChannel)) {
-        filteredNodes = nodes.filter(n=>n.channel===selectedChannel);
-    } else {
-        filteredNodes = [...nodes];
-    }
+function filterByChannel() {
+    selectedChannel = document.getElementById('channel-select').value;
+    filteredNodes = nodes.filter(n=>n.channel===selectedChannel);
     const nodeSet = new Set(filteredNodes.map(n=>n.name));
     filteredEdges = edges.filter(e=>nodeSet.has(e.source) && nodeSet.has(e.target));
     lastSelectedNode=null;
-    if (!isInitial) {
-        const url = new URL(window.location.href);
-        if (hasChannelSelection(selectedChannel)) {
-            url.searchParams.set('channel', selectedChannel);
-        } else {
-            url.searchParams.delete('channel');
-        }
-        window.history.replaceState({}, '', url.toString());
-    }
     updateChart();
 }
 
@@ -364,10 +289,7 @@ function searchNode(){
     else alert("Node not found in current channel!");
 }
 
-initializeChannelOptions().then(() => {
-    populateChannelDropdown();
-    filterByChannel(true);
-});
+populateChannelDropdown();
 window.addEventListener('resize', ()=>chart.resize());
 </script>
 {% endblock %}

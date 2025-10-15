@@ -11,38 +11,11 @@
         padding: 2px 8px;
         font-size: 0.85rem;
     }
-
-    .filter-controls {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
-
-    .filter-label {
-        color: #ccc;
-        font-size: 14px;
-        margin-bottom: 0;
-    }
-
-    #firehoseChannelSelect {
-        padding: 4px 6px;
-        background: #444;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-    }
-
-    .status-message {
-        color: #bbb;
-        margin-top: 12px;
-        display: none;
-    }
 {% endblock %}
 
 {% block body %}
 <div class="container">
-    <form class="d-flex align-items-center justify-content-center flex-wrap gap-2 mb-2">
+    <form class="d-flex align-items-center justify-content-between mb-2">
         {% set options = {
                 1: "Text Message",
                 3: "Position",
@@ -52,155 +25,55 @@
                 70: "Trace Route",
             }
         %}
-        <div class="filter-controls">
-            <label for="firehoseChannelSelect" class="filter-label">Channel</label>
-            <select id="firehoseChannelSelect">
-                <option value="" data-translate-lang="all_channels">All Channels</option>
-            </select>
-        </div>
         <button type="button" id="pause-button" class="btn btn-sm btn-outline-secondary">Pause</button>
     </form>
 
     <div class="row">
-        <div class="col-xs">
-            <div id="packet_list">
-                {% for packet in packets %}
-                    {% include 'packet.html' %}
-                {% endfor %}
-            </div>
-            <div id="firehose-empty-state" class="status-message"{% if packets|length > 0 %} style="display:none;"{% endif %}>
+        <div class="col-xs" id="packet_list">
+            {% for packet in packets %}
+                {% include 'packet.html' %}
+            {% else %}
                 No packets found.
-            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
 
 <script>
-const CHANNEL_PRESETS = ["LongFast", "MediumSlow"];
-
-let lastTime = {{ (last_time or None) | tojson }};
-let portnum = {{ (portnum if portnum is not none else '') | tojson }};
+let lastTime = null;
+let portnum = "{{ portnum if portnum is not none else '' }}";
 let updatesPaused = false;
-let channelFilter = {{ (channel or '') | tojson }};
 
 // Use firehose_interval from config (seconds), default to 3s if not set
-let firehoseInterval = {{ site_config["site"]["firehose_interval"] | default(3) }};
+const firehoseInterval = {{ site_config["site"]["firehose_interval"] | default(3) }};
 if (firehoseInterval < 0) firehoseInterval = 0;
 
-document.addEventListener("DOMContentLoaded", async () => {
-    const packetList = document.getElementById("packet_list");
-    const pauseBtn = document.getElementById("pause-button");
-    const channelSelect = document.getElementById("firehoseChannelSelect");
-    const emptyState = document.getElementById("firehose-empty-state");
+function fetchUpdates() {
+    if (updatesPaused || firehoseInterval === 0) return;
 
-    function updateEmptyState() {
-        if (!emptyState || !packetList) return;
-        if (packetList.children.length > 0) {
-            emptyState.style.display = "none";
-        } else {
-            emptyState.style.display = "block";
-        }
-    }
+    const url = new URL("/firehose/updates", window.location.origin);
+    if (lastTime) url.searchParams.set("last_time", lastTime);
+    if (portnum) url.searchParams.set("portnum", portnum);
 
-    async function fetchChannels() {
-        try {
-            const res = await fetch("/api/channels");
-            if (!res.ok) return [];
-            const json = await res.json();
-            return Array.isArray(json.channels) ? json.channels : [];
-        } catch (err) {
-            console.error("Channel fetch failed:", err);
-            return [];
-        }
-    }
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (data.packets && data.packets.length > 0) {
+                lastTime = data.last_time;
+                const list = document.getElementById("packet_list");
 
-    function populateChannelSelect(channels) {
-        if (!channelSelect) return;
-        const unique = Array.from(new Set((channels || []).filter(ch => typeof ch === "string" && ch.trim().length > 0))).sort((a, b) => a.localeCompare(b));
-        const prioritized = [];
-        CHANNEL_PRESETS.forEach(preset => {
-            const idx = unique.indexOf(preset);
-            if (idx >= 0) {
-                prioritized.push(unique[idx]);
-                unique.splice(idx, 1);
+                for (const html of data.packets.reverse()) {
+                    list.insertAdjacentHTML("afterbegin", html);
+                }
             }
-        });
-        const ordered = [...new Set([...prioritized, ...unique])];
-        channelSelect.innerHTML = "";
-        const allOption = document.createElement("option");
-        allOption.value = "";
-        allOption.textContent = "All Channels";
-        allOption.setAttribute("data-translate-lang", "all_channels");
-        channelSelect.appendChild(allOption);
-        ordered.forEach(ch => {
-            const opt = document.createElement("option");
-            opt.value = ch;
-            opt.textContent = ch;
-            channelSelect.appendChild(opt);
-        });
-        if (channelFilter && !ordered.includes(channelFilter)) {
-            const opt = document.createElement("option");
-            opt.value = channelFilter;
-            opt.textContent = channelFilter;
-            channelSelect.appendChild(opt);
-        }
-        channelSelect.value = channelFilter || "";
-        channelFilter = channelSelect.value;
-    }
-
-    function buildUpdatesUrl({ useLastTime = true } = {}) {
-        const url = new URL("/firehose/updates", window.location.origin);
-        if (useLastTime && lastTime) url.searchParams.set("last_time", lastTime);
-        if (portnum) url.searchParams.set("portnum", portnum);
-        if (channelFilter) url.searchParams.set("channel", channelFilter);
-        return url;
-    }
-
-    async function fetchUpdates({ force = false, reset = false } = {}) {
-        if (!force && (updatesPaused || firehoseInterval === 0)) return;
-        try {
-            const url = buildUpdatesUrl({ useLastTime: !reset });
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`Fetch failed with status ${res.status}`);
-            const data = await res.json();
-            if (reset && packetList) {
-                packetList.innerHTML = "";
-            }
-            if (Array.isArray(data.packets) && data.packets.length > 0 && packetList) {
-                data.packets.slice().reverse().forEach(html => {
-                    packetList.insertAdjacentHTML("afterbegin", html);
-                });
-                if (data.last_time) lastTime = data.last_time;
-            } else if (reset) {
-                lastTime = data.last_time || null;
-            }
-        } catch (err) {
+        })
+        .catch(err => {
             console.error("Update fetch failed:", err);
-        } finally {
-            updateEmptyState();
-        }
-    }
-
-    if (pauseBtn) {
-        pauseBtn.addEventListener("click", () => {
-            updatesPaused = !updatesPaused;
-            pauseBtn.textContent = updatesPaused ? "Resume" : "Pause";
         });
-    }
+}
 
-    if (channelSelect) {
-        channelSelect.addEventListener("change", async e => {
-            channelFilter = e.target.value;
-            lastTime = null;
-            if (packetList) packetList.innerHTML = "";
-            updateEmptyState();
-            await fetchUpdates({ force: true, reset: true });
-        });
-    }
-
-    const channels = await fetchChannels();
-    populateChannelSelect(channels);
-    updateEmptyState();
+document.addEventListener("DOMContentLoaded", () => {
+    const pauseBtn = document.getElementById("pause-button");
 
     const portnumSelector = document.querySelector('select[name="portnum"]');
     if (portnumSelector) {
@@ -212,12 +85,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
+    pauseBtn.addEventListener("click", () => {
+        updatesPaused = !updatesPaused;
+        pauseBtn.textContent = updatesPaused ? "Resume" : "Pause";
+    });
+
     // Start fetching updates with configurable interval
-    await fetchUpdates({ force: true });
+    fetchUpdates();
     if (firehoseInterval > 0) {
-        setInterval(() => {
-            fetchUpdates();
-        }, firehoseInterval * 1000);
+        setInterval(fetchUpdates, firehoseInterval * 1000);
     }
 });
 </script>
