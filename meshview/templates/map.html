@@ -199,19 +199,6 @@ loadTranslations().then(async () => {
         return 'Unknown';
     }
 
-    async function fetchAdditionalChannels() {
-        try {
-            const res = await fetch('/api/channels?period_type=day&length=3');
-            if (!res.ok) return [];
-            const data = await res.json();
-            if (!data || !Array.isArray(data.channels)) return [];
-            return data.channels.filter(ch => typeof ch === 'string' && ch.trim().length > 0);
-        } catch (err) {
-            console.error('Channel list fetch failed:', err);
-            return [];
-        }
-    }
-
     const nodeMap = new Map();
     nodes.forEach(n => nodeMap.set(n.id, n));
     function isInvalidCoord(node) { return !node || !node.lat || !node.long || node.lat===0 || node.long===0 || Number.isNaN(node.lat) || Number.isNaN(node.long); }
@@ -258,8 +245,6 @@ loadTranslations().then(async () => {
     if (customView) map.setView([customView.lat,customView.lng],customView.zoom);
     else map.fitBounds(areaBounds);
 
-    const extraChannels = await fetchAdditionalChannels();
-    extraChannels.forEach(raw => channelSet.add(channelKey(raw)));
     channelList = Array.from(channelSet).sort();
 
     // ---- LocalStorage for Filter Preferences ----
