@@ -258,26 +258,24 @@ loadTranslations().then(async () => {
     if (customView) map.setView([customView.lat,customView.lng],customView.zoom);
     else map.fitBounds(areaBounds);
 
-    const extraChannels = await fetchAdditionalChannels();
-    extraChannels.forEach(raw => channelSet.add(channelKey(raw)));
     channelList = Array.from(channelSet).sort();
 
     // ---- LocalStorage for Filter Preferences ----
     const FILTER_STORAGE_KEY = 'meshview_map_filters';
-    
+
     function getDefaultFilters() {
         return {
             routersOnly: false,
             channels: {}
         };
     }
-    
+
     function saveFiltersToLocalStorage() {
         const filters = {
             routersOnly: document.getElementById("filter-routers-only").checked,
             channels: {}
         };
-        
+
         channelList.forEach(channel => {
             let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
             let checkbox = document.getElementById(filterId);
@@ -285,10 +283,10 @@ loadTranslations().then(async () => {
                 filters.channels[channel] = checkbox.checked;
             }
         });
-        
+
         localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
     }
-    
+
     function loadFiltersFromLocalStorage() {
         try {
             const stored = localStorage.getItem(FILTER_STORAGE_KEY);
@@ -300,7 +298,7 @@ loadTranslations().then(async () => {
         }
         return null;
     }
-    
+
     function renderChannelFilters(savedFilters) {
         const filterContainer = document.getElementById("filter-container");
         filterContainer.querySelectorAll('label[data-channel-filter="true"]').forEach(el => el.remove());
@@ -322,18 +320,18 @@ loadTranslations().then(async () => {
             filterContainer.appendChild(label);
         });
     }
-    
+
     function resetFiltersToDefaults() {
         localStorage.removeItem(FILTER_STORAGE_KEY);
         document.getElementById("filter-routers-only").checked = false;
         renderChannelFilters(null);
         updateMarkers();
-        
+
         const button = document.getElementById('reset-filters-button');
         const originalText = button.textContent;
         button.textContent = '✓ Filters Reset!';
         button.style.backgroundColor = '#2196F3';
-        
+
         setTimeout(() => {
             button.textContent = originalText;
             button.style.backgroundColor = '#f44336';
@@ -362,7 +360,7 @@ loadTranslations().then(async () => {
             let marker=markerById[node.id];
             if(marker) marker.setStyle({fillOpacity:shouldShow?1:0});
         });
-        
+
         // Save filters to localStorage whenever they change
         saveFiltersToLocalStorage();
 
@@ -378,7 +376,7 @@ loadTranslations().then(async () => {
             return checkbox ? checkbox.checked : true;
         });
     }
-    
+
     // Apply initial filters (from localStorage or defaults)
     updateMarkers();
 
