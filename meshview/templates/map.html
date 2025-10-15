@@ -201,7 +201,7 @@ loadTranslations().then(async () => {
 
     async function fetchAdditionalChannels() {
         try {
-            const res = await fetch('/api/channels?period_type=day&length=30');
+            const res = await fetch('/api/channels?period_type=day&length=3');
             if (!res.ok) return [];
             const data = await res.json();
             if (!data || !Array.isArray(data.channels)) return [];
