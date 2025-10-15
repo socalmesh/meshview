@@ -17,19 +17,61 @@
 /* Nested reply style */
 .replying-to { font-size: 0.85em; color: #aaa; margin-top: 4px; padding-left: 20px; }
 .replying-to .reply-preview { color: #aaa; }
+
+.filter-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.filter-label {
+    color: #ccc;
+    font-size: 14px;
+}
+
+#chatChannelSelect {
+    padding: 4px 6px;
+    background: #444;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+}
+
+.status-message {
+    color: #bbb;
+    margin-bottom: 12px;
+    display: none;
+}
 {% endblock %}
 
 {% block body %}
 <div id="chat-container">
+    <div class="filter-bar">
+        <label for="chatChannelSelect" class="filter-label">Channel</label>
+        <select id="chatChannelSelect">
+            <option value="" data-translate-lang="all_channels">All Channels</option>
+        </select>
+    </div>
+    <div id="chat-status" class="status-message"></div>
     <div class="container" id="chat-log"></div>
 </div>
 
 <script>
+const CHANNEL_PRESETS = ["LongFast", "MediumSlow"];
+
 document.addEventListener("DOMContentLoaded", async () => {
     const chatContainer = document.querySelector("#chat-log");
-    if (!chatContainer) return console.error("#chat-log not found");
+    const channelSelect = document.getElementById("chatChannelSelect");
+    const statusMessage = document.getElementById("chat-status");
+    if (!chatContainer) {
+        console.error("#chat-log not found");
+        return;
+    }
 
     let lastTime = null;
+    let currentChannel = "";
     const renderedPacketIds = new Set();
     const packetMap = new Map();
     let chatTranslations = {};
@@ -50,6 +92,74 @@ document.addEventListener("DOMContentLoaded", async () => {
             const key = el.dataset.translateLangTitle;
             if (translations[key]) el.title = translations[key];
         });
+    }
+
+    async function fetchChannels() {
+        try {
+            const res = await fetch("/api/channels");
+            if (!res.ok) return [];
+            const json = await res.json();
+            return Array.isArray(json.channels) ? json.channels : [];
+        } catch (err) {
+            console.error("Channel fetch failed:", err);
+            return [];
+        }
+    }
+
+    function populateChannelSelect(channels) {
+        if (!channelSelect) return;
+        const unique = Array.from(new Set((channels || []).filter(ch => typeof ch === "string" && ch.trim().length > 0))).sort((a, b) => a.localeCompare(b));
+        const prioritized = [];
+        CHANNEL_PRESETS.forEach(preset => {
+            const idx = unique.indexOf(preset);
+            if (idx >= 0) {
+                prioritized.push(unique[idx]);
+                unique.splice(idx, 1);
+            }
+        });
+        const ordered = [...new Set([...prioritized, ...unique])];
+        channelSelect.innerHTML = "";
+        const allOption = document.createElement("option");
+        allOption.value = "";
+        allOption.textContent = "All Channels";
+        allOption.setAttribute("data-translate-lang", "all_channels");
+        channelSelect.appendChild(allOption);
+        ordered.forEach(ch => {
+            const opt = document.createElement("option");
+            opt.value = ch;
+            opt.textContent = ch;
+            channelSelect.appendChild(opt);
+        });
+        let preferred = currentChannel;
+        if (preferred && !ordered.includes(preferred)) {
+            preferred = "";
+        }
+        if (!preferred) {
+            preferred = CHANNEL_PRESETS.find(preset => ordered.includes(preset)) || "";
+        }
+        channelSelect.value = preferred;
+        currentChannel = channelSelect.value;
+    }
+
+    function clearChat() {
+        chatContainer.innerHTML = "";
+        renderedPacketIds.clear();
+        packetMap.clear();
+        lastTime = null;
+        updateEmptyState();
+    }
+
+    function updateEmptyState() {
+        if (!statusMessage) return;
+        if (chatContainer.childElementCount === 0) {
+            statusMessage.textContent = currentChannel
+                ? `No messages for ${currentChannel} yet.`
+                : "No messages yet.";
+            statusMessage.style.display = "block";
+        } else {
+            statusMessage.textContent = "";
+            statusMessage.style.display = "none";
+        }
     }
 
     function renderPacket(packet, highlight = false) {
@@ -107,6 +217,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         applyTranslations(chatTranslations, div);
 
         if (highlight) setTimeout(() => div.classList.remove("flash"), 2500);
+        updateEmptyState();
     }
 
     function renderPacketsEnsureDescending(packets, highlight = false) {
@@ -115,21 +226,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         for (let i = sortedDesc.length-1; i>=0; i--) renderPacket(sortedDesc[i], highlight);
     }
 
+    function buildChatUrl({ since } = {}) {
+        const url = new URL("/api/chat", window.location.origin);
+        url.searchParams.set("limit", "100");
+        if (since) url.searchParams.set("since", since);
+        if (currentChannel) url.searchParams.set("channel", currentChannel);
+        return url;
+    }
+
     async function fetchInitial() {
         try {
-            const resp = await fetch("/api/chat?limit=100");
+            const resp = await fetch(buildChatUrl());
             const data = await resp.json();
             if (data?.packets?.length) renderPacketsEnsureDescending(data.packets);
             lastTime = data?.latest_import_time || lastTime;
+            updateEmptyState();
         } catch(err) { console.error("Initial fetch error:", err); }
     }
 
     async function fetchUpdates() {
+        if (!lastTime) return;
         try {
-            const url = new URL("/api/chat", window.location.origin);
-            url.searchParams.set("limit","100");
-            if(lastTime) url.searchParams.set("since", lastTime);
-            const resp = await fetch(url);
+            const resp = await fetch(buildChatUrl({ since: lastTime }));
             const data = await resp.json();
             if (data?.packets?.length) renderPacketsEnsureDescending(data.packets, true);
             lastTime = data?.latest_import_time || lastTime;
@@ -145,7 +263,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch(err){ console.error("Chat translation load failed:", err); }
     }
 
+    if (channelSelect) {
+        channelSelect.addEventListener("change", async e => {
+            currentChannel = e.target.value;
+            clearChat();
+            await fetchInitial();
+        });
+    }
+
     await loadTranslations();
+    const channels = await fetchChannels();
+    populateChannelSelect(channels);
+    if (chatTranslations && channelSelect) {
+        applyTranslations(chatTranslations, channelSelect.parentElement || channelSelect);
+    }
+    updateEmptyState();
     await fetchInitial();
     setInterval(fetchUpdates, 5000);
 });
