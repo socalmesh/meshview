@@ -258,8 +258,6 @@ loadTranslations().then(async () => {
     if (customView) map.setView([customView.lat,customView.lng],customView.zoom);
     else map.fitBounds(areaBounds);
 
-    const extraChannels = await fetchAdditionalChannels();
-    extraChannels.forEach(raw => channelSet.add(channelKey(raw)));
     channelList = Array.from(channelSet).sort();
 
     // ---- LocalStorage for Filter Preferences ----
