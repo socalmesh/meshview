@@ -24,7 +24,14 @@ async def get_fuzzy_nodes(query):
         return result.scalars()
 
 
-async def get_packets(node_id=None, portnum=None, after=None, before=None, limit=None, channel: str | None = None):
+async def get_packets(
+    node_id=None,
+    portnum=None,
+    after=None,
+    before=None,
+    limit=None,
+    channel: str | list[str] | tuple[str, ...] | None = None,
+):
     async with database.async_session() as session:
         q = select(Packet)
 
@@ -37,7 +44,12 @@ async def get_packets(node_id=None, portnum=None, after=None, before=None, limit
         if before:
             q = q.where(Packet.import_time < before)
         if channel:
-            q = q.where(func.lower(Packet.channel) == channel.lower())
+            if isinstance(channel, (list, tuple, set)):
+                lowered = [c.lower() for c in channel if isinstance(c, str) and c]
+                if lowered:
+                    q = q.where(func.lower(Packet.channel).in_(lowered))
+            elif isinstance(channel, str):
+                q = q.where(func.lower(Packet.channel) == channel.lower())
 
         q = q.order_by(Packet.import_time.desc())
 
@@ -370,19 +382,6 @@ async def get_packet_stats(
             "from_node": from_node,
             "data": data,
         }
-
-
-async def get_all_channels():
-    async with database.async_session() as session:
-        stmt = (
-            select(Node.channel)
-            .where(Node.channel.is_not(None))
-            .where(Node.channel != "")
-            .distinct()
-            .order_by(Node.channel.asc())
-        )
-        result = await session.execute(stmt)
-        return [row[0] for row in result]
 
 
 async def get_channels_in_period(period_type: str = "hour", length: int = 24):

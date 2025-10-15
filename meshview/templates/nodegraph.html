@@ -130,10 +130,8 @@
 
 <script>
 const activityRangeSelect = document.getElementById('activity-range');
-const availableChannelsFromServer = {{ all_channels | default([], true) | tojson }};
 const urlParams = new URLSearchParams(window.location.search);
-const channelParam = urlParams.get('channel');
-let selectedChannel = {{ selected_channel | default('', true) | tojson }};
+let selectedChannel = urlParams.get('channel') || '';
 const hasChannelSelection = value => value !== null && value !== undefined && value !== '';
 if (activityRangeSelect) {
     activityRangeSelect.addEventListener('change', () => {
@@ -231,42 +229,60 @@ let filteredNodes = [];
 let filteredEdges = [];
 let lastSelectedNode = null;
 const nodeChannelSet = [...new Set(nodes.map(n => n.channel).filter(Boolean))];
-const channelOptions = Array.from(new Set([
-    ...availableChannelsFromServer.filter(Boolean),
-    ...nodeChannelSet,
-])).sort();
+let channelOptions = [...nodeChannelSet].sort();
 
-if (!selectedChannel || !channelOptions.includes(selectedChannel)) {
-    if (channelParam && channelOptions.includes(channelParam)) {
-        selectedChannel = channelParam;
-    } else if (nodeChannelSet.length) {
-        selectedChannel = nodeChannelSet[0];
-    } else if (channelOptions.length) {
+async function fetchChannelOptionsFromAPI() {
+    try {
+        const res = await fetch('/api/channels?period_type=day&length=30');
+        if (!res.ok) return [];
+        const data = await res.json();
+        if (!data || !Array.isArray(data.channels)) return [];
+        return data.channels.filter(ch => typeof ch === 'string' && ch.trim().length > 0);
+    } catch (err) {
+        console.error('Channel fetch failed:', err);
+        return [];
+    }
+}
+
+async function initializeChannelOptions() {
+    const fetched = await fetchChannelOptionsFromAPI();
+    const merged = new Set([...nodeChannelSet, ...fetched]);
+    if (hasChannelSelection(selectedChannel)) {
+        merged.add(selectedChannel);
+    }
+    channelOptions = Array.from(merged).sort();
+    if (!hasChannelSelection(selectedChannel) && channelOptions.length) {
         selectedChannel = channelOptions[0];
-    } else {
-        selectedChannel = null;
     }
 }
 
 function populateChannelDropdown() {
     const sel = document.getElementById('channel-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All Channels';
+    allOpt.setAttribute('data-translate-lang','all_channels');
+    sel.appendChild(allOpt);
     channelOptions.forEach(ch=>{
         const opt = document.createElement('option');
-        opt.value=ch; opt.text=ch;
-        if(selectedChannel && ch === selectedChannel) opt.selected=true;
+        opt.value = ch;
+        opt.text = ch;
+        if (selectedChannel === ch) {
+            opt.selected = true;
+        }
         sel.appendChild(opt);
     });
-    if (!selectedChannel && channelOptions.length) {
-        selectedChannel = channelOptions[0];
-        sel.value = selectedChannel;
+    if (!hasChannelSelection(selectedChannel)) {
+        sel.value = '';
     }
-    filterByChannel(true);
 }
 
 function filterByChannel(isInitial=false) {
     const sel = document.getElementById('channel-select');
     if (sel) {
-        selectedChannel = sel.value || selectedChannel;
+        selectedChannel = sel.value;
     }
     if (hasChannelSelection(selectedChannel)) {
         filteredNodes = nodes.filter(n=>n.channel===selectedChannel);
@@ -348,7 +364,10 @@ function searchNode(){
     else alert("Node not found in current channel!");
 }
 
-populateChannelDropdown();
+initializeChannelOptions().then(() => {
+    populateChannelDropdown();
+    filterByChannel(true);
+});
 window.addEventListener('resize', ()=>chart.resize());
 </script>
 {% endblock %}

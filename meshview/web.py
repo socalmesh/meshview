@@ -1212,7 +1212,6 @@ async def map(request):
         selected_activity, activity_window = resolve_activity_window(activity_param)
 
         nodes = await store.get_nodes(active_within=activity_window)
-        all_channels = await store.get_all_channels()
 
         # Filter out nodes with no latitude
         nodes = [node for node in nodes if node.last_lat is not None]
@@ -1247,8 +1246,6 @@ async def map(request):
                 custom_view=custom_view,
                 activity_filters=ACTIVITY_FILTERS,
                 selected_activity=selected_activity,
-                default_activity=DEFAULT_ACTIVITY_OPTION,
-                all_channels=all_channels,
                 site_config=CONFIG,
                 SOFTWARE_RELEASE=SOFTWARE_RELEASE,
             ),
@@ -1396,20 +1393,6 @@ async def nodegraph(request):
     selected_activity, activity_window = resolve_activity_window(activity_param)
 
     nodes = await store.get_nodes(active_within=activity_window)
-    all_channels = await store.get_all_channels()
-    channel_param = request.query.get("channel")
-    node_channel_candidates = sorted({node.channel for node in nodes if node.channel})
-
-    if channel_param and channel_param in node_channel_candidates:
-        selected_channel = channel_param
-    elif channel_param and channel_param in all_channels:
-        selected_channel = channel_param
-    elif node_channel_candidates:
-        selected_channel = node_channel_candidates[0]
-    elif all_channels:
-        selected_channel = all_channels[0]
-    else:
-        selected_channel = None
 
     active_node_ids = {node.node_id for node in nodes}
     edges_map = defaultdict(
@@ -1483,9 +1466,6 @@ async def nodegraph(request):
             edges=edges,  # Pass edges with color info
             activity_filters=ACTIVITY_FILTERS,
             selected_activity=selected_activity,
-            default_activity=DEFAULT_ACTIVITY_OPTION,
-            all_channels=all_channels,
-            selected_channel=selected_channel,
             site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
@@ -1685,6 +1665,19 @@ async def api_packets(request):
         limit = int(request.query.get("limit", 50))
         since_str = request.query.get("since")
         since_time = None
+        channel_values = []
+
+        # Support repeated ?channel=foo&channel=bar and comma-separated values
+        if "channel" in request.query:
+            raw_channels = request.query.getall("channel", [])
+            if not raw_channels:
+                raw_value = request.query.get("channel")
+                if raw_value:
+                    raw_channels = [raw_value]
+            for raw in raw_channels:
+                if raw:
+                    parts = [part.strip() for part in raw.split(",") if part.strip()]
+                    channel_values.extend(parts)
 
         # Parse 'since' timestamp if provided
         if since_str:
@@ -1694,7 +1687,14 @@ async def api_packets(request):
                 logger.error(f"Failed to parse 'since' timestamp '{since_str}': {e}")
 
         # Fetch last N packets
-        packets = await store.get_packets(limit=limit, after=since_time)
+        if not channel_values:
+            channel_filter = None
+        elif len(channel_values) == 1:
+            channel_filter = channel_values[0]
+        else:
+            channel_filter = channel_values
+
+        packets = await store.get_packets(limit=limit, after=since_time, channel=channel_filter)
         packets = [Packet.from_model(p) for p in packets]
 
         # Build JSON response (no raw_payload)

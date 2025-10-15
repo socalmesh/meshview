@@ -115,7 +115,7 @@ async function loadTranslations() {
 }
 
 // Initialize map AFTER translations are loaded
-loadTranslations().then(() => {
+loadTranslations().then(async () => {
     const t = window.mapTranslations || {};
     const activitySelect = document.getElementById("activity-range");
     const activityLabel = document.getElementById("activity-range-label");
@@ -163,8 +163,8 @@ loadTranslations().then(() => {
         }{{ "," if not loop.last else "" }}
         {% endfor %}
     ];
-    const providedChannels = {{ all_channels | default([], true) | tojson }};
-    const channelSet = new Set(providedChannels.filter(ch => ch));
+    const channelSet = new Set();
+    let channelList = [];
 
     const portMap = {1: "Text", 67: "Telemetry", 3: "Position", 70: "Traceroute", 4: "Node Info", 71: "Neighbour Info", 73: "Map Report"};
 
@@ -197,6 +197,19 @@ loadTranslations().then(() => {
             return channel;
         }
         return 'Unknown';
+    }
+
+    async function fetchAdditionalChannels() {
+        try {
+            const res = await fetch('/api/channels?period_type=day&length=30');
+            if (!res.ok) return [];
+            const data = await res.json();
+            if (!data || !Array.isArray(data.channels)) return [];
+            return data.channels.filter(ch => typeof ch === 'string' && ch.trim().length > 0);
+        } catch (err) {
+            console.error('Channel list fetch failed:', err);
+            return [];
+        }
     }
 
     const nodeMap = new Map();
@@ -245,7 +258,9 @@ loadTranslations().then(() => {
     if (customView) map.setView([customView.lat,customView.lng],customView.zoom);
     else map.fitBounds(areaBounds);
 
-    const channelList = Array.from(channelSet).sort();
+    const extraChannels = await fetchAdditionalChannels();
+    extraChannels.forEach(raw => channelSet.add(channelKey(raw)));
+    channelList = Array.from(channelSet).sort();
 
     // ---- LocalStorage for Filter Preferences ----
     const FILTER_STORAGE_KEY = 'meshview_map_filters';
@@ -272,16 +287,13 @@ loadTranslations().then(() => {
         });
         
         localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
-        console.log('Filters saved to localStorage:', filters);
     }
     
     function loadFiltersFromLocalStorage() {
         try {
             const stored = localStorage.getItem(FILTER_STORAGE_KEY);
             if (stored) {
-                const filters = JSON.parse(stored);
-                console.log('Filters loaded from localStorage:', filters);
-                return filters;
+                return JSON.parse(stored);
             }
         } catch (error) {
             console.error('Error loading filters from localStorage:', error);
@@ -289,25 +301,34 @@ loadTranslations().then(() => {
         return null;
     }
     
+    function renderChannelFilters(savedFilters) {
+        const filterContainer = document.getElementById("filter-container");
+        filterContainer.querySelectorAll('label[data-channel-filter="true"]').forEach(el => el.remove());
+        channelList.forEach(channel => {
+            let filterId = `filter-${channel.replace(/\s+/g,'-').toLowerCase()}`;
+            let color = hashToColor(channel);
+            let label = document.createElement('label');
+            label.style.color = color;
+            label.setAttribute('data-channel-filter', 'true');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'filter-checkbox';
+            checkbox.id = filterId;
+            const shouldCheck = savedFilters ? savedFilters.channels?.[channel] !== false : true;
+            checkbox.checked = shouldCheck;
+            checkbox.addEventListener("change", updateMarkers);
+            label.appendChild(checkbox);
+            label.append(` ${channel}`);
+            filterContainer.appendChild(label);
+        });
+    }
+    
     function resetFiltersToDefaults() {
         localStorage.removeItem(FILTER_STORAGE_KEY);
-        console.log('Filters reset to defaults');
-        
-        // Reset routers only filter
         document.getElementById("filter-routers-only").checked = false;
-        
-        // Reset all channel filters to checked (default)
-        channelList.forEach(channel => {
-            let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
-            let checkbox = document.getElementById(filterId);
-            if (checkbox) {
-                checkbox.checked = true;
-            }
-        });
-        
+        renderChannelFilters(null);
         updateMarkers();
         
-        // Show feedback to user
         const button = document.getElementById('reset-filters-button');
         const originalText = button.textContent;
         button.textContent = '✓ Filters Reset!';
@@ -319,35 +340,18 @@ loadTranslations().then(() => {
         }, 2000);
     }
 
+    window.resetFiltersToDefaults = resetFiltersToDefaults;
+
     // ---- Filters ----
     const filterLabel = document.getElementById("filter-routers-label");
     filterLabel.textContent = t.show_routers_only || "Show Routers Only";
-
-    let filterContainer = document.getElementById("filter-container");
-    channelList.forEach(channel => {
-        let filterId = `filter-${channel.replace(/\s+/g,'-').toLowerCase()}`;
-        let color = hashToColor(channel);
-        let label = document.createElement('label');
-        label.style.color=color;
-        label.innerHTML=`<input type="checkbox" class="filter-checkbox" id="${filterId}" checked> ${channel}`;
-        filterContainer.appendChild(label);
-    });
-    
-    // Load saved filters from localStorage
+    const routersOnlyCheckbox = document.getElementById("filter-routers-only");
     const savedFilters = loadFiltersFromLocalStorage();
     if (savedFilters) {
-        // Apply routers only filter
-        document.getElementById("filter-routers-only").checked = savedFilters.routersOnly || false;
-        
-        // Apply channel filters
-        channelList.forEach(channel => {
-            let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
-            let checkbox = document.getElementById(filterId);
-            if (checkbox && savedFilters.channels.hasOwnProperty(channel)) {
-                checkbox.checked = savedFilters.channels[channel];
-            }
-        });
+        routersOnlyCheckbox.checked = savedFilters.routersOnly || false;
     }
+    routersOnlyCheckbox.addEventListener("change", updateMarkers);
+    renderChannelFilters(savedFilters);
 
     function updateMarkers() {
         let showRoutersOnly = document.getElementById("filter-routers-only").checked;
@@ -363,11 +367,17 @@ loadTranslations().then(() => {
         saveFiltersToLocalStorage();
 
         if (!document.hidden) {
-            restartPacketFetcher();
+            restartPacketFetcher(true);
         }
     }
 
-    document.querySelectorAll(".filter-checkbox").forEach(input=>input.addEventListener("change",updateMarkers));
+    function getActiveChannels() {
+        return channelList.filter(channel => {
+            if (channel === 'Unknown') return false;
+            let checkbox = document.getElementById(`filter-${channel.replace(/\s+/g,'-').toLowerCase()}`);
+            return checkbox ? checkbox.checked : true;
+        });
+    }
     
     // Apply initial filters (from localStorage or defaults)
     updateMarkers();
@@ -497,50 +507,78 @@ loadTranslations().then(() => {
     // ---- Packet fetching ----
     let lastImportTime=null;
     const mapInterval={{ site_config["site"]["map_interval"]|default(3) }};
+    function buildPacketsUrl(base){
+        const active = getActiveChannels();
+        const url = new URL(base, window.location.origin);
+        url.searchParams.delete('channel');
+        if (active.length) {
+            active.forEach(ch => url.searchParams.append('channel', ch));
+        }
+        if (url.origin === window.location.origin) {
+            return url.pathname + (url.search || '') + (url.hash || '');
+        }
+        return url.toString();
+    }
     function fetchLatestPacket(){
-        fetch(`/api/packets?limit=1`).then(r=>r.json()).then(data=>{
-            if(data.packets && data.packets.length>0) lastImportTime=data.packets[0].import_time;
-            else lastImportTime=new Date().toISOString();
-        }).catch(err=>console.error(err));
+        return fetch(buildPacketsUrl(`/api/packets?limit=1`))
+            .then(r=>r.json())
+            .then(data=>{
+                if(data.packets && data.packets.length>0){
+                    lastImportTime=data.packets[0].import_time;
+                } else {
+                    lastImportTime=new Date().toISOString();
+                }
+            })
+            .catch(err=>{
+                console.error('fetchLatestPacket failed:', err);
+            });
     }
     function fetchNewPackets(){
         if(!lastImportTime) return;
-        fetch(`/api/packets?since=${lastImportTime}`).then(r=>r.json()).then(data=>{
-            if(!data.packets||data.packets.length===0) return;
-            let latestSeen=lastImportTime;
-            data.packets.forEach(packet=>{
-                if(packet.import_time && (!latestSeen || packet.import_time>latestSeen)) latestSeen=packet.import_time;
-                let marker=markerById[packet.from_node_id];
-                if(marker){
-                    let nodeData=nodeMap.get(packet.from_node_id);
-                    if(nodeData) blinkNode(marker,nodeData.long_name,packet.portnum);
-                }
+        const baseUrl = `/api/packets?since=${encodeURIComponent(lastImportTime)}`;
+        return fetch(buildPacketsUrl(baseUrl))
+            .then(r=>r.json())
+            .then(data=>{
+                if(!data.packets||data.packets.length===0) return;
+                let latestSeen=lastImportTime;
+                data.packets.forEach(packet=>{
+                    if(packet.import_time && (!latestSeen || packet.import_time>latestSeen)) latestSeen=packet.import_time;
+                    let marker=markerById[packet.from_node_id];
+                    if(marker){
+                        let nodeData=nodeMap.get(packet.from_node_id);
+                        if(nodeData) blinkNode(marker,nodeData.long_name,packet.portnum);
+                    }
+                });
+                if(latestSeen) lastImportTime=latestSeen;
+            })
+            .catch(err=>{
+                console.error('fetchNewPackets failed:', err);
             });
-            if(latestSeen) lastImportTime=latestSeen;
-        }).catch(err=>console.error(err));
     }
     let packetInterval=null;
-    function startPacketFetcher(resetImportTime=true){
-        if(mapInterval<=0) return;
-        if(!packetInterval){
-            if(resetImportTime || !lastImportTime){
-                fetchLatestPacket();
-            }
-            packetInterval=setInterval(fetchNewPackets,mapInterval*1000);
-            if(!resetImportTime && lastImportTime){
-                fetchNewPackets();
-            }
+    async function startPacketFetcher(resetImportTime=true){
+        if (mapInterval <= 0) return;
+        stopPacketFetcher();
+        if (resetImportTime) {
+            lastImportTime = null;
         }
+        if (!lastImportTime) {
+            await fetchLatestPacket();
+        }
+        await fetchNewPackets();
+        packetInterval = setInterval(()=>{ fetchNewPackets(); }, mapInterval*1000);
     }
     function stopPacketFetcher(){ if(packetInterval){ clearInterval(packetInterval); packetInterval=null; } }
-    function restartPacketFetcher(){
+    async function restartPacketFetcher(resetImportTime=false){
         if(mapInterval<=0) return;
-        stopPacketFetcher();
         if(document.hidden) return;
-        startPacketFetcher(false);
+        await startPacketFetcher(resetImportTime);
     }
-    document.addEventListener("visibilitychange",function(){ if(document.hidden) stopPacketFetcher(); else startPacketFetcher(); });
-    if(mapInterval>0) startPacketFetcher();
+    document.addEventListener("visibilitychange",function(){
+        if(document.hidden) stopPacketFetcher();
+        else restartPacketFetcher(false);
+    });
+    if(mapInterval>0) startPacketFetcher(true);
 });
 </script>
 {% endblock %}
