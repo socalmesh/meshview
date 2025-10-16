@@ -216,6 +216,7 @@ const edges = [
 {
     source: "{{ edge.from }}",   // edge source as string
     target: "{{ edge.to }}",     // edge target as string
+    type: {{ edge.type | tojson }},
     originalColor: colors.edge[{{edge.type | tojson}}],
     lineStyle: {
         color: colors.edge[{{edge.type | tojson}}],
@@ -228,32 +229,55 @@ const edges = [
 let filteredNodes = [];
 let filteredEdges = [];
 let lastSelectedNode = null;
-const nodeChannelSet = [...new Set(nodes.map(n => n.channel).filter(Boolean))];
-let channelOptions = [...nodeChannelSet].sort();
 
-async function fetchChannelOptionsFromAPI() {
-    try {
-        const res = await fetch('/api/channels?period_type=day&length=30');
-        if (!res.ok) return [];
-        const data = await res.json();
-        if (!data || !Array.isArray(data.channels)) return [];
-        return data.channels.filter(ch => typeof ch === 'string' && ch.trim().length > 0);
-    } catch (err) {
-        console.error('Channel fetch failed:', err);
-        return [];
+const normalizeChannel = (value) => {
+    const trimmed = (value || '').toString().trim();
+    return trimmed || 'Unknown';
+};
+
+const channelByNodeId = new Map();
+nodes.forEach(n=>{
+    const key = String(n.name ?? n.node_id ?? '');
+    if(key){
+        channelByNodeId.set(key, normalizeChannel(n.channel));
     }
+});
+
+const tracerouteChannelCounts = new Map();
+edges.forEach(edge=>{
+    if(edge.type === 'traceroute'){
+        const weight = typeof edge.weight === 'number' ? edge.weight : 1;
+        const fromChannel = channelByNodeId.get(String(edge.source));
+        const toChannel = channelByNodeId.get(String(edge.target));
+        if(fromChannel){
+            tracerouteChannelCounts.set(fromChannel, (tracerouteChannelCounts.get(fromChannel) || 0) + weight);
+        }
+        if(toChannel){
+            tracerouteChannelCounts.set(toChannel, (tracerouteChannelCounts.get(toChannel) || 0) + weight);
+        }
+    }
+});
+
+let channelOptions = [];
+if (tracerouteChannelCounts.size) {
+    channelOptions = Array.from(
+        [...tracerouteChannelCounts.entries()]
+            .filter(([_, count]) => count > 0)
+            .map(([channel]) => channel)
+    ).sort();
 }
 
-async function initializeChannelOptions() {
-    const fetched = await fetchChannelOptionsFromAPI();
-    const merged = new Set([...nodeChannelSet, ...fetched]);
-    if (hasChannelSelection(selectedChannel)) {
-        merged.add(selectedChannel);
-    }
-    channelOptions = Array.from(merged).sort();
-    if (!hasChannelSelection(selectedChannel) && channelOptions.length) {
-        selectedChannel = channelOptions[0];
-    }
+if (!channelOptions.length) {
+    channelOptions = Array.from(new Set(nodes.map(n=>normalizeChannel(n.channel)))).sort();
+}
+
+if (hasChannelSelection(selectedChannel) && channelOptions.length && !channelOptions.includes(selectedChannel)) {
+    channelOptions.push(selectedChannel);
+    channelOptions.sort();
+}
+
+if (!hasChannelSelection(selectedChannel) && channelOptions.length) {
+    selectedChannel = channelOptions[0];
 }
 
 function populateChannelDropdown() {
