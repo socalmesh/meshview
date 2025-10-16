@@ -243,25 +243,23 @@ nodes.forEach(n=>{
     }
 });
 
-const tracerouteChannelCounts = new Map();
+const channelCounts = new Map();
 edges.forEach(edge=>{
-    if(edge.type === 'traceroute'){
-        const weight = typeof edge.weight === 'number' ? edge.weight : 1;
-        const fromChannel = channelByNodeId.get(String(edge.source));
-        const toChannel = channelByNodeId.get(String(edge.target));
-        if(fromChannel){
-            tracerouteChannelCounts.set(fromChannel, (tracerouteChannelCounts.get(fromChannel) || 0) + weight);
-        }
-        if(toChannel){
-            tracerouteChannelCounts.set(toChannel, (tracerouteChannelCounts.get(toChannel) || 0) + weight);
-        }
+    const weight = typeof edge.weight === 'number' ? edge.weight : 1;
+    const fromChannel = channelByNodeId.get(String(edge.source));
+    const toChannel = channelByNodeId.get(String(edge.target));
+    if(fromChannel){
+        channelCounts.set(fromChannel, (channelCounts.get(fromChannel) || 0) + weight);
+    }
+    if(toChannel){
+        channelCounts.set(toChannel, (channelCounts.get(toChannel) || 0) + weight);
     }
 });
 
 let channelOptions = [];
-if (tracerouteChannelCounts.size) {
+if (channelCounts.size) {
     channelOptions = Array.from(
-        [...tracerouteChannelCounts.entries()]
+        [...channelCounts.entries()]
             .filter(([_, count]) => count > 0)
             .map(([channel]) => channel)
     ).sort();
@@ -388,10 +386,8 @@ function searchNode(){
     else alert("Node not found in current channel!");
 }
 
-initializeChannelOptions().then(() => {
-    populateChannelDropdown();
-    filterByChannel(true);
-});
+populateChannelDropdown();
+filterByChannel(true);
 window.addEventListener('resize', ()=>chart.resize());
 </script>
 {% endblock %}

@@ -1510,9 +1510,29 @@ async def get_config(request):
 async def api_channels(request: web.Request):
     period_type = request.query.get("period_type", "hour")
     length = int(request.query.get("length", 24))
+    
+    # Get min_packets from config, with fallback to query param or default
+    config_min_packets = CONFIG.get("site", {}).get("min_packets_for_channel", "5")
+    try:
+        default_min_packets = int(config_min_packets)
+    except (ValueError, TypeError):
+        default_min_packets = 5
+    
+    min_packets = int(request.query.get("min_packets", default_min_packets))
+    
+    # Get channel allowlist from config
+    allowlist_str = CONFIG.get("site", {}).get("channel_allowlist", "*")
+    if allowlist_str and allowlist_str.strip():
+        # Parse comma-separated list, or use '*' for all
+        if allowlist_str.strip() == "*":
+            allowlist = None  # None means all channels allowed
+        else:
+            allowlist = [ch.strip() for ch in allowlist_str.split(",") if ch.strip()]
+    else:
+        allowlist = None
 
     try:
-        channels = await store.get_channels_in_period(period_type, length)
+        channels = await store.get_channels_in_period(period_type, length, min_packets, allowlist)
         return web.json_response({"channels": channels})
     except Exception as e:
         return web.json_response({"channels": [], "error": str(e)})

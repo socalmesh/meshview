@@ -384,11 +384,15 @@ async def get_packet_stats(
         }
 
 
-async def get_channels_in_period(period_type: str = "hour", length: int = 24):
+async def get_channels_in_period(period_type: str = "hour", length: int = 24, min_packets: int = 5, allowlist: list[str] | None = None):
     """
-    Returns a list of distinct channels used in packets over a given period.
+    Returns a list of distinct channels used in packets over a given period,
+    filtered to only include channels with at least min_packets packets.
+    
     period_type: "hour" or "day"
     length: number of hours or days to look back
+    min_packets: minimum number of packets a channel must have to be included (default: 5)
+    allowlist: optional list of allowed channel names. If None or contains '*', all channels are allowed
     """
     now = datetime.now()
 
@@ -400,13 +404,23 @@ async def get_channels_in_period(period_type: str = "hour", length: int = 24):
         raise ValueError("period_type must be 'hour' or 'day'")
 
     async with database.async_session() as session:
+        # Count packets per channel and filter by minimum packet count
         q = (
-            select(Packet.channel)
+            select(Packet.channel, func.count(Packet.id).label('packet_count'))
             .where(Packet.import_time >= start_time)
-            .distinct()
+            .where(Packet.channel.isnot(None))
+            .group_by(Packet.channel)
+            .having(func.count(Packet.id) >= min_packets)
             .order_by(Packet.channel)
         )
 
         result = await session.execute(q)
-        channels = [row[0] for row in result if row[0] is not None]
+        channels = [row[0] for row in result]
+        
+        # Apply allowlist filtering if specified
+        if allowlist and '*' not in allowlist:
+            # Filter to only include channels in the allowlist (case-insensitive)
+            allowlist_lower = [ch.lower() for ch in allowlist]
+            channels = [ch for ch in channels if ch.lower() in allowlist_lower]
+        
         return channels
