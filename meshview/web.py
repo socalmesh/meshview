@@ -1197,7 +1197,7 @@ async def map(request):
             ),
             content_type="text/html",
         )
-    except Exception:
+    except Exception as e:
         return web.Response(
             text="An error occurred while processing your request.",
             status=500,
