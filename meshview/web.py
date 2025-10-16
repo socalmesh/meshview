@@ -33,17 +33,6 @@ SEQ_REGEX = re.compile(r"seq \d+")
 SOFTWARE_RELEASE = "2.0.7 ~ 09-17-25"
 CONFIG = config.CONFIG
 
-ACTIVITY_FILTERS = [
-    ("1h", "Last 1 hour", timedelta(hours=1)),
-    ("8h", "Last 8 hours", timedelta(hours=8)),
-    ("1d", "Last 1 day", timedelta(days=1)),
-    ("3d", "Last 3 days", timedelta(days=3)),
-    ("7d", "Last 7 days", timedelta(days=7)),
-    ("total", "All time", None),
-]
-ACTIVITY_OPTIONS = {value: window for value, _label, window in ACTIVITY_FILTERS}
-DEFAULT_ACTIVITY_OPTION = "1d"
-
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
 
 # Start Database
@@ -196,17 +185,6 @@ def format_timestamp(timestamp):
 
 env.filters["node_id_to_hex"] = node_id_to_hex
 env.filters["format_timestamp"] = format_timestamp
-
-
-def resolve_activity_window(
-    raw_value: str | None, default_key: str = DEFAULT_ACTIVITY_OPTION
-):
-    default_key = default_key if default_key in ACTIVITY_OPTIONS else DEFAULT_ACTIVITY_OPTION
-    if raw_value:
-        normalized = raw_value.strip().lower()
-        if normalized in ACTIVITY_OPTIONS:
-            return normalized, ACTIVITY_OPTIONS[normalized]
-    return default_key, ACTIVITY_OPTIONS[default_key]
 
 routes = web.RouteTableDef()
 
@@ -447,27 +425,15 @@ async def packet_details(request):
 
 @routes.get("/firehose")
 async def packet_details_firehose(request):
-    portnum_value = request.query.get("portnum")
-    channel = request.query.get("channel")
-
-    portnum = None
-    if portnum_value:
-        try:
-            portnum = int(portnum_value)
-        except ValueError:
-            logger.warning("Invalid portnum '%s' provided to /firehose", portnum_value)
-
-    packets = await store.get_packets(portnum=portnum, limit=10, channel=channel)
-    ui_packets = [Packet.from_model(p) for p in packets]
-    latest_time = ui_packets[0].import_time.isoformat() if ui_packets else None
-
+    portnum = request.query.get("portnum")
+    if portnum:
+        portnum = int(portnum)
+    packets = await store.get_packets(portnum=portnum, limit=10)
     template = env.get_template("firehose.html")
     return web.Response(
         text=template.render(
-            packets=ui_packets,
+            packets=(Packet.from_model(p) for p in packets),
             portnum=portnum,
-            channel=channel,
-            last_time=latest_time,
             site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
@@ -488,18 +454,8 @@ async def firehose_updates(request):
                 logger.error(f"Failed to parse last_time '{last_time_str}': {e}")
                 last_time = None
 
-        portnum_value = request.query.get("portnum")
-        channel = request.query.get("channel")
-
-        portnum = None
-        if portnum_value:
-            try:
-                portnum = int(portnum_value)
-            except ValueError:
-                logger.warning("Invalid portnum '%s' provided to /firehose/updates", portnum_value)
-
         # Query packets after last_time (microsecond precision)
-        packets = await store.get_packets(after=last_time, limit=10, portnum=portnum, channel=channel)
+        packets = await store.get_packets(after=last_time, limit=10)
 
         # Convert to UI model
         ui_packets = [Packet.from_model(p) for p in packets]
@@ -1203,15 +1159,7 @@ async def net(request):
 @routes.get("/map")
 async def map(request):
     try:
-        activity_param = request.query.get("active")
-        if not activity_param:
-            legacy_days = request.query.get("days_active")
-            if legacy_days and legacy_days.isdigit():
-                activity_param = "total" if legacy_days == "0" else f"{legacy_days}d"
-
-        selected_activity, activity_window = resolve_activity_window(activity_param)
-
-        nodes = await store.get_nodes(active_within=activity_window)
+        nodes = await store.get_nodes(days_active=3)
 
         # Filter out nodes with no latitude
         nodes = [node for node in nodes if node.last_lat is not None]
@@ -1244,8 +1192,6 @@ async def map(request):
             text=template.render(
                 nodes=nodes,
                 custom_view=custom_view,
-                activity_filters=ACTIVITY_FILTERS,
-                selected_activity=selected_activity,
                 site_config=CONFIG,
                 SOFTWARE_RELEASE=SOFTWARE_RELEASE,
             ),
@@ -1384,26 +1330,22 @@ async def chat(request):
 # Assuming the route URL structure is /nodegraph
 @routes.get("/nodegraph")
 async def nodegraph(request):
-    activity_param = request.query.get("active")
-    if not activity_param:
-        legacy_days = request.query.get("days_active")
-        if legacy_days and legacy_days.isdigit():
-            activity_param = "total" if legacy_days == "0" else f"{legacy_days}d"
-
-    selected_activity, activity_window = resolve_activity_window(activity_param)
-
-    nodes = await store.get_nodes(active_within=activity_window)
-
-    active_node_ids = {node.node_id for node in nodes}
+    nodes = await store.get_nodes(days_active=3)  # Fetch nodes for the given channel
+    node_ids = set()
     edges_map = defaultdict(
         lambda: {"weight": 0, "type": None}
     )  # weight is based on the number of traceroutes and neighbor info packets
+    used_nodes = set()  # This will track nodes involved in edges (including traceroutes)
     since = datetime.timedelta(hours=48)
     traceroutes = []
 
     # Fetch traceroutes
     async for tr in store.get_traceroutes(since):
+        node_ids.add(tr.gateway_node_id)
+        node_ids.add(tr.packet.from_node_id)
+        node_ids.add(tr.packet.to_node_id)
         route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
+        node_ids.update(route.route)
 
         path = [tr.packet.from_node_id]
         path.extend(route.route)
@@ -1419,12 +1361,18 @@ async def nodegraph(request):
             edge_pair = (path[i], path[i + 1])
             edges_map[edge_pair]["weight"] += 1
             edges_map[edge_pair]["type"] = "traceroute"
+            used_nodes.add(path[i])  # Add all nodes in the traceroute path
+            used_nodes.add(path[i + 1])  # Add all nodes in the traceroute path
 
     # Fetch NeighborInfo packets
     for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since):
         try:
             _, neighbor_info = decode_payload.decode(packet)
+            node_ids.add(packet.from_node_id)
+            used_nodes.add(packet.from_node_id)
             for node in neighbor_info.neighbors:
+                node_ids.add(node.node_id)
+                used_nodes.add(node.node_id)
 
                 edge_pair = (node.node_id, packet.from_node_id)
                 edges_map[edge_pair]["weight"] += 1
@@ -1433,16 +1381,7 @@ async def nodegraph(request):
             logger.error(f"Error decoding NeighborInfo packet: {e}")
 
     # Convert edges_map to a list of dicts with colors
-    filtered_edge_items = [
-        ((frm, to), info)
-        for (frm, to), info in edges_map.items()
-        if frm in active_node_ids and to in active_node_ids
-    ]
-    max_weight = (
-        max(info["weight"] for _, info in filtered_edge_items)
-        if filtered_edge_items
-        else 1
-    )
+    max_weight = max(i['weight'] for i in edges_map.values()) if edges_map else 1
     edges = [
         {
             "from": frm,
@@ -1450,22 +1389,17 @@ async def nodegraph(request):
             "type": info["type"],
             "weight": max([info['weight'] / float(max_weight) * 10, 1]),
         }
-        for (frm, to), info in filtered_edge_items
+        for (frm, to), info in edges_map.items()
     ]
 
     # Filter nodes to only include those involved in edges (including traceroutes)
-    connected_node_ids = {
-        node_id for edge in edges for node_id in (edge["from"], edge["to"])
-    }
-    nodes_with_edges = [node for node in nodes if node.node_id in connected_node_ids]
+    nodes_with_edges = [node for node in nodes if node.node_id in used_nodes]
 
     template = env.get_template("nodegraph.html")
     return web.Response(
         text=template.render(
             nodes=nodes_with_edges,
             edges=edges,  # Pass edges with color info
-            activity_filters=ACTIVITY_FILTERS,
-            selected_activity=selected_activity,
             site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
@@ -1524,7 +1458,6 @@ async def api_chat(request):
         # Parse query params
         limit_str = request.query.get("limit", "20")
         since_str = request.query.get("since")
-        channel_filter = request.query.get("channel")
 
         # Clamp limit between 1 and 200
         try:
@@ -1544,9 +1477,7 @@ async def api_chat(request):
         packets = await store.get_packets(
             node_id=0xFFFFFFFF,
             portnum=PortNum.TEXT_MESSAGE_APP,
-            after=since,
             limit=limit,
-            channel=channel_filter,
         )
 
         ui_packets = [Packet.from_model(p) for p in packets]
@@ -1616,20 +1547,17 @@ async def api_nodes(request):
         role = request.query.get("role")
         channel = request.query.get("channel")
         hw_model = request.query.get("hw_model")
-        activity_param = request.query.get("active")
-        if not activity_param:
-            legacy_days = request.query.get("days_active")
-            if legacy_days and legacy_days.isdigit():
-                activity_param = "total" if legacy_days == "0" else f"{legacy_days}d"
+        days_active = request.query.get("days_active")
 
-        _, activity_window = resolve_activity_window(activity_param, default_key="total")
+        if days_active:
+            try:
+                days_active = int(days_active)
+            except ValueError:
+                days_active = None
 
         # Fetch nodes from database using your get_nodes function
         nodes = await store.get_nodes(
-            role=role,
-            channel=channel,
-            hw_model=hw_model,
-            active_within=activity_window,
+            role=role, channel=channel, hw_model=hw_model, days_active=days_active
         )
 
         # Prepare the JSON response
@@ -1665,19 +1593,6 @@ async def api_packets(request):
         limit = int(request.query.get("limit", 50))
         since_str = request.query.get("since")
         since_time = None
-        channel_values = []
-
-        # Support repeated ?channel=foo&channel=bar and comma-separated values
-        if "channel" in request.query:
-            raw_channels = request.query.getall("channel", [])
-            if not raw_channels:
-                raw_value = request.query.get("channel")
-                if raw_value:
-                    raw_channels = [raw_value]
-            for raw in raw_channels:
-                if raw:
-                    parts = [part.strip() for part in raw.split(",") if part.strip()]
-                    channel_values.extend(parts)
 
         # Parse 'since' timestamp if provided
         if since_str:
@@ -1687,14 +1602,7 @@ async def api_packets(request):
                 logger.error(f"Failed to parse 'since' timestamp '{since_str}': {e}")
 
         # Fetch last N packets
-        if not channel_values:
-            channel_filter = None
-        elif len(channel_values) == 1:
-            channel_filter = channel_values[0]
-        else:
-            channel_filter = channel_values
-
-        packets = await store.get_packets(limit=limit, after=since_time, channel=channel_filter)
+        packets = await store.get_packets(limit=limit, after=since_time)
         packets = [Packet.from_model(p) for p in packets]
 
         # Build JSON response (no raw_payload)
@@ -1768,22 +1676,6 @@ async def api_stats(request):
     )
 
     return web.json_response(stats)
-
-
-@routes.get("/api/stats/summary")
-async def api_stats_summary(request):
-    channel = request.query.get("channel") or None
-    total_packets = await store.get_total_packet_count(channel=channel)
-    total_nodes = await store.get_total_node_count(channel=channel)
-    total_packets_seen = await store.get_total_packet_seen_count(channel=channel)
-
-    return web.json_response(
-        {
-            "total_packets": total_packets,
-            "total_nodes": total_nodes,
-            "total_packets_seen": total_packets_seen,
-        }
-    )
 
 
 @routes.get("/api/config")
