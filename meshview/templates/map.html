@@ -211,32 +211,32 @@ loadTranslations().then(() => {
 
     // ---- LocalStorage for Filter Preferences ----
     const FILTER_STORAGE_KEY = 'meshview_map_filters';
-    
+
     function getDefaultFilters() {
         return {
             routersOnly: false,
             channels: {}
         };
     }
-    
+
     function saveFiltersToLocalStorage() {
         const filters = {
             routersOnly: document.getElementById("filter-routers-only").checked,
             channels: {}
         };
-        
-        channels.forEach(channel => {
+
+        channelList.forEach(channel => {
             let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
             let checkbox = document.getElementById(filterId);
             if (checkbox) {
                 filters.channels[channel] = checkbox.checked;
             }
         });
-        
+
         localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
         console.log('Filters saved to localStorage:', filters);
     }
-    
+
     function loadFiltersFromLocalStorage() {
         try {
             const stored = localStorage.getItem(FILTER_STORAGE_KEY);
@@ -250,7 +250,29 @@ loadTranslations().then(() => {
         }
         return null;
     }
-    
+
+    function renderChannelFilters(savedFilters) {
+        const filterContainer = document.getElementById("filter-container");
+        filterContainer.querySelectorAll('label[data-channel-filter="true"]').forEach(el => el.remove());
+        channelList.forEach(channel => {
+            let filterId = `filter-${channel.replace(/\s+/g,'-').toLowerCase()}`;
+            let color = hashToColor(channel);
+            let label = document.createElement('label');
+            label.style.color = color;
+            label.setAttribute('data-channel-filter', 'true');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'filter-checkbox';
+            checkbox.id = filterId;
+            const shouldCheck = savedFilters ? savedFilters.channels?.[channel] !== false : true;
+            checkbox.checked = shouldCheck;
+            checkbox.addEventListener("change", updateMarkers);
+            label.appendChild(checkbox);
+            label.append(` ${channel}`);
+            filterContainer.appendChild(label);
+        });
+    }
+
     function resetFiltersToDefaults() {
         localStorage.removeItem(FILTER_STORAGE_KEY);
         console.log('Filters reset to defaults');
@@ -268,13 +290,12 @@ loadTranslations().then(() => {
         });
         
         updateMarkers();
-        
-        // Show feedback to user
+
         const button = document.getElementById('reset-filters-button');
         const originalText = button.textContent;
         button.textContent = '✓ Filters Reset!';
         button.style.backgroundColor = '#2196F3';
-        
+
         setTimeout(() => {
             button.textContent = originalText;
             button.style.backgroundColor = '#f44336';
@@ -320,13 +341,19 @@ loadTranslations().then(() => {
             let marker=markerById[node.id];
             if(marker) marker.setStyle({fillOpacity:shouldShow?1:0});
         });
-        
+
         // Save filters to localStorage whenever they change
         saveFiltersToLocalStorage();
     }
 
-    document.querySelectorAll(".filter-checkbox").forEach(input=>input.addEventListener("change",updateMarkers));
-    
+    function getActiveChannels() {
+        return channelList.filter(channel => {
+            if (channel === 'Unknown') return false;
+            let checkbox = document.getElementById(`filter-${channel.replace(/\s+/g,'-').toLowerCase()}`);
+            return checkbox ? checkbox.checked : true;
+        });
+    }
+
     // Apply initial filters (from localStorage or defaults)
     updateMarkers();
 
