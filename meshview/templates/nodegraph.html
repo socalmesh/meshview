@@ -87,12 +87,6 @@
 <div id="mynetwork"></div>
 
 <div class="search-container">
-    <label for="activity-range" style="color:#333;">Active in:</label>
-    <select id="activity-range">
-        {% for value, label, _window in activity_filters %}
-        <option value="{{ value }}" {% if value == selected_activity %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
     <label for="channel-select" style="color:#333;">Channel:</label>
     <select id="channel-select" onchange="filterByChannel()"></select>
     <input type="text" id="node-search" placeholder="Search node...">
@@ -129,23 +123,6 @@
 </div>
 
 <script>
-const activityRangeSelect = document.getElementById('activity-range');
-const urlParams = new URLSearchParams(window.location.search);
-let selectedChannel = urlParams.get('channel') || '';
-const hasChannelSelection = value => value !== null && value !== undefined && value !== '';
-if (activityRangeSelect) {
-    activityRangeSelect.addEventListener('change', () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('active', activityRangeSelect.value);
-        if (hasChannelSelection(selectedChannel)) {
-            url.searchParams.set('channel', selectedChannel);
-        } else {
-            url.searchParams.delete('channel');
-        }
-        window.location.href = url.toString();
-    });
-}
-
 const chart = echarts.init(document.getElementById('mynetwork'));
 
 const colors = {
@@ -228,101 +205,28 @@ const edges = [
 
 let filteredNodes = [];
 let filteredEdges = [];
+let selectedChannel = 'LongFast';
 let lastSelectedNode = null;
-
-const normalizeChannel = (value) => {
-    const trimmed = (value || '').toString().trim();
-    return trimmed || 'Unknown';
-};
-
-const channelByNodeId = new Map();
-nodes.forEach(n=>{
-    const key = String(n.name ?? n.node_id ?? '');
-    if(key){
-        channelByNodeId.set(key, normalizeChannel(n.channel));
-    }
-});
-
-const channelCounts = new Map();
-edges.forEach(edge=>{
-    const weight = typeof edge.weight === 'number' ? edge.weight : 1;
-    const fromChannel = channelByNodeId.get(String(edge.source));
-    const toChannel = channelByNodeId.get(String(edge.target));
-    if(fromChannel){
-        channelCounts.set(fromChannel, (channelCounts.get(fromChannel) || 0) + weight);
-    }
-    if(toChannel){
-        channelCounts.set(toChannel, (channelCounts.get(toChannel) || 0) + weight);
-    }
-});
-
-let channelOptions = [];
-if (channelCounts.size) {
-    channelOptions = Array.from(
-        [...channelCounts.entries()]
-            .filter(([_, count]) => count > 0)
-            .map(([channel]) => channel)
-    ).sort();
-}
-
-if (!channelOptions.length) {
-    channelOptions = Array.from(new Set(nodes.map(n=>normalizeChannel(n.channel)))).sort();
-}
-
-if (hasChannelSelection(selectedChannel) && channelOptions.length && !channelOptions.includes(selectedChannel)) {
-    channelOptions.push(selectedChannel);
-    channelOptions.sort();
-}
-
-if (!hasChannelSelection(selectedChannel) && channelOptions.length) {
-    selectedChannel = channelOptions[0];
-}
 
 function populateChannelDropdown() {
     const sel = document.getElementById('channel-select');
-    if (!sel) return;
-    sel.innerHTML = '';
-    const allOpt = document.createElement('option');
-    allOpt.value = '';
-    allOpt.textContent = 'All Channels';
-    allOpt.setAttribute('data-translate-lang','all_channels');
-    sel.appendChild(allOpt);
-    channelOptions.forEach(ch=>{
+    const unique = [...new Set(nodes.map(n=>n.channel).filter(Boolean))].sort();
+    unique.forEach(ch=>{
         const opt = document.createElement('option');
-        opt.value = ch;
-        opt.text = ch;
-        if (selectedChannel === ch) {
-            opt.selected = true;
-        }
+        opt.value=ch; opt.text=ch;
+        if(ch==='LongFast') opt.selected=true;
         sel.appendChild(opt);
     });
-    if (!hasChannelSelection(selectedChannel)) {
-        sel.value = '';
-    }
+    selectedChannel = sel.value;
+    filterByChannel();
 }
 
-function filterByChannel(isInitial=false) {
-    const sel = document.getElementById('channel-select');
-    if (sel) {
-        selectedChannel = sel.value;
-    }
-    if (hasChannelSelection(selectedChannel)) {
-        filteredNodes = nodes.filter(n=>n.channel===selectedChannel);
-    } else {
-        filteredNodes = [...nodes];
-    }
+function filterByChannel() {
+    selectedChannel = document.getElementById('channel-select').value;
+    filteredNodes = nodes.filter(n=>n.channel===selectedChannel);
     const nodeSet = new Set(filteredNodes.map(n=>n.name));
     filteredEdges = edges.filter(e=>nodeSet.has(e.source) && nodeSet.has(e.target));
     lastSelectedNode=null;
-    if (!isInitial) {
-        const url = new URL(window.location.href);
-        if (hasChannelSelection(selectedChannel)) {
-            url.searchParams.set('channel', selectedChannel);
-        } else {
-            url.searchParams.delete('channel');
-        }
-        window.history.replaceState({}, '', url.toString());
-    }
     updateChart();
 }
 
@@ -387,7 +291,6 @@ function searchNode(){
 }
 
 populateChannelDropdown();
-filterByChannel(true);
 window.addEventListener('resize', ()=>chart.resize());
 </script>
 {% endblock %}

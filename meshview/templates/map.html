@@ -1,97 +1,34 @@
 {% extends "base.html" %}
+
 {% block css %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""/>
 <style>
-    .legend {
-        background: white;
-        padding: 8px;
-        line-height: 1.5;
-        border-radius: 5px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        font-size: 14px;
-        color: black;
+    .legend { background:white;padding:8px;line-height:1.5;border-radius:5px;box-shadow:0 0 10px rgba(0,0,0,0.3);font-size:14px;color:black; }
+    .legend i { width:12px;height:12px;display:inline-block;margin-right:6px;border-radius:50%; }
+    #filter-container { text-align:center;margin-top:10px; }
+    .filter-checkbox { margin:0 10px; }
+    #share-button, #reset-filters-button {
+        padding:5px 15px;border:none;border-radius:4px;font-size:14px;cursor:pointer;color:white;
     }
-    .legend i {
-        width: 12px;
-        height: 12px;
-        display: inline-block;
-        margin-right: 6px;
-        border-radius: 50%;
-    }
-    #filter-container {
-        text-align: center;
-        margin-top: 10px;
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: center;
-        gap: 8px;
-    }
-    .filter-checkbox {
-        margin: 0 10px;
-    }
-    #activity-range {
-        padding: 4px 8px;
-        border-radius: 4px;
-        border: 1px solid #ccc;
-    }
-    #share-button {
-        margin-left: 20px;
-        padding: 5px 15px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-    #share-button:hover {
-        background-color: #45a049;
-    }
-    #share-button:active {
-        background-color: #3d8b40;
-    }
-    #reset-filters-button {
-        margin-left: 10px;
-        padding: 5px 15px;
-        background-color: #f44336;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-    #reset-filters-button:hover {
-        background-color: #da190b;
-    }
-    #reset-filters-button:active {
-        background-color: #c41e0d;
-    }
-    .blinking-tooltip {
-        background: white;
-        color: black;
-        border: 1px solid black;
-        border-radius: 4px;
-        padding: 2px 5px;
-    }
+    #share-button { margin-left:20px; background-color:#4CAF50; }
+    #share-button:hover { background-color:#45a049; }
+    #share-button:active { background-color:#3d8b40; }
+    #reset-filters-button { margin-left:10px; background-color:#f44336; }
+    #reset-filters-button:hover { background-color:#da190b; }
+    #reset-filters-button:active { background-color:#c41e0d; }
+    .blinking-tooltip { background:white;color:black;border:1px solid black;border-radius:4px;padding:2px 5px; }
 </style>
 {% endblock %}
 
 {% block body %}
-<div id="map" style="width: 100%; height: calc(100vh - 270px)"></div>
+<div id="map" style="width:100%;height:calc(100vh - 270px)"></div>
 <div id="filter-container">
-    <label for="activity-range" id="activity-range-label">Active in:</label>
-    <select id="activity-range">
-        {% for value, label, _window in activity_filters %}
-        <option value="{{ value }}" {% if value == selected_activity %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
-    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> <span id="filter-routers-label">Show Routers Only</span>
+    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
 </div>
-<div style="text-align: center; margin-top: 5px;">
-    <button id="share-button">🔗 Share This View</button>
+<div style="text-align:center;margin-top:5px;">
+    <button id="share-button" onclick="shareCurrentView()">🔗 Share This View</button>
     <button id="reset-filters-button" onclick="resetFiltersToDefaults()">↺ Reset Filters To Defaults</button>
 </div>
 
@@ -103,480 +40,191 @@
         crossorigin></script>
 
 <script>
-async function loadTranslations() {
-    const langCode = "{{ site_config.get('site', {}).get('language','en') }}";
-    try {
-        const res = await fetch(`/api/lang?lang=${langCode}&section=map`);
-        window.mapTranslations = await res.json();
-    } catch(err) {
-        console.error("Map translation load failed:", err);
-        window.mapTranslations = {};
+// ---------------------- Map Initialization ----------------------
+var map = L.map('map');
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(map);
+
+// ---------------------- Globals ----------------------
+var nodes=[], markers={}, markerById={}, nodeMap = new Map();
+var edgesData=[], edgeLayer = L.layerGroup().addTo(map), selectedNodeId = null;
+var activeBlinks = new Map(), lastImportTime = null;
+var mapInterval = 3;
+const portMap = {1:"Text",67:"Telemetry",3:"Position",70:"Traceroute",4:"Node Info",71:"Neighbour Info",73:"Map Report"};
+const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"];
+const colorMap = new Map(); let nextColorIndex = 0;
+const channelSet = new Set();
+
+// ---------------------- Helpers ----------------------
+function timeAgo(date){ const diff=Date.now()-new Date(date), s=Math.floor(diff/1000), m=Math.floor(s/60), h=Math.floor(m/60), d=Math.floor(h/24); return d>0?d+"d":h>0?h+"h":m>0?m+"m":s+"s"; }
+function hashToColor(str){ if(colorMap.has(str)) return colorMap.get(str); const c=palette[nextColorIndex++%palette.length]; colorMap.set(str,c); return c; }
+function isInvalidCoord(n){ return !n||!n.lat||!n.long||n.lat===0||n.long===0||Number.isNaN(n.lat)||Number.isNaN(n.long); }
+
+// ---------------------- Load Config ----------------------
+fetch('/api/config').then(r=>r.json()).then(cfg=>{
+    const site = cfg.site || {};
+    mapInterval = parseInt(site.map_interval||3,10);
+    const topLeft = [parseFloat(site.map_top_left_lat), parseFloat(site.map_top_left_lon)];
+    const bottomRight = [parseFloat(site.map_bottom_right_lat), parseFloat(site.map_bottom_right_lon)];
+    if(topLeft && bottomRight){
+        map.fitBounds([topLeft,bottomRight]);
+        window.configBoundsApplied = true; // prevent nodes from overriding
+        setTimeout(()=>map.invalidateSize(),100);
+    }
+}).catch(console.error);
+
+// ---------------------- Load Nodes + Edges ----------------------
+fetch('/api/nodes?days_active=3').then(r=>r.json()).then(data=>{
+    if(!data.nodes) return;
+    nodes = data.nodes.map(n=>({
+        key: n.node_id!==null?n.node_id:n.id,
+        id: n.id,
+        node_id: n.node_id,
+        lat: n.last_lat?n.last_lat/1e7:null,
+        long: n.last_long?n.last_long/1e7:null,
+        long_name: n.long_name||"",
+        short_name: n.short_name||"",
+        channel: n.channel||"",
+        hw_model: n.hw_model||"",
+        role: n.role||"",
+        firmware: n.firmware||"",
+        last_update: n.last_update||"",
+        isRouter: n.role? n.role.toLowerCase().includes("router"):false
+    }));
+    nodes.forEach(n=>{ nodeMap.set(n.key,n); if(n.channel) channelSet.add(n.channel); });
+    renderNodesOnMap();
+    createChannelFilters();
+    return fetch('/api/edges');
+}).then(r=>r?r.json():null).then(data=>{
+    if(data && data.edges) edgesData=data.edges;
+    if(mapInterval>0) startPacketFetcher();
+}).catch(console.error);
+
+// ---------------------- Render Nodes ----------------------
+function renderNodesOnMap(){
+    const bounds = L.latLngBounds();
+    nodes.forEach(node=>{
+        if(isInvalidCoord(node)) return;
+        const color = hashToColor(node.channel);
+        const opts = { radius: node.isRouter?9:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7 };
+        const marker = L.circleMarker([node.lat,node.long],opts).addTo(map);
+        marker.nodeId = node.key;
+        marker.originalColor = color;
+        markerById[node.key] = marker;
+        const popup = `<b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
+                       <b>Channel:</b> ${node.channel}<br>
+                       <b>Model:</b> ${node.hw_model}<br>
+                       <b>Role:</b> ${node.role}<br>
+                       ${node.last_update? `<b>Last seen:</b> ${timeAgo(node.last_update)}<br>`:""}
+                       ${node.firmware? `<b>Firmware:</b> ${node.firmware}<br>`:""}`;
+        marker.on('click',()=>{ onNodeClick(node); marker.bindPopup(popup).openPopup(); setTimeout(()=>marker.closePopup(),3000); });
+        bounds.extend(marker.getLatLng());
+    });
+
+    // Only fit to nodes if no config bounds were applied
+    if(!window.configBoundsApplied && bounds.isValid()){
+        map.fitBounds(bounds);
+        setTimeout(()=>map.invalidateSize(),100);
     }
 }
 
-// Initialize map AFTER translations are loaded
-loadTranslations().then(async () => {
-    const t = window.mapTranslations || {};
-    const activitySelect = document.getElementById("activity-range");
-    const activityLabel = document.getElementById("activity-range-label");
-    if (activityLabel) {
-        activityLabel.textContent = t.active_within || "Active in:";
-    }
-    if (activitySelect) {
-        activitySelect.addEventListener("change", () => {
-            const url = new URL(window.location.href);
-            url.searchParams.set("active", activitySelect.value);
-            window.location.href = url.toString();
-        });
-    }
-
-    // ---- Map Setup ----
-    var map = L.map('map');
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
-
-    {% if custom_view %}
-    var customView = { lat: {{ custom_view.lat }}, lng: {{ custom_view.lng }}, zoom: {{ custom_view.zoom }} };
-    {% else %}
-    var customView = null;
-    {% endif %}
-
-    // ---- Node Data ----
-    var markers = {};
-    var markerById = {};
-    var nodes = [
-        {% for node in nodes %}
-        {
-            lat: {{ ((node.last_lat / 10**7) + (range(-9,9) | random) / 10000) | round(7) }},
-            long: {{ ((node.last_long / 10**7) + (range(-9,9) | random) / 10000) | round(7) if node.last_long is not none else "null" }},
-            long_name: {{ (node.long_name or "") | tojson }},
-            short_name: {{ (node.short_name or "") | tojson }},
-            channel: {{ (node.channel or "") | tojson }},
-            hw_model: {{ (node.hw_model or "") | tojson }},
-            role: {{ (node.role or "") | tojson }},
-            last_update: {{ node.last_update | default("", true) | tojson }},
-            firmware: {{ (node.firmware or "") | tojson }},
-            id: {{ (node.node_id or "") | tojson }},
-            isRouter: {{ 'true' if 'router' in (node.role or '').lower() else 'false' }}
-        }{{ "," if not loop.last else "" }}
-        {% endfor %}
-    ];
-    const channelSet = new Set();
-    let channelList = [];
-
-    const portMap = {1: "Text", 67: "Telemetry", 3: "Position", 70: "Traceroute", 4: "Node Info", 71: "Neighbour Info", 73: "Map Report"};
-
-    function timeAgo(date) {
-        const now = Date.now();
-        const diff = now - new Date(date);
-        const seconds = Math.floor(diff / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-        if (days > 0) return days + "d";
-        if (hours > 0) return hours + "h";
-        if (minutes > 0) return minutes + "m";
-        return seconds + "s";
-    }
-
-    const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"];
-    const colorMap = new Map();
-    let nextColorIndex = 0;
-    function hashToColor(str) {
-        if (colorMap.has(str)) return colorMap.get(str);
-        const color = palette[nextColorIndex % palette.length];
-        colorMap.set(str, color);
-        nextColorIndex++;
-        return color;
-    }
-
-    function channelKey(channel) {
-        if (typeof channel === 'string' && channel.trim().length > 0) {
-            return channel;
-        }
-        return 'Unknown';
-    }
-
-    async function fetchAdditionalChannels() {
-        try {
-            const res = await fetch('/api/channels?period_type=day&length=30');
-            if (!res.ok) return [];
-            const data = await res.json();
-            if (!data || !Array.isArray(data.channels)) return [];
-            return data.channels.filter(ch => typeof ch === 'string' && ch.trim().length > 0);
-        } catch (err) {
-            console.error('Channel list fetch failed:', err);
-            return [];
-        }
-    }
-
-    const nodeMap = new Map();
-    nodes.forEach(n => nodeMap.set(n.id, n));
-    function isInvalidCoord(node) { return !node || !node.lat || !node.long || node.lat===0 || node.long===0 || Number.isNaN(node.lat) || Number.isNaN(node.long); }
-
-    // ---- Marker Plotting ----
-    var bounds = L.latLngBounds();
-
-    nodes.forEach(node => {
-        if (!isInvalidCoord(node)) {
-            let category = channelKey(node.channel);
-            channelSet.add(category);
-            let color = hashToColor(category);
-
-            let popupContent = `<b><a href="/packet_list/${node.id}">${node.long_name}</a> (${node.short_name})</b><br>
-                                <b>${t.channel||'Channel:'}</b> ${node.channel}<br>
-                                <b>${t.model||'Model:'}</b> ${node.hw_model}<br>
-                                <b>${t.role||'Role:'}</b> ${node.role}<br>`;
-            if (node.last_update) popupContent += `<b>${t.last_seen||'Last seen:'}</b> ${timeAgo(node.last_update)}<br>`;
-            if (node.firmware) popupContent += `<b>${t.firmware||'Firmware:'}</b> ${node.firmware}<br>`;
-
-            var marker = L.circleMarker([node.lat, node.long], { radius: node.isRouter?9:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7 }).addTo(map);
-            marker.nodeId = node.id;
-            marker.originalColor = color;
-            markerById[node.id] = marker;
-
-            marker.on('click', e => {
-                e.originalEvent.stopPropagation();
-                marker.bindPopup(popupContent).openPopup();
-                setTimeout(() => marker.closePopup(), 3000);
-                onNodeClick(node);
-            });
-
-            if (!markers[category]) markers[category]=[];
-            markers[category].push({marker,isRouter:node.isRouter});
-            bounds.extend(marker.getLatLng());
+// ---------------------- Render Edges ----------------------
+function onNodeClick(node){
+    selectedNodeId = node.key;
+    edgeLayer.clearLayers();
+    edgesData.forEach(edge=>{
+        if(edge.from!==node.key && edge.to!==node.key) return;
+        const f=nodeMap.get(edge.from), t=nodeMap.get(edge.to);
+        if(!f||!t||isInvalidCoord(f)||isInvalidCoord(t)) return;
+        const color=edge.type==="neighbor"?"gray":"orange";
+        const l=L.polyline([[f.lat,f.long],[t.lat,t.long]],{color,weight:3}).addTo(edgeLayer);
+        if(edge.type==="traceroute"){
+            L.polylineDecorator(l,{patterns:[{offset:'100%',repeat:0,symbol:L.Symbol.arrowHead({pixelSize:5,polygon:false,pathOptions:{stroke:true,color}})}]}).addTo(edgeLayer);
         }
     });
+}
+map.on('click',e=>{ if(!e.originalEvent.target.classList.contains('leaflet-interactive')){ edgeLayer.clearLayers(); selectedNodeId=null; } });
 
-    // ---- Map bounds ----
-    var areaBounds = [
-        [{{ site_config["site"]["map_top_left_lat"] }}, {{ site_config["site"]["map_top_left_lon"] }}],
-        [{{ site_config["site"]["map_bottom_right_lat"] }}, {{ site_config["site"]["map_bottom_right_lon"] }}]
-    ];
-    if (customView) map.setView([customView.lat,customView.lng],customView.zoom);
-    else map.fitBounds(areaBounds);
+// ---------------------- Packet Blinking ----------------------
+function blinkNode(marker,longName,portnum){
+    if(!map.hasLayer(marker)) return;
+    if(activeBlinks.has(marker)){ clearInterval(activeBlinks.get(marker)); marker.setStyle({fillColor:marker.originalColor}); if(marker.tooltip) map.removeLayer(marker.tooltip); }
+    let blinkCount=0;
+    const portName = portMap[portnum]||`Port ${portnum}`;
+    const tooltip = L.tooltip({permanent:true,direction:'top',offset:[0,-marker.options.radius-5],className:'blinking-tooltip'})
+                     .setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng()).addTo(map);
+    marker.tooltip = tooltip;
+    const interval = setInterval(()=>{
+        if(map.hasLayer(marker)){ marker.setStyle({fillColor: blinkCount%2===0?'yellow':marker.originalColor}); marker.bringToFront(); }
+        blinkCount++;
+        if(blinkCount>7){ clearInterval(interval); marker.setStyle({fillColor:marker.originalColor}); map.removeLayer(tooltip); activeBlinks.delete(marker); }
+    },500);
+    activeBlinks.set(marker,interval);
+}
 
-    channelList = Array.from(channelSet).sort();
-
-    // ---- LocalStorage for Filter Preferences ----
-    const FILTER_STORAGE_KEY = 'meshview_map_filters';
-
-    function getDefaultFilters() {
-        return {
-            routersOnly: false,
-            channels: {}
-        };
-    }
-
-    function saveFiltersToLocalStorage() {
-        const filters = {
-            routersOnly: document.getElementById("filter-routers-only").checked,
-            channels: {}
-        };
-
-        channelList.forEach(channel => {
-            let filterId = `filter-${channel.replace(/\s+/g, '-').toLowerCase()}`;
-            let checkbox = document.getElementById(filterId);
-            if (checkbox) {
-                filters.channels[channel] = checkbox.checked;
-            }
+// ---------------------- Packet Fetching ----------------------
+function fetchLatestPacket(){ fetch(`/api/packets?limit=1`).then(r=>r.json()).then(data=>{ lastImportTime=data.packets?.[0]?.import_time||new Date().toISOString(); }).catch(console.error); }
+function fetchNewPackets(){
+    if(!lastImportTime) return;
+    fetch(`/api/packets?since=${encodeURIComponent(lastImportTime)}`).then(r=>r.json()).then(data=>{
+        if(!data.packets||data.packets.length===0) return;
+        let latest = lastImportTime;
+        data.packets.forEach(pkt=>{
+            if(pkt.import_time>latest) latest=pkt.import_time;
+            const marker = markerById[pkt.from_node_id];
+            const nodeData = nodeMap.get(pkt.from_node_id);
+            if(marker && nodeData) blinkNode(marker,nodeData.long_name,pkt.portnum);
         });
+        lastImportTime=latest;
+    }).catch(console.error);
+}
 
-        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
-    }
+// ---------------------- Polling ----------------------
+let packetInterval=null;
+function startPacketFetcher(){ if(mapInterval<=0) return; if(!packetInterval){ fetchLatestPacket(); packetInterval=setInterval(fetchNewPackets,mapInterval*1000); } }
+function stopPacketFetcher(){ if(packetInterval){ clearInterval(packetInterval); packetInterval=null; } }
+document.addEventListener("visibilitychange",()=>{ document.hidden?stopPacketFetcher():startPacketFetcher(); });
 
-    function loadFiltersFromLocalStorage() {
-        try {
-            const stored = localStorage.getItem(FILTER_STORAGE_KEY);
-            if (stored) {
-                return JSON.parse(stored);
-            }
-        } catch (error) {
-            console.error('Error loading filters from localStorage:', error);
-        }
-        return null;
-    }
+// ---------------------- Channel Filters ----------------------
+function createChannelFilters(){
+    const filterContainer = document.getElementById("filter-container");
+    channelSet.forEach(channel=>{
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "filter-checkbox";
+        checkbox.id = `filter-channel-${channel}`;
+        checkbox.checked = true;
+        checkbox.addEventListener("change", updateNodeVisibility);
+        filterContainer.appendChild(checkbox);
 
-    function renderChannelFilters(savedFilters) {
-        const filterContainer = document.getElementById("filter-container");
-        filterContainer.querySelectorAll('label[data-channel-filter="true"]').forEach(el => el.remove());
-        channelList.forEach(channel => {
-            let filterId = `filter-${channel.replace(/\s+/g,'-').toLowerCase()}`;
-            let color = hashToColor(channel);
-            let label = document.createElement('label');
-            label.style.color = color;
-            label.setAttribute('data-channel-filter', 'true');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'filter-checkbox';
-            checkbox.id = filterId;
-            const shouldCheck = savedFilters ? savedFilters.channels?.[channel] !== false : true;
-            checkbox.checked = shouldCheck;
-            checkbox.addEventListener("change", updateMarkers);
-            label.appendChild(checkbox);
-            label.append(` ${channel}`);
-            filterContainer.appendChild(label);
-        });
-    }
-
-    function resetFiltersToDefaults() {
-        localStorage.removeItem(FILTER_STORAGE_KEY);
-        document.getElementById("filter-routers-only").checked = false;
-        renderChannelFilters(null);
-        updateMarkers();
-
-        const button = document.getElementById('reset-filters-button');
-        const originalText = button.textContent;
-        button.textContent = '✓ Filters Reset!';
-        button.style.backgroundColor = '#2196F3';
-
-        setTimeout(() => {
-            button.textContent = originalText;
-            button.style.backgroundColor = '#f44336';
-        }, 2000);
-    }
-
-    window.resetFiltersToDefaults = resetFiltersToDefaults;
-
-    // ---- Filters ----
-    const filterLabel = document.getElementById("filter-routers-label");
-    filterLabel.textContent = t.show_routers_only || "Show Routers Only";
-    const routersOnlyCheckbox = document.getElementById("filter-routers-only");
-    const savedFilters = loadFiltersFromLocalStorage();
-    if (savedFilters) {
-        routersOnlyCheckbox.checked = savedFilters.routersOnly || false;
-    }
-    routersOnlyCheckbox.addEventListener("change", updateMarkers);
-    renderChannelFilters(savedFilters);
-
-    function updateMarkers() {
-        let showRoutersOnly = document.getElementById("filter-routers-only").checked;
-        nodes.forEach(node => {
-            let category = channelKey(node.channel);
-            let checkbox=document.getElementById(`filter-${category.replace(/\s+/g,'-').toLowerCase()}`);
-            let shouldShow=(!checkbox || checkbox.checked) && (!showRoutersOnly || node.isRouter);
-            let marker=markerById[node.id];
-            if(marker) marker.setStyle({fillOpacity:shouldShow?1:0});
-        });
-
-        // Save filters to localStorage whenever they change
-        saveFiltersToLocalStorage();
-
-        if (!document.hidden) {
-            restartPacketFetcher(true);
-        }
-    }
-
-    function getActiveChannels() {
-        return channelList.filter(channel => {
-            if (channel === 'Unknown') return false;
-            let checkbox = document.getElementById(`filter-${channel.replace(/\s+/g,'-').toLowerCase()}`);
-            return checkbox ? checkbox.checked : true;
-        });
-    }
-
-    // Apply initial filters (from localStorage or defaults)
-    updateMarkers();
-
-    // ---- Share button ----
-    const shareBtn = document.getElementById("share-button");
-    shareBtn.textContent = `🔗 ${t.share_view || "Share This View"}`;
-    shareBtn.onclick = function() {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        const lat = center.lat.toFixed(6);
-        const lng = center.lng.toFixed(6);
-        const url = new URL(window.location.href);
-        url.searchParams.set('lat', lat);
-        url.searchParams.set('lng', lng);
-        url.searchParams.set('zoom', zoom);
-        const shareUrl = url.toString();
-        navigator.clipboard.writeText(shareUrl).then(()=>{
-            const orig = shareBtn.textContent;
-            shareBtn.textContent = '✓ Link Copied!';
-            shareBtn.style.backgroundColor='#2196F3';
-            setTimeout(()=>{ shareBtn.textContent=orig; shareBtn.style.backgroundColor='#4CAF50'; },2000);
-        }).catch(()=>{ alert('Share this link:\n'+shareUrl); });
-    };
-
-    // ---- Edges ----
-    var edgeLayer = L.layerGroup().addTo(map);
-    var edgesData = null;
-    let selectedNodeId = null;
-
-    fetch('/api/edges')
-        .then(r => r.json())
-        .then(data => edgesData = data.edges)
-        .catch(err => console.error(err));
-
-    function onNodeClick(node) {
-        if (selectedNodeId != node.id) {
-            selectedNodeId = node.id;
-            edgeLayer.clearLayers();
-            if (!edgesData) return;
-            if (!map.hasLayer(edgeLayer)) edgeLayer.addTo(map);
-
-        edgesData.forEach(edge => {
-            if (edge.from !== node.id && edge.to !== node.id) return;
-            const fromNode = nodeMap.get(edge.from);
-            const toNode = nodeMap.get(edge.to);
-            if (!fromNode || !toNode) return;
-            if (isInvalidCoord(fromNode) || isInvalidCoord(toNode)) return;
-
-            const lineColor = edge.type === "neighbor" ? "gray" : "orange";
-            const weight = 3;
-
-            const polyline = L.polyline(
-                [[fromNode.lat, fromNode.long], [toNode.lat, toNode.long]],
-                { color: lineColor, weight, opacity: 1 }
-            ).addTo(edgeLayer).bringToFront();
-
-            // ✅ Show tooltip right where the user clicks
-            polyline.on('click', e => {
-                const tooltip = L.tooltip({
-                    permanent: false,
-                    direction: 'top',
-                    offset: [0, -5],
-                    className: 'blinking-tooltip'
-                })
-                .setContent(edge.type.charAt(0).toUpperCase() + edge.type.slice(1))
-                .setLatLng(e.latlng)
-                .addTo(map);
-
-                setTimeout(() => map.removeLayer(tooltip), 3000);
-            });
-
-            if (edge.type === "traceroute") {
-                L.polylineDecorator(polyline, {
-                    patterns: [{
-                        offset: '100%',
-                        repeat: 0,
-                        symbol: L.Symbol.arrowHead({
-                            pixelSize: 5,
-                            polygon: false,
-                            pathOptions: { stroke: true, color: lineColor }
-                        })
-                    }]
-                }).addTo(edgeLayer);
-            }
-        });
-
-
-
-        }
-    }
-
-
-    map.on('click', e=>{ if(!e.originalEvent.target.classList.contains('leaflet-interactive')){ edgeLayer.clearLayers(); selectedNodeId=null; }});
-
-    // ---- Blinking ----
-    var activeBlinks=new Map();
-    function blinkNode(marker,longName,portnum){
-        if(!map.hasLayer(marker)) return;
-        if(activeBlinks.has(marker)){
-            clearInterval(activeBlinks.get(marker));
-            marker.setStyle({fillColor:marker.originalColor});
-            if(marker.tooltip) map.removeLayer(marker.tooltip);
-        }
-        let blinkCount=0;
-        let portName=portMap[portnum]||`Port ${portnum}`;
-        let tooltip=L.tooltip({permanent:true,direction:'top',offset:[0,-marker.options.radius-5],className:'blinking-tooltip'})
-                        .setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng());
-        tooltip.addTo(map);
-        marker.tooltip=tooltip;
-        let interval=setInterval(()=>{
-            if(map.hasLayer(marker)){
-                marker.setStyle({fillColor:blinkCount%2===0?'yellow':marker.originalColor});
-                marker.bringToFront();
-            }
-            blinkCount++;
-            if(blinkCount>7){
-                clearInterval(interval);
-                marker.setStyle({fillColor:marker.originalColor});
-                map.removeLayer(tooltip);
-                activeBlinks.delete(marker);
-            }
-        },500);
-        activeBlinks.set(marker,interval);
-    }
-
-    // ---- Packet fetching ----
-    let lastImportTime=null;
-    const mapInterval={{ site_config["site"]["map_interval"]|default(3) }};
-    function buildPacketsUrl(base){
-        const active = getActiveChannels();
-        const url = new URL(base, window.location.origin);
-        url.searchParams.delete('channel');
-        if (active.length) {
-            active.forEach(ch => url.searchParams.append('channel', ch));
-        }
-        if (url.origin === window.location.origin) {
-            return url.pathname + (url.search || '') + (url.hash || '');
-        }
-        return url.toString();
-    }
-    function fetchLatestPacket(){
-        return fetch(buildPacketsUrl(`/api/packets?limit=1`))
-            .then(r=>r.json())
-            .then(data=>{
-                if(data.packets && data.packets.length>0){
-                    lastImportTime=data.packets[0].import_time;
-                } else {
-                    lastImportTime=new Date().toISOString();
-                }
-            })
-            .catch(err=>{
-                console.error('fetchLatestPacket failed:', err);
-            });
-    }
-    function fetchNewPackets(){
-        if(!lastImportTime) return;
-        const baseUrl = `/api/packets?since=${encodeURIComponent(lastImportTime)}`;
-        return fetch(buildPacketsUrl(baseUrl))
-            .then(r=>r.json())
-            .then(data=>{
-                if(!data.packets||data.packets.length===0) return;
-                let latestSeen=lastImportTime;
-                data.packets.forEach(packet=>{
-                    if(packet.import_time && (!latestSeen || packet.import_time>latestSeen)) latestSeen=packet.import_time;
-                    let marker=markerById[packet.from_node_id];
-                    if(marker){
-                        let nodeData=nodeMap.get(packet.from_node_id);
-                        if(nodeData) blinkNode(marker,nodeData.long_name,packet.portnum);
-                    }
-                });
-                if(latestSeen) lastImportTime=latestSeen;
-            })
-            .catch(err=>{
-                console.error('fetchNewPackets failed:', err);
-            });
-    }
-    let packetInterval=null;
-    async function startPacketFetcher(resetImportTime=true){
-        if (mapInterval <= 0) return;
-        stopPacketFetcher();
-        if (resetImportTime) {
-            lastImportTime = null;
-        }
-        if (!lastImportTime) {
-            await fetchLatestPacket();
-        }
-        await fetchNewPackets();
-        packetInterval = setInterval(()=>{ fetchNewPackets(); }, mapInterval*1000);
-    }
-    function stopPacketFetcher(){ if(packetInterval){ clearInterval(packetInterval); packetInterval=null; } }
-    async function restartPacketFetcher(resetImportTime=false){
-        if(mapInterval<=0) return;
-        if(document.hidden) return;
-        await startPacketFetcher(resetImportTime);
-    }
-    document.addEventListener("visibilitychange",function(){
-        if(document.hidden) stopPacketFetcher();
-        else restartPacketFetcher(false);
+        const label = document.createElement("label");
+        label.htmlFor = checkbox.id;
+        label.innerText = channel;
+        // Set the label color to match the channel
+        label.style.color = hashToColor(channel);
+        filterContainer.appendChild(label);
     });
-    if(mapInterval>0) startPacketFetcher(true);
-});
+    document.getElementById("filter-routers-only").addEventListener("change", updateNodeVisibility);
+}
+
+
+function updateNodeVisibility(){
+    const showRoutersOnly = document.getElementById("filter-routers-only").checked;
+    const activeChannels = Array.from(channelSet).filter(ch=>document.getElementById(`filter-channel-${ch}`).checked);
+    nodes.forEach(n=>{
+        const marker = markerById[n.key];
+        if(marker){
+            const visible = (!showRoutersOnly || n.isRouter) && activeChannels.includes(n.channel);
+            if(visible) map.addLayer(marker); else map.removeLayer(marker);
+        }
+    });
+}
+
+// ---------------------- Share / Reset ----------------------
+function shareCurrentView(){ alert("Sharing is not implemented yet."); }
+function resetFiltersToDefaults(){
+    document.getElementById("filter-routers-only").checked = false;
+    channelSet.forEach(ch=>document.getElementById(`filter-channel-${ch}`).checked = true);
+    updateNodeVisibility();
+}
 </script>
 {% endblock %}

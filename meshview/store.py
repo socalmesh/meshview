@@ -24,14 +24,7 @@ async def get_fuzzy_nodes(query):
         return result.scalars()
 
 
-async def get_packets(
-    node_id=None,
-    portnum=None,
-    after=None,
-    before=None,
-    limit=None,
-    channel: str | list[str] | tuple[str, ...] | None = None,
-):
+async def get_packets(node_id=None, portnum=None, after=None, before=None, limit=None):
     async with database.async_session() as session:
         q = select(Packet)
 
@@ -43,13 +36,6 @@ async def get_packets(
             q = q.where(Packet.import_time > after)
         if before:
             q = q.where(Packet.import_time < before)
-        if channel:
-            if isinstance(channel, (list, tuple, set)):
-                lowered = [c.lower() for c in channel if isinstance(c, str) and c]
-                if lowered:
-                    q = q.where(func.lower(Packet.channel).in_(lowered))
-            elif isinstance(channel, str):
-                q = q.where(func.lower(Packet.channel) == channel.lower())
 
         q = q.order_by(Packet.import_time.desc())
 
@@ -161,21 +147,17 @@ async def get_mqtt_neighbors(since):
 
 # We count the total amount of packages
 # This is to be used by /stats in web.py
-async def get_total_packet_count(channel: str | None = None) -> int:
+async def get_total_packet_count():
     async with database.async_session() as session:
         q = select(func.count(Packet.id))  # Use SQLAlchemy's func to count packets
-        if channel:
-            q = q.where(func.lower(Packet.channel) == channel.lower())
         result = await session.execute(q)
         return result.scalar()  # Return the total count of packets
 
 
 # We count the total amount of seen packets
-async def get_total_packet_seen_count(channel: str | None = None) -> int:
+async def get_total_packet_seen_count():
     async with database.async_session() as session:
         q = select(func.count(PacketSeen.node_id))  # Use SQLAlchemy's func to count nodes
-        if channel:
-            q = q.where(func.lower(PacketSeen.channel) == channel.lower())
         result = await session.execute(q)
         return result.scalar()  # Return the` total count of seen packets
 
@@ -275,13 +257,7 @@ async def get_node_traffic(node_id: int):
         return []
 
 
-async def get_nodes(
-    role=None,
-    channel=None,
-    hw_model=None,
-    days_active=None,
-    active_within: timedelta | None = None,
-):
+async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
     """
     Fetches nodes from the database based on optional filtering criteria.
 
@@ -289,8 +265,6 @@ async def get_nodes(
         role (str, optional): The role of the node (converted to uppercase for consistency).
         channel (str, optional): The communication channel associated with the node.
         hw_model (str, optional): The hardware model of the node.
-        days_active (int, optional): Legacy support for filtering by a number of days.
-        active_within (timedelta, optional): Filter nodes seen within the provided window.
 
     Returns:
         list: A list of Node objects that match the given criteria.
@@ -310,12 +284,8 @@ async def get_nodes(
             if hw_model is not None:
                 query = query.where(Node.hw_model == hw_model)
 
-            window = active_within
-            if window is None and days_active is not None:
-                window = timedelta(days=days_active)
-
-            if window is not None:
-                query = query.where(Node.last_update > datetime.now() - window)
+            if days_active is not None:
+                query = query.where(Node.last_update > datetime.now() - timedelta(days_active))
 
             # Exclude nodes where last_update is an empty string
             query = query.where(Node.last_update != "")

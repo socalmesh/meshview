@@ -1,10 +1,7 @@
 <!doctype html>
-<html lang="{{ site_config.get('general', {}).get('language', 'en') }}" data-bs-theme="dark">
+<html lang="en" data-bs-theme="dark">
 <head>
-    <title>
-        Meshview - {{ site_config.get("site", {}).get("title", "") }}
-        {% if node and node.short_name %}-- {{ node.short_name }}{% endif %}
-    </title>
+    <title>Meshview</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -29,27 +26,13 @@
     </style>
 </head>
 <body>
-    {% set site = site_config.get("site", {}) %}
-
     <br>
-    <div style="text-align:center">
-        <strong>{{ site.get("title", "") }} {{ site.get("domain", "") }}</strong>
-    </div>
-    <div style="text-align:center">
-        {{ site.get("message", "") }}
-    </div>
+    <!-- Dynamic Header -->
+    <div style="text-align:center" id="site-header"></div>
+    <div style="text-align:center" id="site-message"></div>
 
-    <!-- Menu -->
-    <div style="text-align:center">
-        {% if site.get("nodes") == "True" %}<a href="/nodelist" id="nav-nodes" data-translate-lang="nodes">Nodes</a>{% endif %}
-        {% if site.get("conversations") == "True" %}&nbsp;-&nbsp;<a href="/chat" id="nav-conversations" data-translate-lang="conversations">Conversations</a>{% endif %}
-        {% if site.get("everything") == "True" %}&nbsp;-&nbsp;<a href="/firehose" id="nav-everything" data-translate-lang="everything">See Everything</a>{% endif %}
-        {% if site.get("graphs") == "True" %}&nbsp;-&nbsp;<a href="/nodegraph" id="nav-graph" data-translate-lang="graph">Mesh Graphs</a>{% endif %}
-        {% if site.get("net") == "True" %}&nbsp;-&nbsp;<a href="/net" id="nav-net" data-translate-lang="net">Weekly Net</a>{% endif %}
-        {% if site.get("map") == "True" %}&nbsp;-&nbsp;<a href="/map" id="nav-map" data-translate-lang="map">Live Map</a>{% endif %}
-        {% if site.get("stats") == "True" %}&nbsp;-&nbsp;<a href="/stats" id="nav-stats" data-translate-lang="stats">Stats</a>{% endif %}
-        {% if site.get("top") == "True" %}&nbsp;-&nbsp;<a href="/top" id="nav-top" data-translate-lang="top">Top Traffic Nodes</a>{% endif %}
-    </div>
+    <!-- Dynamic Menu -->
+    <div style="text-align:center" id="site-menu"></div>
 
     <!-- Search Form -->
     <form class="container p-2 sticky-top mx-auto" id="search_form" action="/node_search">
@@ -75,7 +58,7 @@
             </datalist>
 
             <select name="portnum" class="col-2 m-2" id="portnum_select">
-                <!-- Options will be populated dynamically -->
+                <!-- Options populated dynamically -->
             </select>
 
             <input type="submit" value="Go to Node" class="col-2 m-2" data-translate-lang="go to node" />
@@ -85,15 +68,15 @@
     {% block body %}{% endblock %}
 
     <br>
-    <div style="text-align:center" id="footer" data-translate-lang="footer">
-    </div><div style="text-align:center"><div><small>ver. {{ SOFTWARE_RELEASE | default("unknown") }}</small></div>
+    <div style="text-align:center" id="footer" data-translate-lang="footer"></div>
+    <div style="text-align:center"><div><small id="site-version">ver. unknown</small></div>
     <br>
 
     <!-- Language Loader -->
     <script>
     async function loadTranslations() {
         try {
-            const langCode = "{{ site_config.get('site', {}).get('language', 'en') }}";
+            const langCode = "en";
             const res = await fetch(`/api/lang?lang=${langCode}&section=base`);
             const t = await res.json();
 
@@ -132,8 +115,59 @@
             console.error("Failed to load language:", err);
         }
     }
-
     document.addEventListener("DOMContentLoaded", loadTranslations);
+    </script>
+
+    <!-- Dynamic Site Config Loader -->
+    <script>
+    async function loadSiteConfig() {
+        try {
+            const res = await fetch("/api/config");
+            const cfg = await res.json();
+            const site = cfg.site || {};
+
+            // Title
+            document.title = "Meshview - " + (site.title || "");
+
+            // Header
+            const header = document.getElementById("site-header");
+            if (header) {
+                header.innerHTML = `<strong>${site.title || ""} ${site.domain ? "(" + site.domain + ")" : ""}</strong>`;
+            }
+
+            // Message
+            const msg = document.getElementById("site-message");
+            if (msg) {
+                msg.textContent = site.message || "";
+            }
+
+            // Menu
+            const menu = document.getElementById("site-menu");
+            if (menu) {
+                let html = "";
+                if (site.nodes === "true") html += `<a href="/nodelist">Nodes</a>`;
+                if (site.conversations === "true") html += `&nbsp;-&nbsp;<a href="/chat">Conversations</a>`;
+                if (site.everything === "true") html += `&nbsp;-&nbsp;<a href="/firehose">See Everything</a>`;
+                if (site.graphs === "true") html += `&nbsp;-&nbsp;<a href="/nodegraph">Mesh Graphs</a>`;
+                if (site.net === "true") html += `&nbsp;-&nbsp;<a href="/net">Weekly Net</a>`;
+                if (site.map === "true") html += `&nbsp;-&nbsp;<a href="/map">Live Map</a>`;
+                if (site.stats === "true") html += `&nbsp;-&nbsp;<a href="/stats">Stats</a>`;
+                if (site.top === "true") html += `&nbsp;-&nbsp;<a href="/top">Top Traffic Nodes</a>`;
+                menu.innerHTML = html;
+            }
+
+            // Version
+            const verEl = document.getElementById("site-version");
+            if (verEl) {
+                verEl.textContent = "ver. " + (site.version || "unknown");
+            }
+
+        } catch (err) {
+            console.error("Failed to load site config:", err);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadSiteConfig);
     </script>
 </body>
 </html>
