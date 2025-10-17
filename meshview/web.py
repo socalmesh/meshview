@@ -30,8 +30,19 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 SEQ_REGEX = re.compile(r"seq \d+")
-SOFTWARE_RELEASE = "2.0.7 ~ 10-17-25"
+SOFTWARE_RELEASE = "2.0.7 ~ 09-17-25"
 CONFIG = config.CONFIG
+
+ACTIVITY_FILTERS = [
+    ("1h", "Last 1 hour", timedelta(hours=1)),
+    ("8h", "Last 8 hours", timedelta(hours=8)),
+    ("1d", "Last 1 day", timedelta(days=1)),
+    ("3d", "Last 3 days", timedelta(days=3)),
+    ("7d", "Last 7 days", timedelta(days=7)),
+    ("total", "All time", None),
+]
+ACTIVITY_OPTIONS = {value: window for value, _label, window in ACTIVITY_FILTERS}
+DEFAULT_ACTIVITY_OPTION = "1d"
 
 env = Environment(loader=PackageLoader("meshview"), autoescape=select_autoescape())
 
@@ -185,6 +196,16 @@ def format_timestamp(timestamp):
 
 env.filters["node_id_to_hex"] = node_id_to_hex
 env.filters["format_timestamp"] = format_timestamp
+
+
+def resolve_activity_window(raw_value: str | None, default_key: str = DEFAULT_ACTIVITY_OPTION):
+    default_key = default_key if default_key in ACTIVITY_OPTIONS else DEFAULT_ACTIVITY_OPTION
+    if raw_value:
+        normalized = raw_value.strip().lower()
+        if normalized in ACTIVITY_OPTIONS:
+            return normalized, ACTIVITY_OPTIONS[normalized]
+    return default_key, ACTIVITY_OPTIONS[default_key]
+
 
 routes = web.RouteTableDef()
 
@@ -425,15 +446,27 @@ async def packet_details(request):
 
 @routes.get("/firehose")
 async def packet_details_firehose(request):
-    portnum = request.query.get("portnum")
-    if portnum:
-        portnum = int(portnum)
-    packets = await store.get_packets(portnum=portnum, limit=10)
+    portnum_value = request.query.get("portnum")
+    channel = request.query.get("channel")
+
+    portnum = None
+    if portnum_value:
+        try:
+            portnum = int(portnum_value)
+        except ValueError:
+            logger.warning("Invalid portnum '%s' provided to /firehose", portnum_value)
+
+    packets = await store.get_packets(portnum=portnum, limit=10, channel=channel)
+    ui_packets = [Packet.from_model(p) for p in packets]
+    latest_time = ui_packets[0].import_time.isoformat() if ui_packets else None
+
     template = env.get_template("firehose.html")
     return web.Response(
         text=template.render(
-            packets=(Packet.from_model(p) for p in packets),
+            packets=ui_packets,
             portnum=portnum,
+            channel=channel,
+            last_time=latest_time,
             site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
@@ -454,8 +487,20 @@ async def firehose_updates(request):
                 logger.error(f"Failed to parse last_time '{last_time_str}': {e}")
                 last_time = None
 
+        portnum_value = request.query.get("portnum")
+        channel = request.query.get("channel")
+
+        portnum = None
+        if portnum_value:
+            try:
+                portnum = int(portnum_value)
+            except ValueError:
+                logger.warning("Invalid portnum '%s' provided to /firehose/updates", portnum_value)
+
         # Query packets after last_time (microsecond precision)
-        packets = await store.get_packets(after=last_time, limit=10)
+        packets = await store.get_packets(
+            after=last_time, limit=10, portnum=portnum, channel=channel
+        )
 
         # Convert to UI model
         ui_packets = [Packet.from_model(p) for p in packets]
@@ -1159,6 +1204,24 @@ async def net(request):
 @routes.get("/map")
 async def map(request):
     try:
+        activity_param = request.query.get("active")
+        if not activity_param:
+            legacy_days = request.query.get("days_active")
+            if legacy_days and legacy_days.isdigit():
+                activity_param = "total" if legacy_days == "0" else f"{legacy_days}d"
+
+        selected_activity, activity_window = resolve_activity_window(activity_param)
+
+        nodes = await store.get_nodes(active_within=activity_window)
+
+        # Filter out nodes with no latitude
+        nodes = [node for node in nodes if node.last_lat is not None]
+
+        # Optional datetime formatting
+        for node in nodes:
+            if hasattr(node, "last_update") and isinstance(node.last_update, datetime.datetime):
+                node.last_update = node.last_update.isoformat()
+
         # Parse optional URL parameters for custom view
         map_center_lat = request.query.get("lat")
         map_center_lng = request.query.get("lng")
@@ -1180,18 +1243,21 @@ async def map(request):
 
         return web.Response(
             text=template.render(
-            custom_view=custom_view,
+                nodes=nodes,
+                custom_view=custom_view,
+                activity_filters=ACTIVITY_FILTERS,
+                selected_activity=selected_activity,
+                site_config=CONFIG,
+                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
             ),
             content_type="text/html",
         )
-    except Exception as e:
-        print(f"/map route error: {e}")
-    return web.Response(
-        text="An error occurred while processing your request.",
-        status=500,
-        content_type="text/plain",
-    )
-
+    except Exception:
+        return web.Response(
+            text="An error occurred while processing your request.",
+            status=500,
+            content_type="text/plain",
+        )
 
 
 @routes.get("/stats")
@@ -1319,22 +1385,26 @@ async def chat(request):
 # Assuming the route URL structure is /nodegraph
 @routes.get("/nodegraph")
 async def nodegraph(request):
-    nodes = await store.get_nodes(days_active=3)  # Fetch nodes for the given channel
-    node_ids = set()
+    activity_param = request.query.get("active")
+    if not activity_param:
+        legacy_days = request.query.get("days_active")
+        if legacy_days and legacy_days.isdigit():
+            activity_param = "total" if legacy_days == "0" else f"{legacy_days}d"
+
+    selected_activity, activity_window = resolve_activity_window(activity_param)
+
+    nodes = await store.get_nodes(active_within=activity_window)
+
+    active_node_ids = {node.node_id for node in nodes}
     edges_map = defaultdict(
         lambda: {"weight": 0, "type": None}
     )  # weight is based on the number of traceroutes and neighbor info packets
-    used_nodes = set()  # This will track nodes involved in edges (including traceroutes)
     since = datetime.timedelta(hours=48)
     traceroutes = []
 
     # Fetch traceroutes
     async for tr in store.get_traceroutes(since):
-        node_ids.add(tr.gateway_node_id)
-        node_ids.add(tr.packet.from_node_id)
-        node_ids.add(tr.packet.to_node_id)
         route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
-        node_ids.update(route.route)
 
         path = [tr.packet.from_node_id]
         path.extend(route.route)
@@ -1350,19 +1420,12 @@ async def nodegraph(request):
             edge_pair = (path[i], path[i + 1])
             edges_map[edge_pair]["weight"] += 1
             edges_map[edge_pair]["type"] = "traceroute"
-            used_nodes.add(path[i])  # Add all nodes in the traceroute path
-            used_nodes.add(path[i + 1])  # Add all nodes in the traceroute path
 
     # Fetch NeighborInfo packets
     for packet in await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since):
         try:
             _, neighbor_info = decode_payload.decode(packet)
-            node_ids.add(packet.from_node_id)
-            used_nodes.add(packet.from_node_id)
             for node in neighbor_info.neighbors:
-                node_ids.add(node.node_id)
-                used_nodes.add(node.node_id)
-
                 edge_pair = (node.node_id, packet.from_node_id)
                 edges_map[edge_pair]["weight"] += 1
                 edges_map[edge_pair]["type"] = "neighbor"
@@ -1370,7 +1433,14 @@ async def nodegraph(request):
             logger.error(f"Error decoding NeighborInfo packet: {e}")
 
     # Convert edges_map to a list of dicts with colors
-    max_weight = max(i['weight'] for i in edges_map.values()) if edges_map else 1
+    filtered_edge_items = [
+        ((frm, to), info)
+        for (frm, to), info in edges_map.items()
+        if frm in active_node_ids and to in active_node_ids
+    ]
+    max_weight = (
+        max(info["weight"] for _, info in filtered_edge_items) if filtered_edge_items else 1
+    )
     edges = [
         {
             "from": frm,
@@ -1378,22 +1448,50 @@ async def nodegraph(request):
             "type": info["type"],
             "weight": max([info['weight'] / float(max_weight) * 10, 1]),
         }
-        for (frm, to), info in edges_map.items()
+        for (frm, to), info in filtered_edge_items
     ]
 
     # Filter nodes to only include those involved in edges (including traceroutes)
-    nodes_with_edges = [node for node in nodes if node.node_id in used_nodes]
+    connected_node_ids = {node_id for edge in edges for node_id in (edge["from"], edge["to"])}
+    nodes_with_edges = [node for node in nodes if node.node_id in connected_node_ids]
 
     template = env.get_template("nodegraph.html")
     return web.Response(
         text=template.render(
             nodes=nodes_with_edges,
             edges=edges,  # Pass edges with color info
+            activity_filters=ACTIVITY_FILTERS,
+            selected_activity=selected_activity,
             site_config=CONFIG,
             SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         ),
         content_type="text/html",
     )
+
+
+# Show basic details about the site on the site
+@routes.get("/config")
+async def get_config(request):
+    try:
+        site = CONFIG.get("site", {})
+        mqtt = CONFIG.get("mqtt", {})
+
+        return web.json_response(
+            {
+                "Server": site.get("domain", ""),
+                "Title": site.get("title", ""),
+                "Message": site.get("message", ""),
+                "MQTT Server": mqtt.get("server", ""),
+                "Topics": json.loads(mqtt.get("topics", "[]")),
+                "Release": SOFTWARE_RELEASE,
+                "Time": datetime.datetime.now().isoformat(),
+            },
+            dumps=lambda obj: json.dumps(obj, indent=2),
+        )
+
+    except (json.JSONDecodeError, TypeError):
+        return web.json_response({"error": "Invalid configuration format"}, status=500)
+
 
 # API Section
 #######################################################################
@@ -1409,8 +1507,28 @@ async def api_channels(request: web.Request):
     period_type = request.query.get("period_type", "hour")
     length = int(request.query.get("length", 24))
 
+    # Get min_packets from config, with fallback to query param or default
+    config_min_packets = CONFIG.get("site", {}).get("min_packets_for_channel", "5")
     try:
-        channels = await store.get_channels_in_period(period_type, length)
+        default_min_packets = int(config_min_packets)
+    except (ValueError, TypeError):
+        default_min_packets = 5
+
+    min_packets = int(request.query.get("min_packets", default_min_packets))
+
+    # Get channel allowlist from config
+    allowlist_str = CONFIG.get("site", {}).get("channel_allowlist", "*")
+    if allowlist_str and allowlist_str.strip():
+        # Parse comma-separated list, or use '*' for all
+        if allowlist_str.strip() == "*":
+            allowlist = None  # None means all channels allowed
+        else:
+            allowlist = [ch.strip() for ch in allowlist_str.split(",") if ch.strip()]
+    else:
+        allowlist = None
+
+    try:
+        channels = await store.get_channels_in_period(period_type, length, min_packets, allowlist)
         return web.json_response({"channels": channels})
     except Exception as e:
         return web.json_response({"channels": [], "error": str(e)})
@@ -1422,6 +1540,7 @@ async def api_chat(request):
         # Parse query params
         limit_str = request.query.get("limit", "20")
         since_str = request.query.get("since")
+        channel_filter = request.query.get("channel")
 
         # Clamp limit between 1 and 200
         try:
@@ -1441,7 +1560,9 @@ async def api_chat(request):
         packets = await store.get_packets(
             node_id=0xFFFFFFFF,
             portnum=PortNum.TEXT_MESSAGE_APP,
+            after=since,
             limit=limit,
+            channel=channel_filter,
         )
 
         ui_packets = [Packet.from_model(p) for p in packets]
@@ -1511,17 +1632,20 @@ async def api_nodes(request):
         role = request.query.get("role")
         channel = request.query.get("channel")
         hw_model = request.query.get("hw_model")
-        days_active = request.query.get("days_active")
+        activity_param = request.query.get("active")
+        if not activity_param:
+            legacy_days = request.query.get("days_active")
+            if legacy_days and legacy_days.isdigit():
+                activity_param = "total" if legacy_days == "0" else f"{legacy_days}d"
 
-        if days_active:
-            try:
-                days_active = int(days_active)
-            except ValueError:
-                days_active = None
+        _, activity_window = resolve_activity_window(activity_param, default_key="total")
 
         # Fetch nodes from database using your get_nodes function
         nodes = await store.get_nodes(
-            role=role, channel=channel, hw_model=hw_model, days_active=days_active
+            role=role,
+            channel=channel,
+            hw_model=hw_model,
+            active_within=activity_window,
         )
 
         # Prepare the JSON response
@@ -1557,6 +1681,19 @@ async def api_packets(request):
         limit = int(request.query.get("limit", 50))
         since_str = request.query.get("since")
         since_time = None
+        channel_values = []
+
+        # Support repeated ?channel=foo&channel=bar and comma-separated values
+        if "channel" in request.query:
+            raw_channels = request.query.getall("channel", [])
+            if not raw_channels:
+                raw_value = request.query.get("channel")
+                if raw_value:
+                    raw_channels = [raw_value]
+            for raw in raw_channels:
+                if raw:
+                    parts = [part.strip() for part in raw.split(",") if part.strip()]
+                    channel_values.extend(parts)
 
         # Parse 'since' timestamp if provided
         if since_str:
@@ -1566,7 +1703,14 @@ async def api_packets(request):
                 logger.error(f"Failed to parse 'since' timestamp '{since_str}': {e}")
 
         # Fetch last N packets
-        packets = await store.get_packets(limit=limit, after=since_time)
+        if not channel_values:
+            channel_filter = None
+        elif len(channel_values) == 1:
+            channel_filter = channel_values[0]
+        else:
+            channel_filter = channel_values
+
+        packets = await store.get_packets(limit=limit, after=since_time, channel=channel_filter)
         packets = [Packet.from_model(p) for p in packets]
 
         # Build JSON response (no raw_payload)
@@ -1642,6 +1786,41 @@ async def api_stats(request):
     return web.json_response(stats)
 
 
+@routes.get("/api/stats/summary")
+async def api_stats_summary(request):
+    channel = request.query.get("channel") or None
+    total_packets = await store.get_total_packet_count(channel=channel)
+    total_nodes = await store.get_total_node_count(channel=channel)
+    total_packets_seen = await store.get_total_packet_seen_count(channel=channel)
+
+    return web.json_response(
+        {
+            "total_packets": total_packets,
+            "total_nodes": total_nodes,
+            "total_packets_seen": total_packets_seen,
+        }
+    )
+
+
+@routes.get("/api/config")
+async def api_config(request):
+    try:
+        site = CONFIG.get("site", {})
+        safe_site = {
+            "map_interval": site.get("map_interval", 3),
+            "firehose_interval": site.get("firehose_interval", 3),
+            "map_top_left_lat": site.get("map_top_left_lat", 3),
+            "map_top_left_lon": site.get("map_top_left_lon", 3),
+            "map_bottom_right_lat": site.get("map_bottom_right_lat", 3),
+            "map_bottom_right_lon": site.get("map_bottom_right_lon", 3),
+        }
+        safe_config = {"site": safe_site}
+
+        return web.json_response(safe_config)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
 @routes.get("/api/edges")
 async def api_edges(request):
     since = datetime.datetime.now() - datetime.timedelta(hours=48)
@@ -1683,106 +1862,6 @@ async def api_edges(request):
     ]
 
     return web.json_response({"edges": edges_list})
-
-@routes.get("/api/config")
-async def api_config(request):
-    try:
-        # ------------------ Helpers ------------------
-        def get(section, key, default=None):
-            """Safe getter for both dict and ConfigParser."""
-            if isinstance(section, dict):
-                return section.get(key, default)
-            return section.get(key, fallback=default)
-
-        def get_bool(section, key, default=False):
-            val = get(section, key, default)
-            if isinstance(val, bool):
-                return "true" if val else "false"
-            if isinstance(val, str):
-                return "true" if val.lower() in ("1", "true", "yes", "on") else "false"
-            return "true" if bool(val) else "false"
-
-        def get_float(section, key, default=0.0):
-            try:
-                return float(get(section, key, default))
-            except Exception:
-                return float(default)
-
-        def get_int(section, key, default=0):
-            try:
-                return int(get(section, key, default))
-            except Exception:
-                return default
-
-        def get_str(section, key, default=""):
-            val = get(section, key, default)
-            return str(val) if val is not None else str(default)
-
-        # ------------------ SITE ------------------
-        site = CONFIG.get("site", {})
-        safe_site = {
-            "domain": get_str(site, "domain", ""),
-            "language": get_str(site, "language", "en"),
-            "title": get_str(site, "title", ""),
-            "message": get_str(site, "message", ""),
-            "starting": get_str(site, "starting", "/chat"),
-            "nodes": get_bool(site, "nodes", True),
-            "conversations": get_bool(site, "conversations", True),
-            "everything": get_bool(site, "everything", True),
-            "graphs": get_bool(site, "graphs", True),
-            "stats": get_bool(site, "stats", True),
-            "net": get_bool(site, "net", True),
-            "map": get_bool(site, "map", True),
-            "top": get_bool(site, "top", True),
-            "map_top_left_lat": get_float(site, "map_top_left_lat", 39.0),
-            "map_top_left_lon": get_float(site, "map_top_left_lon", -123.0),
-            "map_bottom_right_lat": get_float(site, "map_bottom_right_lat", 36.0),
-            "map_bottom_right_lon": get_float(site, "map_bottom_right_lon", -121.0),
-            "map_interval": get_int(site, "map_interval", 3),
-            "firehose_interval": get_int(site, "firehose_interval", 3),
-            "weekly_net_message": get_str(site, "weekly_net_message", "Weekly Mesh check-in message."),
-            "net_tag": get_str(site, "net_tag", "#BayMeshNet"),
-            "version": str(SOFTWARE_RELEASE),
-        }
-
-        # ------------------ MQTT ------------------
-        mqtt = CONFIG.get("mqtt", {})
-        topics_raw = get(mqtt, "topics", [])
-        import json
-        if isinstance(topics_raw, str):
-            try:
-                topics = json.loads(topics_raw)
-            except Exception:
-                topics = [topics_raw]
-        elif isinstance(topics_raw, list):
-            topics = topics_raw
-        else:
-            topics = []
-
-        safe_mqtt = {
-            "server": get_str(mqtt, "server", ""),
-            "topics": topics,
-        }
-
-        # ------------------ CLEANUP ------------------
-        cleanup = CONFIG.get("cleanup", {})
-        safe_cleanup = {
-            "enabled": get_bool(cleanup, "enabled", False),
-            "days_to_keep": get_str(cleanup, "days_to_keep", "14"),
-            "hour": get_str(cleanup, "hour", "2"),
-            "minute": get_str(cleanup, "minute", "0"),
-            "vacuum": get_bool(cleanup, "vacuum", False),
-        }
-
-        safe_config = {
-            "site": safe_site,
-            "mqtt": safe_mqtt,
-            "cleanup": safe_cleanup,
-        }
-
-        return web.json_response(safe_config)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
 
 
 @routes.get("/api/lang")
