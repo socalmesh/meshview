@@ -1159,16 +1159,6 @@ async def net(request):
 @routes.get("/map")
 async def map(request):
     try:
-        nodes = await store.get_nodes(days_active=3)
-
-        # Filter out nodes with no latitude
-        nodes = [node for node in nodes if node.last_lat is not None]
-
-        # Optional datetime formatting
-        for node in nodes:
-            if hasattr(node, "last_update") and isinstance(node.last_update, datetime.datetime):
-                node.last_update = node.last_update.isoformat()
-
         # Parse optional URL parameters for custom view
         map_center_lat = request.query.get("lat")
         map_center_lng = request.query.get("lng")
@@ -1190,19 +1180,18 @@ async def map(request):
 
         return web.Response(
             text=template.render(
-                nodes=nodes,
-                custom_view=custom_view,
-                site_config=CONFIG,
-                SOFTWARE_RELEASE=SOFTWARE_RELEASE,
+            custom_view=custom_view,
             ),
             content_type="text/html",
         )
     except Exception as e:
-        return web.Response(
-            text="An error occurred while processing your request.",
-            status=500,
-            content_type="text/plain",
-        )
+        print(f"/map route error: {e}")
+    return web.Response(
+        text="An error occurred while processing your request.",
+        status=500,
+        content_type="text/plain",
+    )
+
 
 
 @routes.get("/stats")
@@ -1405,31 +1394,6 @@ async def nodegraph(request):
         ),
         content_type="text/html",
     )
-
-
-# Show basic details about the site on the site
-@routes.get("/config")
-async def get_config(request):
-    try:
-        site = CONFIG.get("site", {})
-        mqtt = CONFIG.get("mqtt", {})
-
-        return web.json_response(
-            {
-                "Server": site.get("domain", ""),
-                "Title": site.get("title", ""),
-                "Message": site.get("message", ""),
-                "MQTT Server": mqtt.get("server", ""),
-                "Topics": json.loads(mqtt.get("topics", "[]")),
-                "Release": SOFTWARE_RELEASE,
-                "Time": datetime.datetime.now().isoformat(),
-            },
-            dumps=lambda obj: json.dumps(obj, indent=2),
-        )
-
-    except (json.JSONDecodeError, TypeError):
-        return web.json_response({"error": "Invalid configuration format"}, status=500)
-
 
 # API Section
 #######################################################################
@@ -1678,25 +1642,6 @@ async def api_stats(request):
     return web.json_response(stats)
 
 
-@routes.get("/api/config")
-async def api_config(request):
-    try:
-        site = CONFIG.get("site", {})
-        safe_site = {
-            "map_interval": site.get("map_interval", 3),
-            "firehose_interval": site.get("firehose_interval", 3),
-            "map_top_left_lat": site.get("map_top_left_lat", 3),
-            "map_top_left_lon": site.get("map_top_left_lon", 3),
-            "map_bottom_right_lat": site.get("map_bottom_right_lat", 3),
-            "map_bottom_right_lon": site.get("map_bottom_right_lon", 3),
-        }
-        safe_config = {"site": safe_site}
-
-        return web.json_response(safe_config)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
 @routes.get("/api/edges")
 async def api_edges(request):
     since = datetime.datetime.now() - datetime.timedelta(hours=48)
@@ -1738,6 +1683,106 @@ async def api_edges(request):
     ]
 
     return web.json_response({"edges": edges_list})
+
+@routes.get("/api/config")
+async def api_config(request):
+    try:
+        # ------------------ Helpers ------------------
+        def get(section, key, default=None):
+            """Safe getter for both dict and ConfigParser."""
+            if isinstance(section, dict):
+                return section.get(key, default)
+            return section.get(key, fallback=default)
+
+        def get_bool(section, key, default=False):
+            val = get(section, key, default)
+            if isinstance(val, bool):
+                return "true" if val else "false"
+            if isinstance(val, str):
+                return "true" if val.lower() in ("1", "true", "yes", "on") else "false"
+            return "true" if bool(val) else "false"
+
+        def get_float(section, key, default=0.0):
+            try:
+                return float(get(section, key, default))
+            except Exception:
+                return float(default)
+
+        def get_int(section, key, default=0):
+            try:
+                return int(get(section, key, default))
+            except Exception:
+                return default
+
+        def get_str(section, key, default=""):
+            val = get(section, key, default)
+            return str(val) if val is not None else str(default)
+
+        # ------------------ SITE ------------------
+        site = CONFIG.get("site", {})
+        safe_site = {
+            "domain": get_str(site, "domain", ""),
+            "language": get_str(site, "language", "en"),
+            "title": get_str(site, "title", ""),
+            "message": get_str(site, "message", ""),
+            "starting": get_str(site, "starting", "/chat"),
+            "nodes": get_bool(site, "nodes", True),
+            "conversations": get_bool(site, "conversations", True),
+            "everything": get_bool(site, "everything", True),
+            "graphs": get_bool(site, "graphs", True),
+            "stats": get_bool(site, "stats", True),
+            "net": get_bool(site, "net", True),
+            "map": get_bool(site, "map", True),
+            "top": get_bool(site, "top", True),
+            "map_top_left_lat": get_float(site, "map_top_left_lat", 39.0),
+            "map_top_left_lon": get_float(site, "map_top_left_lon", -123.0),
+            "map_bottom_right_lat": get_float(site, "map_bottom_right_lat", 36.0),
+            "map_bottom_right_lon": get_float(site, "map_bottom_right_lon", -121.0),
+            "map_interval": get_int(site, "map_interval", 3),
+            "firehose_interval": get_int(site, "firehose_interval", 3),
+            "weekly_net_message": get_str(site, "weekly_net_message", "Weekly Mesh check-in message."),
+            "net_tag": get_str(site, "net_tag", "#BayMeshNet"),
+            "version": str(SOFTWARE_RELEASE),
+        }
+
+        # ------------------ MQTT ------------------
+        mqtt = CONFIG.get("mqtt", {})
+        topics_raw = get(mqtt, "topics", [])
+        import json
+        if isinstance(topics_raw, str):
+            try:
+                topics = json.loads(topics_raw)
+            except Exception:
+                topics = [topics_raw]
+        elif isinstance(topics_raw, list):
+            topics = topics_raw
+        else:
+            topics = []
+
+        safe_mqtt = {
+            "server": get_str(mqtt, "server", ""),
+            "topics": topics,
+        }
+
+        # ------------------ CLEANUP ------------------
+        cleanup = CONFIG.get("cleanup", {})
+        safe_cleanup = {
+            "enabled": get_bool(cleanup, "enabled", False),
+            "days_to_keep": get_str(cleanup, "days_to_keep", "14"),
+            "hour": get_str(cleanup, "hour", "2"),
+            "minute": get_str(cleanup, "minute", "0"),
+            "vacuum": get_bool(cleanup, "vacuum", False),
+        }
+
+        safe_config = {
+            "site": safe_site,
+            "mqtt": safe_mqtt,
+            "cleanup": safe_cleanup,
+        }
+
+        return web.json_response(safe_config)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
 
 @routes.get("/api/lang")
