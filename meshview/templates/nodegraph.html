@@ -193,7 +193,6 @@ const edges = [
 {
     source: "{{ edge.from }}",   // edge source as string
     target: "{{ edge.to }}",     // edge target as string
-    type: {{ edge.type | tojson }},
     originalColor: colors.edge[{{edge.type | tojson}}],
     lineStyle: {
         color: colors.edge[{{edge.type | tojson}}],
