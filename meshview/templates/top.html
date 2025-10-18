@@ -223,45 +223,20 @@ function updateStatsAndChart() {
 }
 
 // Sort table
-function sortTable(columnIndex) {
+function sortTable(n) {
     const table = document.getElementById("trafficTable");
-    const tbody = table.tBodies[0];
-    const headerCell = table.tHead.rows[0].cells[columnIndex];
-    const rows = Array.from(tbody.rows);
-
-    if (!rows.length) return;
-
-    const sampleText = rows[0].cells[columnIndex].innerText.trim().replace('%','');
-    const isNumeric = sampleText !== '' && !isNaN(sampleText);
-
-    const currentDirection = headerCell.getAttribute('data-sort-direction') || 'none';
-    const sortAscending = currentDirection === 'desc' || currentDirection === 'none';
-
-    rows.sort((rowA, rowB) => {
-        const textA = rowA.cells[columnIndex].innerText.trim();
-        const textB = rowB.cells[columnIndex].innerText.trim();
-
-        let valueA = isNumeric ? parseFloat(textA.replace('%','')) : textA.toLowerCase();
-        let valueB = isNumeric ? parseFloat(textB.replace('%','')) : textB.toLowerCase();
-
-        if (isNumeric) {
-            valueA = isNaN(valueA) ? Number.NEGATIVE_INFINITY : valueA;
-            valueB = isNaN(valueB) ? Number.NEGATIVE_INFINITY : valueB;
-        }
-
-        if (valueA > valueB) return 1;
-        if (valueA < valueB) return -1;
-        return 0;
+    const rows = Array.from(table.rows).slice(1);
+    const header = table.rows[0].cells[n];
+    const isNumeric = !isNaN(rows[0].cells[n].innerText.replace('%',''));
+    let sortedRows = rows.sort((a,b)=>{
+        const valA = isNumeric ? parseFloat(a.cells[n].innerText.replace('%','')) : a.cells[n].innerText.toLowerCase();
+        const valB = isNumeric ? parseFloat(b.cells[n].cells[n].innerText.replace('%','')) : b.cells[n].innerText.toLowerCase();
+        return valA > valB ? 1 : -1;
     });
-
-    if (!sortAscending) {
-        rows.reverse();
-    }
-
-    Array.from(table.tHead.rows[0].cells).forEach(cell => cell.removeAttribute('data-sort-direction'));
-    headerCell.setAttribute('data-sort-direction', sortAscending ? 'asc' : 'desc');
-
-    rows.forEach(row => tbody.appendChild(row));
+    if(header.getAttribute('data-sort-direction')==='asc'){ sortedRows.reverse(); header.setAttribute('data-sort-direction','desc'); }
+    else header.setAttribute('data-sort-direction','asc');
+    const tbody = table.tBodies[0];
+    sortedRows.forEach(row=>tbody.appendChild(row));
 }
 
 // Initialize
