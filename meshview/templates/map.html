@@ -62,29 +62,46 @@ function isInvalidCoord(n){ return !n||!n.lat||!n.long||n.lat===0||n.long===0||N
 // ---------------------- Load Config & Start Polling ----------------------
 async function initMapPolling() {
     try {
-        const cfg = await fetch('/api/config').then(r=>r.json());
+        const cfg = await fetch('/api/config').then(r => r.json());
         const site = cfg.site || {};
         mapInterval = parseInt(site.map_interval, 10) || 0;
 
-        const topLeft = [parseFloat(site.map_top_left_lat), parseFloat(site.map_top_left_lon)];
-        const bottomRight = [parseFloat(site.map_bottom_right_lat), parseFloat(site.map_bottom_right_lon)];
-        if (topLeft.every(isFinite) && bottomRight.every(isFinite)) {
-            map.fitBounds([topLeft, bottomRight]);
-            window.configBoundsApplied = true;
-            setTimeout(()=>map.invalidateSize(),100);
+        // ---- Check URL params ----
+        const params = new URLSearchParams(window.location.search);
+        const lat = parseFloat(params.get('lat'));
+        const lng = parseFloat(params.get('lng'));
+        const zoom = parseInt(params.get('zoom'), 10);
+        if (!isNaN(lat) && !isNaN(lng) && !isNaN(zoom)) {
+            map.setView([lat, lng], zoom);
+            window.configBoundsApplied = true; // prevent config bounds from overriding
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+        // ---- If no URL, use config bounds ----
+        else {
+            const topLeft = [parseFloat(site.map_top_left_lat), parseFloat(site.map_top_left_lon)];
+            const bottomRight = [parseFloat(site.map_bottom_right_lat), parseFloat(site.map_bottom_right_lon)];
+            if (topLeft.every(isFinite) && bottomRight.every(isFinite)) {
+                map.fitBounds([topLeft, bottomRight]);
+                window.configBoundsApplied = true;
+                setTimeout(() => map.invalidateSize(), 100);
+            }
         }
 
+        // ---- Start polling if enabled ----
         if (mapInterval > 0) {
             console.log(`Starting map polling every ${mapInterval}s`);
             startPacketFetcher();
         } else {
             console.log("Map polling disabled (map_interval=0)");
         }
+
     } catch (err) {
         console.error("Failed to load /api/config:", err);
     }
 }
+
 initMapPolling();
+
 
 // ---------------------- Load Nodes + Edges ----------------------
 fetch('/api/nodes?days_active=3').then(r=>r.json()).then(data=>{
@@ -230,7 +247,32 @@ function updateNodeVisibility(){
 }
 
 // ---------------------- Share / Reset ----------------------
-function shareCurrentView(){ alert("Sharing is not implemented yet."); }
+    // ---- Share Current View ----
+    function shareCurrentView() {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const lat = center.lat.toFixed(6);
+        const lng = center.lng.toFixed(6);
+
+        const shareUrl = `${window.location.origin}/map?lat=${lat}&lng=${lng}&zoom=${zoom}`;
+
+        // Copy to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            const button = document.getElementById('share-button');
+            const originalText = button.textContent;
+            button.textContent = '✓ Link Copied!';
+            button.style.backgroundColor = '#2196F3';
+
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.backgroundColor = '#4CAF50';
+            }, 2000);
+        }).catch(err => {
+            // Fallback for older browsers
+            alert('Share this link:\n' + shareUrl);
+        });
+    }
+
 function resetFiltersToDefaults(){
     document.getElementById("filter-routers-only").checked = false;
     channelSet.forEach(ch=>document.getElementById(`filter-channel-${ch}`).checked = true);
