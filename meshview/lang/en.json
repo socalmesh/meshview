@@ -8,7 +8,7 @@
     "map": "Live Map",
     "stats": "Stats",
     "top": "Top Traffic Nodes",
-    "footer": "Visit <strong><a href=\"https://github.com/pablorevilla-meshtastic/meshview\">Meshview</a></strong> on Github.",
+    "footer": "Visit <strong><a href=\"https://github.com/pablorevilla-meshtastic/meshview>\"",
     "node id": "Node id",
     "go to node": "Go to Node",
     "all": "All",
@@ -21,11 +21,10 @@
       "71": "Neighbor Info"
       }
     },
-    "chat": {
+ "chat": {
       "replying_to": "Replying to:",
       "view_packet_details": "View packet details"
-    }
-  },
+ },
   "nodelist": {
     "search_placeholder": "Search by name or ID...",
     "all_roles": "All Roles",

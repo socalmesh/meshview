@@ -48,7 +48,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attr
 var nodes=[], markers={}, markerById={}, nodeMap = new Map();
 var edgesData=[], edgeLayer = L.layerGroup().addTo(map), selectedNodeId = null;
 var activeBlinks = new Map(), lastImportTime = null;
-var mapInterval = 3;
+var mapInterval = 0;
 const portMap = {1:"Text",67:"Telemetry",3:"Position",70:"Traceroute",4:"Node Info",71:"Neighbour Info",73:"Map Report"};
 const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"];
 const colorMap = new Map(); let nextColorIndex = 0;
@@ -59,18 +59,32 @@ function timeAgo(date){ const diff=Date.now()-new Date(date), s=Math.floor(diff/
 function hashToColor(str){ if(colorMap.has(str)) return colorMap.get(str); const c=palette[nextColorIndex++%palette.length]; colorMap.set(str,c); return c; }
 function isInvalidCoord(n){ return !n||!n.lat||!n.long||n.lat===0||n.long===0||Number.isNaN(n.lat)||Number.isNaN(n.long); }
 
-// ---------------------- Load Config ----------------------
-fetch('/api/config').then(r=>r.json()).then(cfg=>{
-    const site = cfg.site || {};
-    mapInterval = parseInt(site.map_interval||3,10);
-    const topLeft = [parseFloat(site.map_top_left_lat), parseFloat(site.map_top_left_lon)];
-    const bottomRight = [parseFloat(site.map_bottom_right_lat), parseFloat(site.map_bottom_right_lon)];
-    if(topLeft && bottomRight){
-        map.fitBounds([topLeft,bottomRight]);
-        window.configBoundsApplied = true; // prevent nodes from overriding
-        setTimeout(()=>map.invalidateSize(),100);
+// ---------------------- Load Config & Start Polling ----------------------
+async function initMapPolling() {
+    try {
+        const cfg = await fetch('/api/config').then(r=>r.json());
+        const site = cfg.site || {};
+        mapInterval = parseInt(site.map_interval, 10) || 0;
+
+        const topLeft = [parseFloat(site.map_top_left_lat), parseFloat(site.map_top_left_lon)];
+        const bottomRight = [parseFloat(site.map_bottom_right_lat), parseFloat(site.map_bottom_right_lon)];
+        if (topLeft.every(isFinite) && bottomRight.every(isFinite)) {
+            map.fitBounds([topLeft, bottomRight]);
+            window.configBoundsApplied = true;
+            setTimeout(()=>map.invalidateSize(),100);
+        }
+
+        if (mapInterval > 0) {
+            console.log(`Starting map polling every ${mapInterval}s`);
+            startPacketFetcher();
+        } else {
+            console.log("Map polling disabled (map_interval=0)");
+        }
+    } catch (err) {
+        console.error("Failed to load /api/config:", err);
     }
-}).catch(console.error);
+}
+initMapPolling();
 
 // ---------------------- Load Nodes + Edges ----------------------
 fetch('/api/nodes?days_active=3').then(r=>r.json()).then(data=>{
@@ -96,7 +110,6 @@ fetch('/api/nodes?days_active=3').then(r=>r.json()).then(data=>{
     return fetch('/api/edges');
 }).then(r=>r?r.json():null).then(data=>{
     if(data && data.edges) edgesData=data.edges;
-    if(mapInterval>0) startPacketFetcher();
 }).catch(console.error);
 
 // ---------------------- Render Nodes ----------------------
@@ -119,8 +132,6 @@ function renderNodesOnMap(){
         marker.on('click',()=>{ onNodeClick(node); marker.bindPopup(popup).openPopup(); setTimeout(()=>marker.closePopup(),3000); });
         bounds.extend(marker.getLatLng());
     });
-
-    // Only fit to nodes if no config bounds were applied
     if(!window.configBoundsApplied && bounds.isValid()){
         map.fitBounds(bounds);
         setTimeout(()=>map.invalidateSize(),100);
@@ -164,6 +175,7 @@ function blinkNode(marker,longName,portnum){
 // ---------------------- Packet Fetching ----------------------
 function fetchLatestPacket(){ fetch(`/api/packets?limit=1`).then(r=>r.json()).then(data=>{ lastImportTime=data.packets?.[0]?.import_time||new Date().toISOString(); }).catch(console.error); }
 function fetchNewPackets(){
+    if(mapInterval <= 0) return; // safety guard
     if(!lastImportTime) return;
     fetch(`/api/packets?since=${encodeURIComponent(lastImportTime)}`).then(r=>r.json()).then(data=>{
         if(!data.packets||data.packets.length===0) return;
@@ -199,13 +211,11 @@ function createChannelFilters(){
         const label = document.createElement("label");
         label.htmlFor = checkbox.id;
         label.innerText = channel;
-        // Set the label color to match the channel
         label.style.color = hashToColor(channel);
         filterContainer.appendChild(label);
     });
     document.getElementById("filter-routers-only").addEventListener("change", updateNodeVisibility);
 }
-
 
 function updateNodeVisibility(){
     const showRoutersOnly = document.getElementById("filter-routers-only").checked;
