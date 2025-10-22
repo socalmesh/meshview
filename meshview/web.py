@@ -425,56 +425,12 @@ async def packet_details(request):
 
 @routes.get("/firehose")
 async def packet_details_firehose(request):
-    portnum = request.query.get("portnum")
-    if portnum:
-        portnum = int(portnum)
-    packets = await store.get_packets(portnum=portnum, limit=10)
-    template = env.get_template("firehose.html")
     return web.Response(
-        text=template.render(
-            packets=(Packet.from_model(p) for p in packets),
-            portnum=portnum,
-            site_config=CONFIG,
-            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
-        ),
+        text=env.get_template("firehose.html").render(),
         content_type="text/html",
     )
 
 
-@routes.get("/firehose/updates")
-async def firehose_updates(request):
-    try:
-        # Get `last_time` from query string
-        last_time_str = request.query.get("last_time")
-        last_time = None
-        if last_time_str:
-            try:
-                last_time = datetime.datetime.fromisoformat(last_time_str)
-            except Exception as e:
-                logger.error(f"Failed to parse last_time '{last_time_str}': {e}")
-                last_time = None
-
-        # Query packets after last_time (microsecond precision)
-        packets = await store.get_packets(after=last_time, limit=10)
-
-        # Convert to UI model
-        ui_packets = [Packet.from_model(p) for p in packets]
-
-        # Render HTML using Jinja2 template
-        template = env.get_template("packet.html")
-        rendered_packets = [template.render(packet=p) for p in ui_packets]
-
-        # Build response
-        response = {"packets": rendered_packets}
-        if ui_packets:
-            latest_import_time = max(p.import_time for p in ui_packets)
-            response["last_time"] = latest_import_time.isoformat()
-
-        return web.json_response(response)
-
-    except Exception as e:
-        logger.error(f"Error in /firehose/updates: {e}")
-        return web.json_response({"error": "Failed to fetch updates"}, status=500)
 
 
 @routes.get("/packet/{packet_id}")
