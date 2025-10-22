@@ -1550,6 +1550,7 @@ async def api_nodes(request):
         return web.json_response({"error": "Failed to fetch nodes"}, status=500)
 
 
+
 @routes.get("/api/packets")
 async def api_packets(request):
     try:
@@ -1558,29 +1559,29 @@ async def api_packets(request):
         since_str = request.query.get("since")
         since_time = None
 
-        # Parse 'since' timestamp if provided
         if since_str:
             try:
-                since_time = datetime.datetime.fromisoformat(since_str)
+                # Robust ISO 8601 parsing (handles 'Z' for UTC)
+                since_time = datetime.datetime.fromisoformat(since_str.replace("Z", "+00:00"))
             except Exception as e:
                 logger.error(f"Failed to parse 'since' timestamp '{since_str}': {e}")
 
-        # Fetch last N packets
+        # Fetch packets from the store
         packets = await store.get_packets(limit=limit, after=since_time)
         packets = [Packet.from_model(p) for p in packets]
 
-        # Build JSON response (no raw_payload)
-        packets_json = [
-            {
+        packets_json = []
+        for p in packets:
+            payload = (p.payload or "").strip()
+
+            packets_json.append({
                 "id": p.id,
                 "from_node_id": p.from_node_id,
                 "to_node_id": p.to_node_id,
-                "portnum": int(p.portnum),
+                "portnum": int(p.portnum) if p.portnum is not None else None,
                 "import_time": p.import_time.isoformat(),
-                "payload": p.payload,
-            }
-            for p in packets
-        ]
+                "payload": payload,
+            })
 
         return web.json_response({"packets": packets_json})
 

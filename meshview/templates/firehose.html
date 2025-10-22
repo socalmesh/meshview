@@ -1,101 +1,297 @@
 {% extends "base.html" %}
 
 {% block css %}
-    .container {
-        max-width: 900px;
-        margin: 0 auto;
-    }
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 10px;
+}
+#pause-button {
+    white-space: nowrap;
+    padding: 4px 10px;
+    font-size: 0.9rem;
+    border-radius: 6px;
+}
 
-    #pause-button {
-        white-space: nowrap;
-        padding: 2px 8px;
-        font-size: 0.85rem;
-    }
+.packet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    color: #e4e9ee;
+}
+.packet-table th, .packet-table td {
+    border: 1px solid #3a3f44;
+    padding: 6px 10px;
+    text-align: left;
+}
+.packet-table th {
+    background-color: #1f2226;
+    font-weight: bold;
+}
+.packet-table tr:nth-of-type(odd) { background-color: #272b2f; }
+.packet-table tr:nth-of-type(even) { background-color: #212529; }
+.port-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #fff;
+}
+
+/* --- Color-coded port labels --- */
+.port-0  { background-color: #6c757d; }
+.port-1  { background-color: #007bff; }
+.port-3  { background-color: #28a745; }
+.port-4  { background-color: #ffc107; color: #000; }
+.port-5  { background-color: #dc3545; }
+.port-6  { background-color: #20c997; }
+.port-65 { background-color: #ff66b3; }
+.port-67 { background-color: #17a2b8; }
+.port-70 { background-color: #6f42c1; }
+.port-71 { background-color: #fd7e14; }
+
+.to-mqtt {
+    font-style: italic;
+    color: #aaa;
+}
+
+/* --- Payload rows --- */
+.payload-row {
+    display: none;
+    background-color: #1b1e22;
+}
+.payload-cell {
+    padding: 8px 12px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    color: #b0bec5;
+    border-top: none;
+}
+.packet-table tr.expanded + .payload-row {
+    display: table-row;
+}
+.toggle-btn {
+    cursor: pointer;
+    color: #aaa;
+    margin-right: 6px;
+    font-weight: bold;
+}
+.toggle-btn:hover {
+    color: #fff;
+}
 {% endblock %}
 
 {% block body %}
 <div class="container">
-    <form class="d-flex align-items-center justify-content-between mb-2">
-        {% set options = {
-                1: "Text Message",
-                3: "Position",
-                4: "Node Info",
-                67: "Telemetry",
-                71: "Neighbor Info",
-                70: "Trace Route",
-            }
-        %}
+    <form class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="mb-0">📡 Live Feed</h5>
         <button type="button" id="pause-button" class="btn btn-sm btn-outline-secondary">Pause</button>
     </form>
 
-    <div class="row">
-        <div class="col-xs" id="packet_list">
-            {% for packet in packets %}
-                {% include 'packet.html' %}
-            {% else %}
-                No packets found.
-            {% endfor %}
-        </div>
-    </div>
+    <table class="packet-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Port</th>
+                <th>Links</th>
+            </tr>
+        </thead>
+        <tbody id="packet_list"></tbody>
+    </table>
 </div>
 
 <script>
-let lastTime = null;
-let portnum = "{{ portnum if portnum is not none else '' }}";
+let lastImportTime = null;
 let updatesPaused = false;
+let nodeMap = {};
+let updateInterval = 3000;
 
-// Use firehose_interval from config (seconds), default to 3s if not set
-const firehoseInterval = {{ site_config["site"]["firehose_interval"] | default(3) }};
-if (firehoseInterval < 0) firehoseInterval = 0;
+const PORT_MAP = {
+    0: "UNKNOWN APP",
+    1: "Text Message",
+    3: "Position",
+    4: "Node Info",
+    5: "Routing",
+    6: "Administration",
+    65: "Store Forward",
+    67: "Telemetry",
+    68: "Audio",
+    69: "Serial",
+    70: "Trace Route",
+    71: "Neighbor Info",
+    72: "Channel Info",
+    73: "Waypoint",
+    74: "Audio Stream",
+    75: "Range Test",
+    76: "PAXCOUNTER",
+    77: "Detour",
+    78: "File Transfer"
+};
 
-function fetchUpdates() {
-    if (updatesPaused || firehoseInterval === 0) return;
+const PORT_COLORS = {
+    0: "#6c757d",
+    1: "#007bff",
+    3: "#28a745",
+    4: "#ffc107",
+    5: "#dc3545",
+    6: "#20c997",
+    65: "#6610f2",
+    67: "#17a2b8",
+    68: "#fd7e14",
+    69: "#6f42c1",
+    70: "#ff4444",
+    71: "#ff66cc",
+    72: "#00cc99",
+    73: "#9999ff",
+    74: "#cc00cc",
+    75: "#ffbb33",
+    76: "#00bcd4",
+    77: "#8bc34a",
+    78: "#795548"
+};
 
-    const url = new URL("/firehose/updates", window.location.origin);
-    if (lastTime) url.searchParams.set("last_time", lastTime);
-    if (portnum) url.searchParams.set("portnum", portnum);
-
-    fetch(url)
-        .then(res => res.json())
-        .then(data => {
-            if (data.packets && data.packets.length > 0) {
-                lastTime = data.last_time;
-                const list = document.getElementById("packet_list");
-
-                for (const html of data.packets.reverse()) {
-                    list.insertAdjacentHTML("afterbegin", html);
-                }
-            }
-        })
-        .catch(err => {
-            console.error("Update fetch failed:", err);
-        });
+// --- Load node names ---
+async function loadNodes() {
+    const res = await fetch("/api/nodes");
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const n of data.nodes || []) {
+        const name = n.long_name || n.short_name || n.id || n.node_id;
+        nodeMap[n.node_id] = name;
+    }
+    nodeMap[4294967295] = "All";
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    const pauseBtn = document.getElementById("pause-button");
+function nodeName(id) {
+    if (id === 4294967295) return `<span class="to-mqtt">All</span>`;
+    return nodeMap[id] || id;
+}
 
-    const portnumSelector = document.querySelector('select[name="portnum"]');
-    if (portnumSelector) {
-        portnumSelector.addEventListener("change", (e) => {
-            const selected = e.target.value;
-            const url = new URL(window.location.href);
-            url.searchParams.set("portnum", selected);
-            window.location.href = url;
-        });
+function portLabel(portnum, payload) {
+    const name = PORT_MAP[portnum] || "Unknown";
+    const color = PORT_COLORS[portnum] || "#6c757d";
+    const safePayload = payload ? payload.replace(/"/g, "&quot;") : "";
+    return `<span class="port-tag" style="background-color:${color}" title="${safePayload}">${name}</span>
+            <span class="text-secondary">(${portnum})</span>`;
+}
+
+// --- Load config ---
+async function loadConfig() {
+    try {
+        const res = await fetch("/api/config");
+        if (!res.ok) return;
+        const cfg = await res.json();
+        const intervalSec = cfg?.site?.firehose_interval;
+        if (intervalSec && !isNaN(intervalSec)) {
+            updateInterval = parseInt(intervalSec) * 1000;
+        }
+        console.log("Firehose update interval:", updateInterval, "ms");
+    } catch (err) {
+        console.warn("Failed to load /api/config:", err);
     }
+}
 
+// --- Fetch and render packets ---
+async function fetchUpdates() {
+    if (updatesPaused) return;
+    const url = new URL("/api/packets", window.location.origin);
+    if (lastImportTime) url.searchParams.set("since", lastImportTime);
+    url.searchParams.set("limit", 50);
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        const packets = data.packets || [];
+        if (!packets.length) return;
+
+        const list = document.getElementById("packet_list");
+
+        for (const pkt of packets.reverse()) {
+            const fromNodeId = pkt.from_node_id;
+            const toNodeId = pkt.to_node_id;
+
+            let from = nodeName(fromNodeId);
+            if (fromNodeId !== 4294967295 && fromNodeId !== 1) {
+                from = `<a href="/packet_list/${fromNodeId}" style="text-decoration:underline; color:inherit;">${nodeMap[fromNodeId]}</a>`;
+            }
+
+            let to = "";
+            if (toNodeId === 1) {
+                to = `<span class="to-mqtt">direct to MQTT</span>`;
+            } else if (toNodeId === 4294967295) {
+                to = `<span class="to-mqtt">All</span>`;
+            } else {
+                to = `<a href="/packet_list/${toNodeId}" style="text-decoration:underline; color:inherit;">${nodeMap[toNodeId]}</a>`;
+            }
+
+            let links = "";
+            if (pkt.portnum === 3 && pkt.payload) {
+                const latMatch = pkt.payload.match(/latitude_i:\s*(-?\d+)/);
+                const lonMatch = pkt.payload.match(/longitude_i:\s*(-?\d+)/);
+                if (latMatch && lonMatch) {
+                    const lat = parseInt(latMatch[1]) / 1e7;
+                    const lon = parseInt(lonMatch[1]) / 1e7;
+                    links += `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" rel="noopener noreferrer" style="font-weight:bold; text-decoration:none;">Map</a>`;
+                }
+            }
+
+            if (pkt.portnum === 70) {
+                let traceId = pkt.id;
+                const idMatch = pkt.payload.match(/ID:\s*(\d+)/i);
+                if (idMatch) traceId = idMatch[1];
+                if (links) links += "&nbsp;|&nbsp;";
+                links += `<a href="/graph/traceroute/${traceId}" target="_blank" rel="noopener noreferrer" style="font-weight:bold; text-decoration:none;">Graph</a>`;
+            }
+
+            const safePayload = (pkt.payload || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            const html = `
+<tr class="packet-row" data-id="${pkt.id}">
+    <td><span class="toggle-btn">▶</span> <a href="/packet/${pkt.id}" style="text-decoration:underline; color:inherit;">${pkt.id}</a></td>
+    <td>${from}</td>
+    <td>${to}</td>
+    <td>${portLabel(pkt.portnum, pkt.payload)}</td>
+    <td>${links}</td>
+</tr>
+<tr class="payload-row">
+    <td colspan="5" class="payload-cell">${safePayload}</td>
+</tr>`;
+
+            list.insertAdjacentHTML("afterbegin", html);
+        }
+
+        while (list.rows.length > 400) list.deleteRow(-1);
+        lastImportTime = packets[packets.length - 1].import_time;
+
+    } catch (err) {
+        console.error("Packet fetch failed:", err);
+    }
+}
+
+// --- Initialize ---
+document.addEventListener("DOMContentLoaded", async () => {
+    const pauseBtn = document.getElementById("pause-button");
     pauseBtn.addEventListener("click", () => {
         updatesPaused = !updatesPaused;
         pauseBtn.textContent = updatesPaused ? "Resume" : "Pause";
     });
 
-    // Start fetching updates with configurable interval
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".toggle-btn");
+        if (!btn) return;
+        const row = btn.closest(".packet-row");
+        row.classList.toggle("expanded");
+        btn.textContent = row.classList.contains("expanded") ? "▼" : "▶";
+    });
+
+    await loadConfig();
+    await loadNodes();
     fetchUpdates();
-    if (firehoseInterval > 0) {
-        setInterval(fetchUpdates, firehoseInterval * 1000);
-    }
+    setInterval(fetchUpdates, updateInterval);
 });
 </script>
-
 {% endblock %}
