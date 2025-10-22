@@ -27,11 +27,8 @@
 </head>
 <body>
     <br>
-    <!-- Dynamic Header -->
     <div style="text-align:center" id="site-header"></div>
     <div style="text-align:center" id="site-message"></div>
-
-    <!-- Dynamic Menu -->
     <div style="text-align:center" id="site-menu"></div>
 
     <!-- Search Form -->
@@ -57,10 +54,7 @@
                 {% endfor %}
             </datalist>
 
-            <select name="portnum" class="col-2 m-2" id="portnum_select">
-                <!-- Options populated dynamically -->
-            </select>
-
+            <select name="portnum" class="col-2 m-2" id="portnum_select"></select>
             <input type="submit" value="Go to Node" class="col-2 m-2" data-translate-lang="go to node" />
         </div>
     </form>
@@ -69,105 +63,68 @@
 
     <br>
     <div style="text-align:center" id="footer" data-translate-lang="footer"></div>
-    <div style="text-align:center"><div><small id="site-version">ver. unknown</small></div></div>
+    <div style="text-align:center"><small id="site-version">ver. unknown</small></div>
     <br>
 
-    <!-- Language Loader -->
+    <!-- Shared Site Config -->
     <script>
-    async function loadTranslations() {
-        try {
-            const langCode = "en";
-            const res = await fetch(`/api/lang?lang=${langCode}&section=base`);
-            const t = await res.json();
-
-            document.querySelectorAll("[data-translate-lang]").forEach(el => {
-                const key = el.getAttribute("data-translate-lang");
-                if (t[key]) {
-                    if (el.placeholder !== undefined && el.tagName === "INPUT" && el.type === "text") {
-                        el.placeholder = t[key];
-                    } else if (el.tagName === "INPUT" && el.type === "submit") {
-                        el.value = t[key];
-                    } else {
-                        el.innerHTML = t[key];
-                    }
-                }
-            });
-
-            // Portnum options
-            const select = document.getElementById("portnum_select");
-            if (select && t.portnum_options) {
-                select.innerHTML = ""; // Clear
-                const allOption = document.createElement("option");
-                allOption.value = "";
-                allOption.textContent = t["all"] || "All";
-                if ("{{portnum}}" === "") allOption.selected = true;
-                select.appendChild(allOption);
-
-                for (const [value, label] of Object.entries(t.portnum_options)) {
-                    const opt = document.createElement("option");
-                    opt.value = value;
-                    opt.textContent = label;
-                    if ("{{portnum}}" === String(value)) opt.selected = true;
-                    select.appendChild(opt);
-                }
-            }
-        } catch (err) {
-            console.error("Failed to load language:", err);
-        }
-    }
-    document.addEventListener("DOMContentLoaded", loadTranslations);
-    </script>
-
-    <!-- Dynamic Site Config Loader -->
-    <script>
-    async function loadSiteConfig() {
+// Global shared config promise (only fetch once)
+if (!window._siteConfigPromise) {
+    window._siteConfigPromise = (async () => {
         try {
             const res = await fetch("/api/config");
-            const cfg = await res.json();
-            const site = cfg.site || {};
-
-            // Title
-            document.title = "Meshview - " + (site.title || "");
-
-            // Header
-            const header = document.getElementById("site-header");
-            if (header) {
-                header.innerHTML = `<strong>${site.title || ""} ${site.domain ? "(" + site.domain + ")" : ""}</strong>`;
-            }
-
-            // Message
-            const msg = document.getElementById("site-message");
-            if (msg) {
-                msg.textContent = site.message || "";
-            }
-
-            // Menu
-            const menu = document.getElementById("site-menu");
-            if (menu) {
-                let html = "";
-                if (site.nodes === "true") html += `<a href="/nodelist">Nodes</a>`;
-                if (site.conversations === "true") html += `&nbsp;-&nbsp;<a href="/chat">Conversations</a>`;
-                if (site.everything === "true") html += `&nbsp;-&nbsp;<a href="/firehose">See Everything</a>`;
-                if (site.graphs === "true") html += `&nbsp;-&nbsp;<a href="/nodegraph">Mesh Graphs</a>`;
-                if (site.net === "true") html += `&nbsp;-&nbsp;<a href="/net">Weekly Net</a>`;
-                if (site.map === "true") html += `&nbsp;-&nbsp;<a href="/map">Live Map</a>`;
-                if (site.stats === "true") html += `&nbsp;-&nbsp;<a href="/stats">Stats</a>`;
-                if (site.top === "true") html += `&nbsp;-&nbsp;<a href="/top">Top Traffic Nodes</a>`;
-                menu.innerHTML = html;
-            }
-
-            // Version
-            const verEl = document.getElementById("site-version");
-            if (verEl) {
-                verEl.textContent = "ver. " + (site.version || "unknown");
-            }
-
+            const config = await res.json();
+            window._siteConfig = config;
+            console.log("Loaded config from /api/config:", config);
+            return config;
         } catch (err) {
-            console.error("Failed to load site config:", err);
+            console.error("Failed to load /api/config:", err);
+            return {};
         }
-    }
+    })();
+}
 
-    document.addEventListener("DOMContentLoaded", loadSiteConfig);
-    </script>
+async function loadSiteConfig() {
+    try {
+        const cfg = await window._siteConfigPromise;
+        const site = cfg.site || {};
+
+        // Title
+        document.title = "Meshview - " + (site.title || "");
+
+        // Header
+        const header = document.getElementById("site-header");
+        if (header)
+            header.innerHTML = `<strong>${site.title || ""} ${site.domain ? "(" + site.domain + ")" : ""}</strong>`;
+
+        // Message
+        const msg = document.getElementById("site-message");
+        if (msg) msg.textContent = site.message || "";
+
+        // Menu
+        const menu = document.getElementById("site-menu");
+        if (menu) {
+            let html = "";
+            if (site.nodes === "true") html += `<a href="/nodelist">Nodes</a>`;
+            if (site.conversations === "true") html += `&nbsp;-&nbsp;<a href="/chat">Conversations</a>`;
+            if (site.everything === "true") html += `&nbsp;-&nbsp;<a href="/firehose">See Everything</a>`;
+            if (site.graphs === "true") html += `&nbsp;-&nbsp;<a href="/nodegraph">Mesh Graphs</a>`;
+            if (site.net === "true") html += `&nbsp;-&nbsp;<a href="/net">Weekly Net</a>`;
+            if (site.map === "true") html += `&nbsp;-&nbsp;<a href="/map">Live Map</a>`;
+            if (site.stats === "true") html += `&nbsp;-&nbsp;<a href="/stats">Stats</a>`;
+            if (site.top === "true") html += `&nbsp;-&nbsp;<a href="/top">Top Traffic Nodes</a>`;
+            menu.innerHTML = html;
+        }
+
+        // Version
+        const verEl = document.getElementById("site-version");
+        if (verEl) verEl.textContent = "ver. " + (site.version || "unknown");
+    } catch (err) {
+        console.error("Failed to load site config:", err);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadSiteConfig);
+</script>
 </body>
 </html>

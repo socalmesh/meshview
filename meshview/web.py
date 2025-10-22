@@ -1114,38 +1114,10 @@ async def net(request):
 
 @routes.get("/map")
 async def map(request):
-    try:
-        # Parse optional URL parameters for custom view
-        map_center_lat = request.query.get("lat")
-        map_center_lng = request.query.get("lng")
-        map_zoom = request.query.get("zoom")
-
-        # Validate and convert parameters if provided
-        custom_view = None
-        if map_center_lat and map_center_lng:
-            try:
-                lat = float(map_center_lat)
-                lng = float(map_center_lng)
-                zoom = int(map_zoom) if map_zoom else 13
-                custom_view = {"lat": lat, "lng": lng, "zoom": zoom}
-            except (ValueError, TypeError):
-                # Invalid parameters, ignore and use defaults
-                pass
-
-        template = env.get_template("map.html")
-
-        return web.Response(
-            text=template.render(
-            custom_view=custom_view,
-            ),
-            content_type="text/html",
-        )
-    except Exception as e:
-        print(f"/map route error: {e}")
+    template = env.get_template("map.html")
     return web.Response(
-        text="An error occurred while processing your request.",
-        status=500,
-        content_type="text/plain",
+        text=template.render(),
+        content_type="text/html"
     )
 
 
@@ -1257,7 +1229,7 @@ async def chat(request):
     try:
         template = env.get_template("chat.html")
         return web.Response(
-            text=template.render(site_config=CONFIG, SOFTWARE_RELEASE=SOFTWARE_RELEASE),
+            text=template.render(),
             content_type="text/html",
         )
     except Exception as e:
@@ -1266,8 +1238,6 @@ async def chat(request):
         rendered = template.render(
             error_message="An error occurred while processing your request.",
             error_details=traceback.format_exc(),
-            site_config=CONFIG,
-            SOFTWARE_RELEASE=SOFTWARE_RELEASE,
         )
         return web.Response(text=rendered, status=500, content_type="text/html")
 

@@ -178,19 +178,17 @@ function portLabel(portnum, payload) {
             <span class="text-secondary">(${portnum})</span>`;
 }
 
-// --- Load config ---
-async function loadConfig() {
+// --- Fetch firehose interval from shared site config ---
+async function configureFirehose() {
     try {
-        const res = await fetch("/api/config");
-        if (!res.ok) return;
-        const cfg = await res.json();
+        const cfg = await window._siteConfigPromise;
         const intervalSec = cfg?.site?.firehose_interval;
         if (intervalSec && !isNaN(intervalSec)) {
             updateInterval = parseInt(intervalSec) * 1000;
         }
         console.log("Firehose update interval:", updateInterval, "ms");
     } catch (err) {
-        console.warn("Failed to load /api/config:", err);
+        console.warn("Failed to read firehose interval:", err);
     }
 }
 
@@ -214,19 +212,12 @@ async function fetchUpdates() {
             const fromNodeId = pkt.from_node_id;
             const toNodeId = pkt.to_node_id;
 
-            let from = nodeName(fromNodeId);
-            if (fromNodeId !== 4294967295 && fromNodeId !== 1) {
-                from = `<a href="/packet_list/${fromNodeId}" style="text-decoration:underline; color:inherit;">${nodeMap[fromNodeId]}</a>`;
-            }
+            let from = fromNodeId === 4294967295 ? `<span class="to-mqtt">All</span>` :
+                       `<a href="/packet_list/${fromNodeId}" style="text-decoration:underline; color:inherit;">${nodeMap[fromNodeId] || fromNodeId}</a>`;
 
-            let to = "";
-            if (toNodeId === 1) {
-                to = `<span class="to-mqtt">direct to MQTT</span>`;
-            } else if (toNodeId === 4294967295) {
-                to = `<span class="to-mqtt">All</span>`;
-            } else {
-                to = `<a href="/packet_list/${toNodeId}" style="text-decoration:underline; color:inherit;">${nodeMap[toNodeId]}</a>`;
-            }
+            let to = toNodeId === 1 ? `<span class="to-mqtt">direct to MQTT</span>` :
+                     toNodeId === 4294967295 ? `<span class="to-mqtt">All</span>` :
+                     `<a href="/packet_list/${toNodeId}" style="text-decoration:underline; color:inherit;">${nodeMap[toNodeId] || toNodeId}</a>`;
 
             let links = "";
             if (pkt.portnum === 3 && pkt.payload) {
@@ -248,7 +239,6 @@ async function fetchUpdates() {
             }
 
             const safePayload = (pkt.payload || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
             const html = `
 <tr class="packet-row" data-id="${pkt.id}">
     <td><span class="toggle-btn">▶</span> <a href="/packet/${pkt.id}" style="text-decoration:underline; color:inherit;">${pkt.id}</a></td>
@@ -260,7 +250,6 @@ async function fetchUpdates() {
 <tr class="payload-row">
     <td colspan="5" class="payload-cell">${safePayload}</td>
 </tr>`;
-
             list.insertAdjacentHTML("afterbegin", html);
         }
 
@@ -288,10 +277,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         btn.textContent = row.classList.contains("expanded") ? "▼" : "▶";
     });
 
-    await loadConfig();
+    await configureFirehose();
     await loadNodes();
     fetchUpdates();
     setInterval(fetchUpdates, updateInterval);
 });
 </script>
+
 {% endblock %}

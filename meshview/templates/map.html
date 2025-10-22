@@ -59,11 +59,28 @@ function timeAgo(date){ const diff=Date.now()-new Date(date), s=Math.floor(diff/
 function hashToColor(str){ if(colorMap.has(str)) return colorMap.get(str); const c=palette[nextColorIndex++%palette.length]; colorMap.set(str,c); return c; }
 function isInvalidCoord(n){ return !n||!n.lat||!n.long||n.lat===0||n.long===0||Number.isNaN(n.lat)||Number.isNaN(n.long); }
 
+
+// ---------------------- WAIT FOR CONFIG ----------------------
+async function waitForConfig() {
+    while (typeof window._siteConfigPromise === "undefined") {
+        console.log("Waiting for _siteConfigPromise...");
+        await new Promise(r => setTimeout(r, 100));
+    }
+
+    try {
+        const cfg = await window._siteConfigPromise;
+        if (!cfg || !cfg.site) throw new Error("Config missing site object");
+        return cfg.site;
+    } catch (err) {
+        console.error("Error loading site config:", err);
+        return {};
+    }
+}
+
 // ---------------------- Load Config & Start Polling ----------------------
 async function initMapPolling() {
     try {
-        const cfg = await fetch('/api/config').then(r => r.json());
-        const site = cfg.site || {};
+        const site = await waitForConfig();
         mapInterval = parseInt(site.map_interval, 10) || 0;
 
         // ---- Check URL params ----
