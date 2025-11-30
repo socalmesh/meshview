@@ -333,32 +333,20 @@ document.addEventListener("DOMContentLoaded", async function() {
             const hwMatch = !hwFilter.value || node.hw_model === hwFilter.value;
             const firmwareMatch = !firmwareFilter.value || node.firmware === firmwareFilter.value;
 
-            // Improved search matching that handles null/undefined values properly
             let searchMatch = true;
             if (searchTerm) {
-                searchMatch = false;
-                // Check long_name
-                if (node.long_name && typeof node.long_name === 'string' && node.long_name.toLowerCase().includes(searchTerm)) {
-                    searchMatch = true;
-                }
-                // Check short_name
-                if (!searchMatch && node.short_name && typeof node.short_name === 'string' && node.short_name.toLowerCase().includes(searchTerm)) {
-                    searchMatch = true;
-                }
-                // Check node_id (case-insensitive)
-                if (!searchMatch && node.node_id != null && String(node.node_id).toLowerCase().includes(searchTerm)) {
-                    searchMatch = true;
-                }
-                // Check id (case-insensitive)
-                if (!searchMatch && node.id != null && String(node.id).toLowerCase().includes(searchTerm)) {
-                    searchMatch = true;
-                }
+                searchMatch =
+                    (node.long_name && node.long_name.toLowerCase().includes(searchTerm)) ||
+                    (node.short_name && node.short_name.toLowerCase().includes(searchTerm)) ||
+                    (node.node_id != null && String(node.node_id).toLowerCase().includes(searchTerm)) ||
+                    (node.id != null && String(node.id).toLowerCase().includes(searchTerm));
             }
 
-            const favMatch = !showOnlyFavorites || isFavorite(n.node_id);
+            const favMatch = !showOnlyFavorites || isFavorite(node.node_id);
 
-            return roleMatch && channelMatch && hwMatch && fwMatch && searchMatch && favMatch;
+            return roleMatch && channelMatch && hwMatch && firmwareMatch && searchMatch && favMatch;
         });
+
 
         filtered = sortNodes(filtered, sortColumn, sortAsc);
 
