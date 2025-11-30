@@ -84,6 +84,20 @@ Samples of currently running instances:
 - https://meshview-salzburg.jmt.gr/ (Salzburg / Austria)
 ---
 
+
+### Updating from 2.x to 3.x
+We are adding the use of Alembic. If using GitHub
+Update your codebase by running the pull command
+```bash
+cd meshview
+git pull origin master
+```
+Install Alembic in your environment
+```bash
+./env/bin/pip install alembic
+```
+Start your scripts or services. This process will update your database with the latest schema.
+
 ## Installing
 
 ### Using Docker (Recommended)
