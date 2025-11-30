@@ -184,11 +184,15 @@ function saveFavorites(favs) {
 }
 
 function toggleFavorite(nodeId) {
-    let favs = getFavorites();
-    const idx = favs.indexOf(nodeId);
-    if (idx >= 0) favs.splice(idx, 1);
-    else favs.push(nodeId);
-    saveFavorites(favs);
+    let favorites = getFavorites();
+    const index = favorites.indexOf(nodeId);
+    if (index > -1) {
+        favorites.splice(index, 1);
+    } else {
+        favorites.push(nodeId);
+    }
+    saveFavorites(favorites);
+    // Note: applyFilters() will be called by the event listener after this function returns
 }
 
 function isFavorite(nodeId) {
@@ -264,6 +268,8 @@ document.addEventListener("DOMContentLoaded", async function() {
                 e.target.textContent = "★";
             }
             toggleFavorite(nodeId);
+            // Reapply filters after toggling favorite
+            applyFilters();
         }
     });
 
@@ -321,16 +327,33 @@ document.addEventListener("DOMContentLoaded", async function() {
     function applyFilters() {
         const searchTerm = searchBox.value.trim().toLowerCase();
 
-        let filtered = allNodes.filter(n => {
-            const roleMatch = !roleFilter.value || n.role === roleFilter.value;
-            const channelMatch = !channelFilter.value || n.channel === channelFilter.value;
-            const hwMatch = !hwFilter.value || n.hw_model === hwFilter.value;
-            const fwMatch = !firmwareFilter.value || n.firmware === firmwareFilter.value;
-            const searchMatch =
-                !searchTerm ||
-                (n.long_name && n.long_name.toLowerCase().includes(searchTerm)) ||
-                (n.short_name && n.short_name.toLowerCase().includes(searchTerm)) ||
-                n.node_id.toString().includes(searchTerm);
+        let filtered = allNodes.filter(node => {
+            const roleMatch = !roleFilter.value || node.role === roleFilter.value;
+            const channelMatch = !channelFilter.value || node.channel === channelFilter.value;
+            const hwMatch = !hwFilter.value || node.hw_model === hwFilter.value;
+            const firmwareMatch = !firmwareFilter.value || node.firmware === firmwareFilter.value;
+
+            // Improved search matching that handles null/undefined values properly
+            let searchMatch = true;
+            if (searchTerm) {
+                searchMatch = false;
+                // Check long_name
+                if (node.long_name && typeof node.long_name === 'string' && node.long_name.toLowerCase().includes(searchTerm)) {
+                    searchMatch = true;
+                }
+                // Check short_name
+                if (!searchMatch && node.short_name && typeof node.short_name === 'string' && node.short_name.toLowerCase().includes(searchTerm)) {
+                    searchMatch = true;
+                }
+                // Check node_id (case-insensitive)
+                if (!searchMatch && node.node_id != null && String(node.node_id).toLowerCase().includes(searchTerm)) {
+                    searchMatch = true;
+                }
+                // Check id (case-insensitive)
+                if (!searchMatch && node.id != null && String(node.id).toLowerCase().includes(searchTerm)) {
+                    searchMatch = true;
+                }
+            }
 
             const favMatch = !showOnlyFavorites || isFavorite(n.node_id);
 
