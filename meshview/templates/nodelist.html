@@ -434,22 +434,25 @@ document.addEventListener("DOMContentLoaded", async function() {
     // =====================================================
     // SORT NODES
     // =====================================================
-    function sortNodes(nodes, key, asc) {
-        return [...nodes].sort((a, b) => {
-            let A = a[key];
-            let B = b[key];
+function sortNodes(nodes, key, asc) {
+    return [...nodes].sort((a, b) => {
+        let A = a[key];
+        let B = b[key];
 
-            // special handling for timestamp
-            if (key === "last_seen_us") {
-                A = A || 0;
-                B = B || 0;
-            }
+        // Normalize null/undefined/empty to a sortable string
+        A = (A ?? "").toString().toLowerCase();
+        B = (B ?? "").toString().toLowerCase();
 
-            if (A < B) return asc ? -1 : 1;
-            if (A > B) return asc ? 1 : -1;
-            return 0;
-        });
-    }
+        // Force "n/a" to sort last
+        if (A === "" || A === "n/a") A = "~";
+        if (B === "" || B === "n/a") B = "~";
+
+        if (A < B) return asc ? -1 : 1;
+        if (A > B) return asc ? 1 : -1;
+        return 0;
+    });
+}
+
 
     // =====================================================
     // SORT ICONS
