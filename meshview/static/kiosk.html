@@ -190,31 +190,50 @@ body { margin: 0; font-family: monospace; background: #121212; color: #eee; }
         activeBlinks.set(marker,interval);
     }
 
-    let lastImportTime=null;
+    let lastImportTimeUs = null;
+
     async function fetchLatestPacket(){
         try{
-            const res=await fetch(`/api/packets?limit=1`);
-            const data=await res.json();
-            lastImportTime=data.packets?.[0]?.import_time || new Date().toISOString();
-        }catch(err){ console.error(err); }
+            const res = await fetch(`/api/packets?limit=1`);
+            const data = await res.json();
+            lastImportTimeUs = data.packets?.[0]?.import_time_us || 0;
+        }catch(err){
+            console.error(err);
+        }
     }
 
     async function fetchNewPackets(){
-        if(!lastImportTime) return;
+        if (!lastImportTimeUs) return;
+
         try{
-            const res=await fetch(`/api/packets?since=${lastImportTime}`);
-            const data=await res.json();
+            const res = await fetch(`/api/packets?since=${lastImportTimeUs}`);
+            const data = await res.json();
             if(!data.packets || !data.packets.length) return;
-            let latest=lastImportTime;
-            data.packets.forEach(packet=>{
-                if(packet.import_time && packet.import_time>latest) latest=packet.import_time;
-                const marker=markerById[packet.from_node_id];
-                const nodeData=nodeMap.get(packet.from_node_id);
-                if(marker && nodeData) blinkNode(marker,nodeData.long_name,packet.portnum);
+
+            let latest = lastImportTimeUs;
+
+            data.packets.forEach(packet => {
+
+                // Track newest microsecond timestamp
+                if (packet.import_time_us && packet.import_time_us > latest) {
+                    latest = packet.import_time_us;
+                }
+
+                // Look up marker and blink it
+                const marker = markerById[packet.from_node_id];
+                const nodeData = nodeMap.get(packet.from_node_id);
+                if (marker && nodeData) {
+                    blinkNode(marker, nodeData.long_name, packet.portnum);
+                }
             });
-            lastImportTime=latest;
-        }catch(err){ console.error(err); }
+
+            lastImportTimeUs = latest;
+
+        }catch(err){
+            console.error(err);
+        }
     }
+
 
     if(mapInterval>0){ fetchLatestPacket(); setInterval(fetchNewPackets,mapInterval*1000); }
 

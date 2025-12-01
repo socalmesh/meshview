@@ -12,7 +12,7 @@ from google.protobuf import text_format
 from google.protobuf.message import Message
 from jinja2 import Environment, PackageLoader, Undefined, select_autoescape
 from markupsafe import Markup
-
+import pathlib
 from meshtastic.protobuf.portnums_pb2 import PortNum
 from meshview import config, database, decode_payload, migrations, models, store
 from meshview.__version__ import (
@@ -199,6 +199,23 @@ async def index(request):
 async def redirect_packet_list(request):
     packet_id = request.match_info["packet_id"]
     raise web.HTTPFound(location=f"/node/{packet_id}")
+
+# Generic static HTML route
+@routes.get("/{page}")
+async def serve_page(request):
+    page = request.match_info["page"]
+
+    # default to index.html if no extension
+    if not page.endswith(".html"):
+        page = f"{page}.html"
+
+    html_file = pathlib.Path(__file__).parent / "static" / page
+    if not html_file.exists():
+        raise web.HTTPNotFound(text=f"Page '{page}' not found")
+
+    content = html_file.read_text(encoding="utf-8")
+    return web.Response(text=content, content_type="text/html")
+
 
 
 @routes.get("/net")
@@ -392,31 +409,6 @@ async def graph_traceroute(request):
         body=graph.create_svg(),
         content_type="image/svg+xml",
     )
-
-
-'''
-@routes.get("/stats")
-async def stats(request):
-    try:
-        total_packets = await store.get_total_packet_count()
-        total_nodes = await store.get_total_node_count()
-        total_packets_seen = await store.get_total_packet_seen_count()
-        template = env.get_template("stats.html")
-        return web.Response(
-            text=template.render(
-                total_packets=total_packets,
-                total_nodes=total_nodes,
-                total_packets_seen=total_packets_seen,
-            ),
-            content_type="text/html",
-        )
-    except Exception as e:
-        return web.Response(
-            text=f"An error occurred: {str(e)}",
-            status=500,
-            content_type="text/plain",
-        )
-'''
 
 
 async def run_server():
