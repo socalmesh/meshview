@@ -1,11 +1,24 @@
 {% extends "base.html" %}
 
 {% block css %}
+<style>
 table {
     width: 80%;
     border-collapse: collapse;
     margin: 1em auto;
 }
+
+/* Ensure table is centered visually */
+#node-list {
+    display: flex;
+    justify-content: center;
+}
+
+#node-list table {
+    margin-left: auto;
+    margin-right: auto;
+}
+
 
 th, td {
     padding: 10px;
@@ -114,49 +127,112 @@ select, .export-btn, .search-box, .clear-btn {
     background-color: #ff6b6b;
     color: white;
 }
+</style>
 {% endblock %}
 
 {% block body %}
 <div class="filter-container">
-    <input type="text" id="search-box" class="search-box" placeholder="Search by name or ID..." />
 
-    <select id="role-filter"><option value="">All Roles</option></select>
-    <select id="channel-filter"><option value="">All Channels</option></select>
-    <select id="hw-filter"><option value="">All HW Models</option></select>
-    <select id="firmware-filter"><option value="">All Firmware</option></select>
+    <input
+        type="text"
+        id="search-box"
+        class="search-box"
+        data-translate-lang="search_placeholder"
+        placeholder="Search by name or ID..."
+    />
 
-    <button class="favorites-btn" id="favorites-btn">⭐ Show Favorites</button>
-    <button class="export-btn" id="export-btn">Export CSV</button>
-    <button class="clear-btn" id="clear-btn">Clear Filters</button>
+    <select id="role-filter">
+        <option value="" data-translate-lang="all_roles">All Roles</option>
+    </select>
+
+    <select id="channel-filter">
+        <option value="" data-translate-lang="all_channels">All Channels</option>
+    </select>
+
+    <select id="hw-filter">
+        <option value="" data-translate-lang="all_hw">All HW Models</option>
+    </select>
+
+    <select id="firmware-filter">
+        <option value="" data-translate-lang="all_firmware">All Firmware</option>
+    </select>
+
+    <button class="favorites-btn" id="favorites-btn" data-translate-lang="show_favorites">
+        ⭐ Show Favorites
+    </button>
+
+    <button class="export-btn" id="export-btn" data-translate-lang="export_csv">
+        Export CSV
+    </button>
+
+    <button class="clear-btn" id="clear-btn" data-translate-lang="clear_filters">
+        Clear Filters
+    </button>
 </div>
 
 <div class="count-container">
-    Showing <span id="node-count">0</span> nodes
+    <span data-translate-lang="showing_nodes">Showing</span>
+    <span id="node-count">0</span>
+    <span data-translate-lang="nodes_suffix">nodes</span>
 </div>
 
 <div id="node-list">
     <table>
         <thead>
             <tr>
-                <th>Short <span class="sort-icon">▲</span></th>
-                <th>Long Name <span class="sort-icon"></span></th>
-                <th>HW Model <span class="sort-icon"></span></th>
-                <th>Firmware <span class="sort-icon"></span></th>
-                <th>Role <span class="sort-icon"></span></th>
-                <th>Last Latitude <span class="sort-icon"></span></th>
-                <th>Last Longitude <span class="sort-icon"></span></th>
-                <th>Channel <span class="sort-icon"></span></th>
-                <th>Last Seen <span class="sort-icon"></span></th>
-                <th> </th>
+                <th data-translate-lang="short_name">Short <span class="sort-icon">▲</span></th>
+                <th data-translate-lang="long_name">Long Name <span class="sort-icon"></span></th>
+                <th data-translate-lang="hw_model">HW Model <span class="sort-icon"></span></th>
+                <th data-translate-lang="firmware">Firmware <span class="sort-icon"></span></th>
+                <th data-translate-lang="role">Role <span class="sort-icon"></span></th>
+                <th data-translate-lang="last_lat">Last Latitude <span class="sort-icon"></span></th>
+                <th data-translate-lang="last_long">Last Longitude <span class="sort-icon"></span></th>
+                <th data-translate-lang="channel">Channel <span class="sort-icon"></span></th>
+                <th data-translate-lang="last_seen">Last Seen <span class="sort-icon"></span></th>
+                <th data-translate-lang="favorite"></th>
             </tr>
         </thead>
         <tbody id="node-table-body">
-            <tr><td colspan="10" style="text-align:center; color:white;">Loading nodes...</td></tr>
+            <tr>
+                <td colspan="10" style="text-align:center; color:white;" data-translate-lang="loading_nodes">
+                    Loading nodes...
+                </td>
+            </tr>
         </tbody>
     </table>
 </div>
 
 <script>
+// =====================================================
+// TRANSLATIONS
+// =====================================================
+let nodelistTranslations = {};
+
+function applyTranslationsNodelist() {
+    document.querySelectorAll("[data-translate-lang]").forEach(el => {
+        const key = el.dataset.translateLang;
+        if (nodelistTranslations[key]) {
+            if (el.tagName === "INPUT" && el.placeholder) {
+                el.placeholder = nodelistTranslations[key];
+            } else {
+                el.textContent = nodelistTranslations[key];
+            }
+        }
+    });
+}
+
+async function loadTranslationsNodelist() {
+    try {
+        const cfg = await window._siteConfigPromise;
+        const lang = cfg?.site?.language || "en";
+        const res = await fetch(`/api/lang?lang=${lang}&section=nodelist`);
+        nodelistTranslations = await res.json();
+        applyTranslationsNodelist();
+    } catch (err) {
+        console.error("Failed to load nodelist translations:", err);
+    }
+}
+
 // =====================================================
 // GLOBALS
 // =====================================================
@@ -171,55 +247,55 @@ const keyMap = [
     "last_lat","last_long","channel","last_seen_us"
 ];
 
-// =====================================================
-// FAVORITES SYSTEM (localStorage)
-// =====================================================
+// FAVORITES
 function getFavorites() {
     const favorites = localStorage.getItem('nodelist_favorites');
     return favorites ? JSON.parse(favorites) : [];
 }
-
 function saveFavorites(favs) {
     localStorage.setItem('nodelist_favorites', JSON.stringify(favs));
 }
-
 function toggleFavorite(nodeId) {
-    let favorites = getFavorites();
-    const index = favorites.indexOf(nodeId);
-    if (index > -1) {
-        favorites.splice(index, 1);
-    } else {
-        favorites.push(nodeId);
-    }
-    saveFavorites(favorites);
-    // Note: applyFilters() will be called by the event listener after this function returns
+    let favs = getFavorites();
+    const idx = favs.indexOf(nodeId);
+    if (idx >= 0) favs.splice(idx, 1);
+    else favs.push(nodeId);
+    saveFavorites(favs);
 }
-
 function isFavorite(nodeId) {
     return getFavorites().includes(nodeId);
 }
 
-// =====================================================
-// "TIME AGO" FORMATTER
-// =====================================================
+// TIME AGO (translated)
 function timeAgo(usTimestamp) {
     if (!usTimestamp) return "N/A";
     const ms = usTimestamp / 1000;
     const diff = Date.now() - ms;
 
-    if (diff < 60000) return "just now";
+    // < 1 minute
+    if (diff < 60000) return nodelistTranslations.time_just_now || "just now";
+
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins} min ago`;
+    if (mins < 60)
+        return `${mins} ${nodelistTranslations.time_min_ago || "min ago"}`;
+
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs} hr ago`;
+    if (hrs < 24)
+        return `${hrs} ${nodelistTranslations.time_hr_ago || "hr ago"}`;
+
     const days = Math.floor(hrs / 24);
-    return `${days} day${days > 1 ? "s" : ""} ago`;
+    if (days === 1)
+        return `1 ${nodelistTranslations.time_day_ago || "day ago"}`;
+    return `${days} ${nodelistTranslations.time_days_ago || "days ago"}`;
 }
 
 // =====================================================
-// DOM LOADED: FETCH NODES
+// DOM LOADED
 // =====================================================
 document.addEventListener("DOMContentLoaded", async function() {
+
+    await loadTranslationsNodelist();
+
     const tbody = document.getElementById("node-table-body");
     const roleFilter = document.getElementById("role-filter");
     const channelFilter = document.getElementById("channel-filter");
@@ -236,13 +312,17 @@ document.addEventListener("DOMContentLoaded", async function() {
         if (!res.ok) throw new Error("Failed to fetch nodes");
 
         const data = await res.json();
-        allNodes = data.nodes;
+        allNodes = data.nodes.map(n => ({
+            ...n,
+            firmware: n.firmware || n.firmware_version || ""
+        }));
+
 
         populateFilters(allNodes);
         renderTable(allNodes);
         updateSortIcons();
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:red;">Error loading nodes: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:red;">${nodelistTranslations.error_loading_nodes || "Error loading nodes"}</td></tr>`;
     }
 
     roleFilter.addEventListener("change", applyFilters);
@@ -254,7 +334,6 @@ document.addEventListener("DOMContentLoaded", async function() {
     clearBtn.addEventListener("click", clearFilters);
     favoritesBtn.addEventListener("click", toggleFavoritesFilter);
 
-    // STAR CLICK HANDLER
     tbody.addEventListener("click", e => {
         if (e.target.classList.contains('favorite-star')) {
             const nodeId = parseInt(e.target.dataset.nodeId);
@@ -268,12 +347,9 @@ document.addEventListener("DOMContentLoaded", async function() {
                 e.target.textContent = "★";
             }
             toggleFavorite(nodeId);
-            // Reapply filters after toggling favorite
-            applyFilters();
         }
     });
 
-    // SORTING
     headers.forEach((th, index) => {
         th.addEventListener("click", () => {
             let key = keyMap[index];
@@ -283,9 +359,6 @@ document.addEventListener("DOMContentLoaded", async function() {
         });
     });
 
-    // =====================================================
-    // FILTER POPULATION
-    // =====================================================
     function populateFilters(nodes) {
         const roles = new Set(), channels = new Set(), hws = new Set(), fws = new Set();
 
@@ -311,57 +384,50 @@ document.addEventListener("DOMContentLoaded", async function() {
         });
     }
 
-    // =====================================================
-    // FAVORITES FILTER
-    // =====================================================
     function toggleFavoritesFilter() {
         showOnlyFavorites = !showOnlyFavorites;
-        favoritesBtn.textContent = showOnlyFavorites ? "⭐ Show All" : "⭐ Show Favorites";
+        favoritesBtn.textContent = showOnlyFavorites
+            ? (nodelistTranslations.show_all || "⭐ Show All")
+            : (nodelistTranslations.show_favorites || "⭐ Show Favorites");
+
         favoritesBtn.classList.toggle("active", showOnlyFavorites);
         applyFilters();
     }
 
-    // =====================================================
-    // APPLY FILTERS + SORT
-    // =====================================================
     function applyFilters() {
         const searchTerm = searchBox.value.trim().toLowerCase();
 
-        let filtered = allNodes.filter(node => {
-            const roleMatch = !roleFilter.value || node.role === roleFilter.value;
-            const channelMatch = !channelFilter.value || node.channel === channelFilter.value;
-            const hwMatch = !hwFilter.value || node.hw_model === hwFilter.value;
-            const firmwareMatch = !firmwareFilter.value || node.firmware === firmwareFilter.value;
+        let filtered = allNodes.filter(n => {
+            const roleMatch = !roleFilter.value || n.role === roleFilter.value;
+            const channelMatch = !channelFilter.value || n.channel === channelFilter.value;
+            const hwMatch = !hwFilter.value || n.hw_model === hwFilter.value;
+            const fwMatch = !firmwareFilter.value || n.firmware === firmwareFilter.value;
 
-            let searchMatch = true;
-            if (searchTerm) {
-                searchMatch =
-                    (node.long_name && node.long_name.toLowerCase().includes(searchTerm)) ||
-                    (node.short_name && node.short_name.toLowerCase().includes(searchTerm)) ||
-                    (node.node_id != null && String(node.node_id).toLowerCase().includes(searchTerm)) ||
-                    (node.id != null && String(node.id).toLowerCase().includes(searchTerm));
-            }
+            const searchMatch =
+                !searchTerm ||
+                (n.long_name && n.long_name.toLowerCase().includes(searchTerm)) ||
+                (n.short_name && n.short_name.toLowerCase().includes(searchTerm)) ||
+                n.node_id.toString().includes(searchTerm);
 
-            const favMatch = !showOnlyFavorites || isFavorite(node.node_id);
+            const favMatch = !showOnlyFavorites || isFavorite(n.node_id);
 
-            return roleMatch && channelMatch && hwMatch && firmwareMatch && searchMatch && favMatch;
+            return roleMatch && channelMatch && hwMatch && fwMatch && searchMatch && favMatch;
         });
 
-
         filtered = sortNodes(filtered, sortColumn, sortAsc);
-
         renderTable(filtered);
         updateSortIcons();
     }
 
-    // =====================================================
-    // RENDER TABLE
-    // =====================================================
     function renderTable(nodes) {
         tbody.innerHTML = "";
 
         if (!nodes.length) {
-            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:white;">No nodes found</td></tr>`;
+            tbody.innerHTML = `<tr>
+                <td colspan="10" style="text-align:center; color:white;">
+                    ${nodelistTranslations.no_nodes_found || "No nodes found"}
+                </td>
+            </tr>`;
             countSpan.textContent = 0;
             return;
         }
@@ -382,7 +448,9 @@ document.addEventListener("DOMContentLoaded", async function() {
                 <td>${node.channel || "N/A"}</td>
                 <td>${timeAgo(node.last_seen_us)}</td>
                 <td style="text-align:center;">
-                    <span class="favorite-star ${isFav ? "active" : ""}" data-node-id="${node.node_id}">${star}</span>
+                    <span class="favorite-star ${isFav ? "active" : ""}" data-node-id="${node.node_id}">
+                        ${star}
+                    </span>
                 </td>
             `;
             tbody.appendChild(row);
@@ -391,9 +459,6 @@ document.addEventListener("DOMContentLoaded", async function() {
         countSpan.textContent = nodes.length;
     }
 
-    // =====================================================
-    // CLEAR FILTERS
-    // =====================================================
     function clearFilters() {
         roleFilter.value = "";
         channelFilter.value = "";
@@ -403,24 +468,26 @@ document.addEventListener("DOMContentLoaded", async function() {
         sortColumn = "short_name";
         sortAsc = true;
         showOnlyFavorites = false;
-        favoritesBtn.textContent = "⭐ Show Favorites";
+
+        favoritesBtn.textContent = nodelistTranslations.show_favorites || "⭐ Show Favorites";
         favoritesBtn.classList.remove("active");
 
         renderTable(allNodes);
         updateSortIcons();
     }
 
-    // =====================================================
-    // EXPORT CSV
-    // =====================================================
     function exportToCSV() {
         const rows = [];
-        const headerList = Array.from(headers).map(h => `"${h.innerText.replace(/▲|▼/g,'')}"`);
+        const headerList = Array.from(headers).map(h =>
+            `"${h.innerText.replace(/▲|▼/g,'')}"`
+        );
         rows.push(headerList.join(","));
 
         const trs = tbody.querySelectorAll("tr");
         trs.forEach(tr => {
-            const cells = Array.from(tr.children).map(td => `"${td.innerText.replace(/"/g,'""')}"`);
+            const cells = Array.from(tr.children).map(td =>
+                `"${td.innerText.replace(/"/g,'""')}"`
+            );
             rows.push(cells.join(","));
         });
 
@@ -431,37 +498,26 @@ document.addEventListener("DOMContentLoaded", async function() {
         a.click();
     }
 
-    // =====================================================
-    // SORT NODES
-    // =====================================================
-function sortNodes(nodes, key, asc) {
-    return [...nodes].sort((a, b) => {
-        let A = a[key];
-        let B = b[key];
+    function sortNodes(nodes, key, asc) {
+        return [...nodes].sort((a, b) => {
+            let A = a[key];
+            let B = b[key];
+            if (key === "last_seen_us") {
+                A = A || 0;
+                B = B || 0;
+            }
+            if (A < B) return asc ? -1 : 1;
+            if (A > B) return asc ? 1 : -1;
+            return 0;
+        });
+    }
 
-        // Normalize null/undefined/empty to a sortable string
-        A = (A ?? "").toString().toLowerCase();
-        B = (B ?? "").toString().toLowerCase();
-
-        // Force "n/a" to sort last
-        if (A === "" || A === "n/a") A = "~";
-        if (B === "" || B === "n/a") B = "~";
-
-        if (A < B) return asc ? -1 : 1;
-        if (A > B) return asc ? 1 : -1;
-        return 0;
-    });
-}
-
-
-    // =====================================================
-    // SORT ICONS
-    // =====================================================
     function updateSortIcons() {
         headers.forEach((th, i) => {
             const span = th.querySelector(".sort-icon");
             if (!span) return;
-            span.textContent = keyMap[i] === sortColumn ? (sortAsc ? "▲" : "▼") : "";
+            span.textContent =
+                keyMap[i] === sortColumn ? (sortAsc ? "▲" : "▼") : "";
         });
     }
 });

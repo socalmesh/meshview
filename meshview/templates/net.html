@@ -23,20 +23,29 @@
 .channel { font-style: italic; color: #bbb; }
 .channel a { font-style: normal; color: #999; }
 
-@keyframes flash { 0% { background-color: #ffe066; } 100% { background-color: inherit; } }
-.chat-packet.flash { animation: flash 3.5s ease-out; }
-
-.replying-to { font-size: 0.8em; color: #aaa; margin-top: 2px; padding-left: 10px; }
-.replying-to .reply-preview { color: #aaa; }
-
 #weekly-message { margin: 15px 0; font-weight: bold; color: #ffeb3b; }
 #total-count { margin-bottom: 10px; font-style: italic; color: #ccc; }
 {% endblock %}
 
 {% block body %}
 <div class="container">
-    <div id="weekly-message">Loading weekly message...</div>
-    <div id="total-count">Total messages: 0</div>
+    <!-- ⭐ NET TITLE WITH ICON ⭐ -->
+    <div class="container px-2">
+        <h2 style="color:white; margin:0 0 10px 0;">
+            <span class="icon">💬</span>
+            <span data-translate-lang="net_title"></span>
+        </h2>
+    </div>
+
+    <!-- Weekly network message -->
+    <div id="weekly-message"></div>
+
+
+    <!-- Total message count -->
+    <div id="total-count">
+        <span data-translate-lang="total_messages">Total messages:</span>
+        <span id="total-count-value">0</span>
+    </div>
 
     <div id="chat-container">
         <div class="container" id="chat-log"></div>
@@ -45,140 +54,180 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
+
     const chatContainer = document.querySelector("#chat-log");
-    const totalCountEl = document.querySelector("#total-count");
     const weeklyMessageEl = document.querySelector("#weekly-message");
-    if (!chatContainer || !totalCountEl || !weeklyMessageEl) {
-        console.error("Required elements not found");
+    const totalCountValueEl = document.querySelector("#total-count-value");
+
+    if (!chatContainer || !weeklyMessageEl || !totalCountValueEl) {
+        console.error("Required elements missing");
         return;
     }
 
     const renderedPacketIds = new Set();
-    const packetMap = new Map();
-    let chatTranslations = {};
+    let netTranslations = {};
     let netTag = "";
 
-    function updateTotalCount() {
-        totalCountEl.textContent = `Total messages: ${renderedPacketIds.size}`;
-    }
-
+    /* -----------------------------------
+       Escape HTML safely
+    ----------------------------------- */
     function escapeHtml(text) {
         const div = document.createElement("div");
         div.textContent = text ?? "";
         return div.innerHTML;
     }
 
-    function applyTranslations(translations, root = document) {
+    /* -----------------------------------
+       Apply translations
+    ----------------------------------- */
+    function applyTranslations(trans, root=document) {
         root.querySelectorAll("[data-translate-lang]").forEach(el => {
             const key = el.dataset.translateLang;
-            if (translations[key]) el.textContent = translations[key];
+            if (trans[key]) el.textContent = trans[key];
         });
         root.querySelectorAll("[data-translate-lang-title]").forEach(el => {
             const key = el.dataset.translateLangTitle;
-            if (translations[key]) el.title = translations[key];
+            if (trans[key]) el.title = trans[key];
         });
     }
 
+    /* -----------------------------------
+       Update count
+    ----------------------------------- */
+    function updateTotalCount() {
+        totalCountValueEl.textContent = renderedPacketIds.size;
+    }
+
+    /* -----------------------------------
+       Render single packet
+    ----------------------------------- */
     function renderPacket(packet) {
         if (renderedPacketIds.has(packet.id)) return;
         renderedPacketIds.add(packet.id);
-        packetMap.set(packet.id, packet);
 
         const date = new Date(packet.import_time_us / 1000);
-        const formattedTime = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
-        const formattedDate = `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}/${date.getFullYear()}`;
-        const formattedTimestamp = `${formattedTime} - ${formattedDate}`;
 
-        let replyHtml = "";
-        if (packet.reply_id) {
-            const parent = packetMap.get(packet.reply_id);
-            if (parent) {
-                replyHtml = `<div class="replying-to">
-                    <div class="reply-preview">
-                        <i data-translate-lang="replying_to"></i>
-                        <strong>${escapeHtml((parent.long_name || "").trim() || `Node ${parent.from_node_id}`)}</strong>:
-                        ${escapeHtml(parent.payload || "")}
-                    </div>
-                </div>`;
-            } else {
-                replyHtml = `<div class="replying-to">
-                    <i data-translate-lang="replying_to"></i>
-                    <a href="/packet/${packet.reply_id}">${packet.reply_id}</a>
-                </div>`;
-            }
-        }
+        const timeStr = date.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true
+        });
+
+        const dateStr =
+            `${String(date.getMonth()+1).padStart(2,"0")}/`+
+            `${String(date.getDate()).padStart(2,"0")}/`+
+            date.getFullYear();
+
+        const timestamp = `${timeStr} - ${dateStr}`;
+
+        const fromName =
+            (packet.long_name || "").trim() ||
+            `${netTranslations.node_fallback} ${packet.from_node_id}`;
 
         const div = document.createElement("div");
         div.className = "row chat-packet";
         div.dataset.packetId = packet.id;
+
         div.innerHTML = `
-            <span class="col-2 timestamp" title="${packet.import_time_us}">${formattedTimestamp}</span>
+            <span class="col-2 timestamp" title="${packet.import_time_us}">
+                ${timestamp}
+            </span>
+
             <span class="col-2 channel">
-                <a href="/packet/${packet.id}" data-translate-lang-title="view_packet_details">✉️</a>
+                <a href="/packet/${packet.id}"
+                   data-translate-lang-title="view_packet_details">✉️</a>
                 ${escapeHtml(packet.channel || "")}
             </span>
+
             <span class="col-3 nodename">
                 <a href="/packet_list/${packet.from_node_id}">
-                    ${escapeHtml((packet.long_name || "").trim() || `Node ${packet.from_node_id}`)}
+                    ${escapeHtml(fromName)}
                 </a>
             </span>
-            <span class="col-5 message">${escapeHtml(packet.payload)}${replyHtml}</span>
+
+            <span class="col-5 message">
+                ${escapeHtml(packet.payload).replace(/\n/g,"<br>")}
+            </span>
         `;
+
         chatContainer.prepend(div);
-        applyTranslations(chatTranslations, div);
+        applyTranslations(netTranslations, div);
         updateTotalCount();
     }
 
+    /* -----------------------------------
+       Sort descending by time
+    ----------------------------------- */
     function renderPacketsEnsureDescending(packets) {
-        if (!Array.isArray(packets) || packets.length === 0) return;
-        const sortedDesc = packets.slice().sort((a, b) => b.import_time_us - a.import_time_us);
-        for (let i = sortedDesc.length - 1; i >= 0; i--) renderPacket(sortedDesc[i]);
+        if (!packets || !packets.length) return;
+        const sorted = packets.slice().sort((a, b) => b.import_time_us - a.import_time_us);
+        for (let i = sorted.length - 1; i >= 0; i--) {
+            renderPacket(sorted[i]);
+        }
     }
 
+    /* -----------------------------------
+       Fetch initial net-tagged packets
+    ----------------------------------- */
     async function fetchInitialPackets(tag) {
-        if (!tag) {
-            console.warn("No net_tag defined, skipping packet fetch.");
-            return;
-        }
+        if (!tag) return;
+
         try {
-            console.log("Fetching packets for netTag:", tag);
-            const sixDaysAgoMs = Date.now() - (6 * 24 * 60 * 60 * 1000);
+            const sixDaysAgoMs = Date.now() - 6*24*60*60*1000;
             const sinceUs = Math.floor(sixDaysAgoMs * 1000);
-            const resp = await fetch(`/api/packets?portnum=1&contains=${encodeURIComponent(tag)}&since=${sinceUs}`);
+
+            const url =
+                `/api/packets?portnum=1&contains=${encodeURIComponent(tag)}&since=${sinceUs}`;
+
+            const resp = await fetch(url);
             const data = await resp.json();
-            console.log("Packets received:", data?.packets?.length);
-            if (data?.packets?.length) renderPacketsEnsureDescending(data.packets);
+
+            if (data?.packets?.length)
+                renderPacketsEnsureDescending(data.packets);
+
         } catch (err) {
             console.error("Initial fetch error:", err);
         }
     }
 
+    /* -----------------------------------
+       Load translations from section=net
+    ----------------------------------- */
     async function loadTranslations(cfg) {
         try {
-            const langCode = cfg?.site?.language || "en";
-            const res = await fetch(`/api/lang?lang=${langCode}&section=chat`);
-            chatTranslations = await res.json();
-            applyTranslations(chatTranslations, document);
+            const lang = cfg?.site?.language || "en";
+            const res = await fetch(`/api/lang?lang=${lang}&section=net`);
+            netTranslations = await res.json();
+            applyTranslations(netTranslations, document);
         } catch (err) {
-            console.error("Chat translation load failed:", err);
+            console.error("Failed loading translations", err);
         }
     }
 
-    // --- MAIN LOGIC ---
+    /* -----------------------------------
+       MAIN
+    ----------------------------------- */
     try {
-        const cfg = await window._siteConfigPromise; // ✅ Already fetched by base.html
+        const cfg = await window._siteConfigPromise;
         const site = cfg?.site || {};
 
-        // Populate from config
         netTag = site.net_tag || "";
-        weeklyMessageEl.textContent = site.weekly_net_message || "Weekly message not set.";
+
+        weeklyMessageEl.textContent = site.weekly_net_message || "";
+
 
         await loadTranslations(cfg);
         await fetchInitialPackets(netTag);
+
     } catch (err) {
         console.error("Initialization failed:", err);
-        weeklyMessageEl.textContent = "Failed to load site config.";
+
+        weeklyMessageEl.textContent =
+            netTranslations.failed_to_load_site_config ||
+            "Failed to load site config.";
     }
+
 });
 </script>
 {% endblock %}

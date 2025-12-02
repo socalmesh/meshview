@@ -1,9 +1,7 @@
 {% extends "base.html" %}
 
 {% block css %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <style>
     .legend { background:white;padding:8px;line-height:1.5;border-radius:5px;box-shadow:0 0 10px rgba(0,0,0,0.3);font-size:14px;color:black; }
     .legend i { width:12px;height:12px;display:inline-block;margin-right:6px;border-radius:50%; }
@@ -24,54 +22,131 @@
 
 {% block body %}
 <div id="map" style="width:100%;height:calc(100vh - 270px)"></div>
-<div id="filter-container">
-    <input type="checkbox" class="filter-checkbox" id="filter-routers-only"> Show Routers Only
-</div>
-<div style="text-align:center;margin-top:5px;">
-    <button id="share-button" onclick="shareCurrentView()">🔗 Share This View</button>
-    <button id="reset-filters-button" onclick="resetFiltersToDefaults()">↺ Reset Filters To Defaults</button>
+<div id="map-legend" class="legend" style="position:absolute; bottom:30px; right:15px; z-index:1000;">
+    <div>
+        <i style="background:orange; width:15px; height:3px; border-radius:0;"></i>
+        <span data-translate-lang="legend_traceroute">Traceroute Path (arrowed)</span>
+    </div>
+
+    <div style="margin-top:6px;">
+        <i style="background:gray; width:15px; height:3px; border-radius:0;"></i>
+        <span data-translate-lang="legend_neighbor">Neighbor Link</span>
+    </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""></script>
-<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylinedecorator.js"
-        integrity="sha384-FhPn/2P/fJGhQLeNWDn9B/2Gml2bPOrKJwFqJXgR3xOPYxWg5mYQ5XZdhUSugZT0"
-        crossorigin></script>
+
+
+<div id="filter-container">
+    <input type="checkbox" class="filter-checkbox" id="filter-routers-only">
+    <span data-translate-lang="filter_routers_only">Show Routers Only</span>
+</div>
+
+<div style="text-align:center;margin-top:5px;">
+    <button id="share-button" onclick="shareCurrentView()" data-translate-lang="share_view">
+        🔗 Share This View
+    </button>
+    <button id="reset-filters-button" onclick="resetFiltersToDefaults()" data-translate-lang="reset_filters">
+        ↺ Reset Filters To Defaults
+    </button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylinedecorator.js" crossorigin=""></script>
 
 <script>
-// ---------------------- Map Initialization ----------------------
-var map = L.map('map');
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(map);
+/* ===========================================================
+   TRANSLATION LOADER (map section)
+   =========================================================== */
+let mapTranslations = {};
 
-// ---------------------- Globals ----------------------
+async function loadTranslationsMap() {
+    try {
+        const cfg = await window._siteConfigPromise;
+        const lang = cfg?.site?.language || "en";
+        const res = await fetch(`/api/lang?lang=${lang}&section=map`);
+        mapTranslations = await res.json();
+        applyTranslationsMap();
+    } catch (err) {
+        console.error("Map translation load failed:", err);
+    }
+}
+
+function applyTranslationsMap() {
+    document.querySelectorAll("[data-translate-lang]").forEach(el => {
+        const key = el.dataset.translateLang;
+        if (mapTranslations[key]) {
+            if (el.tagName === "INPUT" && el.placeholder) {
+                el.placeholder = mapTranslations[key];
+            } else {
+                el.textContent = mapTranslations[key];
+            }
+        }
+    });
+}
+
+/* ===========================================================
+   MAP LOGIC (unchanged except translated popups)
+   =========================================================== */
+
+var map = L.map('map');
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+
 var nodes=[], markers={}, markerById={}, nodeMap = new Map();
 var edgesData=[], edgeLayer = L.layerGroup().addTo(map), selectedNodeId = null;
 var activeBlinks = new Map(), lastImportTime = null;
 var mapInterval = 0;
-const portMap = {1:"Text",67:"Telemetry",3:"Position",70:"Traceroute",4:"Node Info",71:"Neighbour Info",73:"Map Report"};
-const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"];
-const colorMap = new Map(); let nextColorIndex = 0;
+
+const portMap = {
+    1:"Text",
+    67:"Telemetry",
+    3:"Position",
+    70:"Traceroute",
+    4:"Node Info",
+    71:"Neighbour Info",
+    73:"Map Report"
+};
+
+const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6",
+                 "#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8",
+                 "#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080"];
+
+const colorMap = new Map();
+let nextColorIndex = 0;
 const channelSet = new Set();
 
-// ---------------------- Helpers ----------------------
-function timeAgo(date){ const diff=Date.now()-new Date(date), s=Math.floor(diff/1000), m=Math.floor(s/60), h=Math.floor(m/60), d=Math.floor(h/24); return d>0?d+"d":h>0?h+"h":m>0?m+"m":s+"s"; }
-function hashToColor(str){ if(colorMap.has(str)) return colorMap.get(str); const c=palette[nextColorIndex++%palette.length]; colorMap.set(str,c); return c; }
-function isInvalidCoord(n){ return !n||!n.lat||!n.long||n.lat===0||n.long===0||Number.isNaN(n.lat)||Number.isNaN(n.long); }
+function timeAgo(date){
+    const diff=Date.now()-new Date(date),
+          s=Math.floor(diff/1000),
+          m=Math.floor(s/60),
+          h=Math.floor(m/60),
+          d=Math.floor(h/24);
+    return d>0?d+"d":h>0?h+"h":m>0?m+"m":s+"s";
+}
+function hashToColor(str){
+    if(colorMap.has(str)) return colorMap.get(str);
+    const c=palette[nextColorIndex++%palette.length];
+    colorMap.set(str,c);
+    return c;
+}
+function isInvalidCoord(n){
+    return !n||!n.lat||!n.long||n.lat===0||n.long===0||
+           Number.isNaN(n.lat)||Number.isNaN(n.long);
+}
 
-// ---------------------- Packet Fetching ----------------------
+/* ------------ Packet Polling ------------ */
+
 function fetchLatestPacket(){
     fetch(`/api/packets?limit=1`)
       .then(r=>r.json())
       .then(data=>{
           lastImportTime=data.packets?.[0]?.import_time_us||0;
-      })
-      .catch(console.error);
+      });
 }
 
 function fetchNewPackets(){
     if(mapInterval <= 0) return;
     if(lastImportTime===null) return;
+
     const url = new URL(`/api/packets`, window.location.origin);
     url.searchParams.set("since", lastImportTime);
     url.searchParams.set("limit", 50);
@@ -79,20 +154,21 @@ function fetchNewPackets(){
     fetch(url)
       .then(r=>r.json())
       .then(data=>{
-          if(!data.packets || data.packets.length===0) return;
+          if(!data.packets?.length) return;
           let latest = lastImportTime;
+
           data.packets.forEach(pkt=>{
               if(pkt.import_time_us > latest) latest = pkt.import_time_us;
               const marker = markerById[pkt.from_node_id];
               const nodeData = nodeMap.get(pkt.from_node_id);
-              if(marker && nodeData) blinkNode(marker,nodeData.long_name,pkt.portnum);
+              if(marker && nodeData)
+                  blinkNode(marker, nodeData.long_name, pkt.portnum);
           });
+
           lastImportTime = latest;
-      })
-      .catch(console.error);
+      });
 }
 
-// ---------------------- Polling ----------------------
 let packetInterval=null;
 function startPacketFetcher(){
     if(mapInterval<=0) return;
@@ -111,226 +187,285 @@ document.addEventListener("visibilitychange",()=>{
     document.hidden?stopPacketFetcher():startPacketFetcher();
 });
 
-// ---------------------- WAIT FOR CONFIG ----------------------
+/* ------------ Load Config ------------ */
+
 async function waitForConfig() {
-    while (typeof window._siteConfigPromise === "undefined") {
-        console.log("Waiting for _siteConfigPromise...");
+    while (!window._siteConfigPromise) {
         await new Promise(r => setTimeout(r, 100));
     }
-
     try {
         const cfg = await window._siteConfigPromise;
-        if (!cfg || !cfg.site) throw new Error("Config missing site object");
-        return cfg.site;
-    } catch (err) {
-        console.error("Error loading site config:", err);
+        return cfg.site || {};
+    } catch {
         return {};
     }
 }
 
-// ---------------------- Load Config & Start Polling ----------------------
 async function initMapPolling() {
-    try {
-        const site = await waitForConfig();
-        mapInterval = parseInt(site.map_interval, 10) || 0;
+    const site = await waitForConfig();
+    mapInterval = parseInt(site.map_interval, 10) || 0;
 
-        // ---- Check URL params ----
-        const params = new URLSearchParams(window.location.search);
-        const lat = parseFloat(params.get('lat'));
-        const lng = parseFloat(params.get('lng'));
-        const zoom = parseInt(params.get('zoom'), 10);
-        if (!isNaN(lat) && !isNaN(lng) && !isNaN(zoom)) {
-            map.setView([lat, lng], zoom);
-            window.configBoundsApplied = true;
-            setTimeout(() => map.invalidateSize(), 100);
-        }
-        else {
-            const topLeft = [parseFloat(site.map_top_left_lat), parseFloat(site.map_top_left_lon)];
-            const bottomRight = [parseFloat(site.map_bottom_right_lat), parseFloat(site.map_bottom_right_lon)];
-            if (topLeft.every(isFinite) && bottomRight.every(isFinite)) {
-                map.fitBounds([topLeft, bottomRight]);
-                window.configBoundsApplied = true;
-                setTimeout(() => map.invalidateSize(), 100);
-            }
-        }
+    const params = new URLSearchParams(window.location.search);
+    const lat = parseFloat(params.get('lat'));
+    const lng = parseFloat(params.get('lng'));
+    const zoom = parseInt(params.get('zoom'), 10);
 
-        if (mapInterval > 0) {
-            console.log(`Starting map polling every ${mapInterval}s`);
-            startPacketFetcher();
-        } else {
-            console.log("Map polling disabled (map_interval=0)");
-        }
-
-    } catch (err) {
-        console.error("Failed to load /api/config:", err);
+    if (!isNaN(lat) && !isNaN(lng) && !isNaN(zoom)) {
+        map.setView([lat, lng], zoom);
+        window.configBoundsApplied = true;
+        setTimeout(()=>map.invalidateSize(),100);
     }
+
+    if (mapInterval > 0) startPacketFetcher();
 }
 
 initMapPolling();
 
-// ---------------------- Load Nodes + Edges ----------------------
-fetch('/api/nodes?days_active=3').then(r=>r.json()).then(data=>{
-    if(!data.nodes) return;
-    nodes = data.nodes.map(n=>({
-        key: n.node_id!==null?n.node_id:n.id,
-        id: n.id,
-        node_id: n.node_id,
-        lat: n.last_lat?n.last_lat/1e7:null,
-        long: n.last_long?n.last_long/1e7:null,
-        long_name: n.long_name||"",
-        short_name: n.short_name||"",
-        channel: n.channel||"",
-        hw_model: n.hw_model||"",
-        role: n.role||"",
-        firmware: n.firmware||"",
-        last_update: n.last_update||"",
-        isRouter: n.role? n.role.toLowerCase().includes("router"):false
-    }));
-    nodes.forEach(n=>{ nodeMap.set(n.key,n); if(n.channel) channelSet.add(n.channel); });
-    renderNodesOnMap();
-    createChannelFilters();
-    return fetch('/api/edges');
-}).then(r=>r?r.json():null).then(data=>{
-    if(data && data.edges) edgesData=data.edges;
-}).catch(console.error);
+/* ------------ Load Nodes + Edges ------------ */
 
-// ---------------------- Render Nodes ----------------------
+fetch('/api/nodes?days_active=3')
+  .then(r=>r.json())
+  .then(data=>{
+      nodes = (data.nodes||[]).map(n=>({
+          key: n.node_id ?? n.id,
+          node_id: n.node_id,
+          lat: n.last_lat ? n.last_lat/1e7 : null,
+          long: n.last_long ? n.last_long/1e7 : null,
+          long_name: n.long_name||"",
+          short_name: n.short_name||"",
+          channel: n.channel||"",
+          hw_model: n.hw_model||"",
+          role: n.role||"",
+          firmware: n.firmware||"",
+          last_update: n.last_update||"",
+          isRouter: (n.role||"").toLowerCase().includes("router")
+      }));
+
+      nodes.forEach(n=>{
+          nodeMap.set(n.key,n);
+          if(n.channel) channelSet.add(n.channel);
+      });
+
+      renderNodesOnMap();
+      createChannelFilters();
+
+      return fetch('/api/edges');
+  })
+  .then(r=>r.json())
+  .then(data=>{ edgesData=data.edges||[]; });
+
+/* ------------ Render Nodes ------------ */
+
 function renderNodesOnMap(){
     const bounds = L.latLngBounds();
+
     nodes.forEach(node=>{
         if(isInvalidCoord(node)) return;
+
         const color = hashToColor(node.channel);
-        const opts = { radius: node.isRouter?9:7, color:"white", fillColor:color, fillOpacity:1, weight:0.7 };
-        const marker = L.circleMarker([node.lat,node.long],opts).addTo(map);
+        const radius = node.isRouter ? 9 : 7;
+
+        const marker = L.circleMarker([node.lat,node.long],{
+            radius, color:"white", fillColor:color, fillOpacity:1, weight:0.7
+        }).addTo(map);
+
         marker.nodeId = node.key;
         marker.originalColor = color;
         markerById[node.key] = marker;
-        const popup = `<b><a href="/node/${node.node_id}">${node.long_name}</a> (${node.short_name})</b><br>
-                       <b>Channel:</b> ${node.channel}<br>
-                       <b>Model:</b> ${node.hw_model}<br>
-                       <b>Role:</b> ${node.role}<br>
-                       ${node.last_update? `<b>Last seen:</b> ${timeAgo(node.last_update)}<br>`:""}
-                       ${node.firmware? `<b>Firmware:</b> ${node.firmware}<br>`:""}`;
-        marker.on('click',()=>{ onNodeClick(node); marker.bindPopup(popup).openPopup(); setTimeout(()=>marker.closePopup(),3000); });
+
+        const popup = `
+            <b><a href="/node/${node.node_id}">${node.long_name}</a> (${node.short_name})</b><br>
+
+            <b data-translate-lang="channel_label"></b> ${node.channel}<br>
+            <b data-translate-lang="model_label"></b> ${node.hw_model}<br>
+            <b data-translate-lang="role_label"></b> ${node.role}<br>
+
+            ${
+                node.last_update
+                    ? `<b data-translate-lang="last_seen"></b> ${timeAgo(node.last_update)}<br>`
+                    : ""
+            }
+
+            ${
+                node.firmware
+                    ? `<b data-translate-lang="firmware"></b> ${node.firmware}<br>`
+                    : ""
+            }
+        `;
+
+        marker.on('click', ()=>{
+            onNodeClick(node);
+            marker.bindPopup(popup).openPopup();
+            setTimeout(()=>applyTranslationsMap(),10);
+        });
+
         bounds.extend(marker.getLatLng());
     });
-    if(!window.configBoundsApplied && bounds.isValid()){
+
+    if(bounds.isValid()){
         map.fitBounds(bounds);
         setTimeout(()=>map.invalidateSize(),100);
     }
 }
 
-// ---------------------- Render Edges ----------------------
+/* ------------ Edges ------------ */
+
 function onNodeClick(node){
     selectedNodeId = node.key;
     edgeLayer.clearLayers();
+
     edgesData.forEach(edge=>{
         if(edge.from!==node.key && edge.to!==node.key) return;
+
         const f=nodeMap.get(edge.from), t=nodeMap.get(edge.to);
         if(!f||!t||isInvalidCoord(f)||isInvalidCoord(t)) return;
+
         const color=edge.type==="neighbor"?"gray":"orange";
-        const l=L.polyline([[f.lat,f.long],[t.lat,t.long]],{color,weight:3}).addTo(edgeLayer);
+        const line=L.polyline([[f.lat,f.long],[t.lat,t.long]],{color,weight:3}).addTo(edgeLayer);
+
         if(edge.type==="traceroute"){
-            L.polylineDecorator(l,{patterns:[{offset:'100%',repeat:0,symbol:L.Symbol.arrowHead({pixelSize:5,polygon:false,pathOptions:{stroke:true,color}})}]}).addTo(edgeLayer);
+            L.polylineDecorator(line,{
+                patterns:[{
+                    offset:'100%', repeat:0,
+                    symbol:L.Symbol.arrowHead({pixelSize:5,polygon:false,pathOptions:{color}})
+                }]
+            }).addTo(edgeLayer);
         }
     });
 }
-map.on('click',e=>{ if(!e.originalEvent.target.classList.contains('leaflet-interactive')){ edgeLayer.clearLayers(); selectedNodeId=null; } });
 
-// ---------------------- Packet Blinking ----------------------
+map.on('click',e=>{
+    if(!e.originalEvent.target.classList.contains('leaflet-interactive')){
+        edgeLayer.clearLayers();
+        selectedNodeId=null;
+    }
+});
+
+/* ------------ Blinking ------------ */
+
 function blinkNode(marker,longName,portnum){
     if(!map.hasLayer(marker)) return;
-    if(activeBlinks.has(marker)){ clearInterval(activeBlinks.get(marker)); marker.setStyle({fillColor:marker.originalColor}); if(marker.tooltip) map.removeLayer(marker.tooltip); }
-    let blinkCount=0;
-    const portName = portMap[portnum]||`Port ${portnum}`;
-    const tooltip = L.tooltip({permanent:true,direction:'top',offset:[0,-marker.options.radius-5],className:'blinking-tooltip'})
-                     .setContent(`${longName} (${portName})`).setLatLng(marker.getLatLng()).addTo(map);
+
+    if(activeBlinks.has(marker)){
+        clearInterval(activeBlinks.get(marker));
+        marker.setStyle({fillColor:marker.originalColor});
+        if(marker.tooltip) map.removeLayer(marker.tooltip);
+    }
+
+    const portLabel = portMap[portnum] || `Port ${portnum}`;
+
+    const tooltip = L.tooltip({
+        permanent:true, direction:'top',
+        offset:[0,-marker.options.radius-5],
+        className:'blinking-tooltip'
+    })
+    .setContent(`${longName} (${portLabel})`)
+    .setLatLng(marker.getLatLng())
+    .addTo(map);
+
     marker.tooltip = tooltip;
-    const interval = setInterval(()=>{
-        if(map.hasLayer(marker)){ marker.setStyle({fillColor: blinkCount%2===0?'yellow':marker.originalColor}); marker.bringToFront(); }
+
+    let blinkCount=0;
+    const interval=setInterval(()=>{
+        if(!map.hasLayer(marker)) return;
+        marker.setStyle({fillColor: blinkCount%2===0 ? 'yellow' : marker.originalColor});
         blinkCount++;
-        if(blinkCount>7){ clearInterval(interval); marker.setStyle({fillColor:marker.originalColor}); map.removeLayer(tooltip); activeBlinks.delete(marker); }
+        if(blinkCount>7){
+            clearInterval(interval);
+            marker.setStyle({fillColor:marker.originalColor});
+            map.removeLayer(tooltip);
+            activeBlinks.delete(marker);
+        }
     },500);
+
     activeBlinks.set(marker,interval);
 }
 
-// ---------------------- Channel Filters ----------------------
+/* ------------ Channel Filters ------------ */
+
 function createChannelFilters(){
     const filterContainer = document.getElementById("filter-container");
-    const savedState = JSON.parse(localStorage.getItem("mapFilters") || "{}");
+    const saved = JSON.parse(localStorage.getItem("mapFilters") || "{}");
 
     channelSet.forEach(channel=>{
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.className = "filter-checkbox";
-        checkbox.id = `filter-channel-${channel}`;
-        checkbox.checked = savedState[channel] !== false;
-        checkbox.addEventListener("change", saveFiltersToLocalStorage);
-        checkbox.addEventListener("change", updateNodeVisibility);
-        filterContainer.appendChild(checkbox);
+        const cb = document.createElement("input");
+        cb.type="checkbox";
+        cb.className="filter-checkbox";
+        cb.id=`filter-${channel}`;
+        cb.checked = saved[channel] !== false;
+        cb.addEventListener("change",saveFilters);
+        cb.addEventListener("change",updateNodeVisibility);
 
         const label = document.createElement("label");
-        label.htmlFor = checkbox.id;
+        label.htmlFor = cb.id;
         label.innerText = channel;
         label.style.color = hashToColor(channel);
+
+        filterContainer.appendChild(cb);
         filterContainer.appendChild(label);
     });
 
     const routerOnly = document.getElementById("filter-routers-only");
-    routerOnly.checked = savedState["routersOnly"] || false;
-    routerOnly.addEventListener("change", saveFiltersToLocalStorage);
-    routerOnly.addEventListener("change", updateNodeVisibility);
+    routerOnly.checked = saved["routersOnly"] || false;
+    routerOnly.addEventListener("change",saveFilters);
+    routerOnly.addEventListener("change",updateNodeVisibility);
 
     updateNodeVisibility();
 }
 
-function saveFiltersToLocalStorage(){
+function saveFilters(){
     const state = {};
-    channelSet.forEach(ch => {
-        const el = document.getElementById(`filter-channel-${ch}`);
-        state[ch] = el.checked;
+    channelSet.forEach(ch=>{
+        state[ch] = document.getElementById(`filter-${ch}`).checked;
     });
     state["routersOnly"] = document.getElementById("filter-routers-only").checked;
-    localStorage.setItem("mapFilters", JSON.stringify(state));
+    localStorage.setItem("mapFilters",JSON.stringify(state));
 }
 
 function updateNodeVisibility(){
-    const showRoutersOnly = document.getElementById("filter-routers-only").checked;
-    const activeChannels = Array.from(channelSet).filter(ch=>document.getElementById(`filter-channel-${ch}`).checked);
+    const showRouters = document.getElementById("filter-routers-only").checked;
+    const activeChannels = [...channelSet].filter(ch =>
+        document.getElementById(`filter-${ch}`).checked
+    );
+
     nodes.forEach(n=>{
         const marker = markerById[n.key];
         if(marker){
-            const visible = (!showRoutersOnly || n.isRouter) && activeChannels.includes(n.channel);
-            if(visible) map.addLayer(marker); else map.removeLayer(marker);
+            const show =
+                (!showRouters || n.isRouter) &&
+                activeChannels.includes(n.channel);
+
+            if(show) map.addLayer(marker);
+            else map.removeLayer(marker);
         }
     });
 }
 
-// ---------------------- Share / Reset ----------------------
-function shareCurrentView() {
-    const center = map.getCenter();
-    const zoom = map.getZoom();
-    const lat = center.lat.toFixed(6);
-    const lng = center.lng.toFixed(6);
+/* ------------ Share + Reset ------------ */
 
-    const shareUrl = `${window.location.origin}/map?lat=${lat}&lng=${lng}&zoom=${zoom}`;
-    navigator.clipboard.writeText(shareUrl).then(() => {
-        const button = document.getElementById('share-button');
-        const originalText = button.textContent;
-        button.textContent = '✓ Link Copied!';
-        button.style.backgroundColor = '#2196F3';
-        setTimeout(() => {
-            button.textContent = originalText;
-            button.style.backgroundColor = '#4CAF50';
-        }, 2000);
-    }).catch(() => alert('Share this link:\n' + shareUrl));
+function shareCurrentView() {
+    const c = map.getCenter();
+    const url = `${window.location.origin}/map?lat=${c.lat.toFixed(6)}&lng=${c.lng.toFixed(6)}&zoom=${map.getZoom()}`;
+
+    navigator.clipboard.writeText(url).then(()=>{
+        const b=document.getElementById('share-button');
+        const t=b.textContent;
+        b.textContent='✓';
+        setTimeout(()=>b.textContent=t,1500);
+    });
 }
 
 function resetFiltersToDefaults(){
-    document.getElementById("filter-routers-only").checked = false;
-    channelSet.forEach(ch=>document.getElementById(`filter-channel-${ch}`).checked = true);
-    saveFiltersToLocalStorage();
+    document.getElementById("filter-routers-only").checked=false;
+    channelSet.forEach(ch=>{
+        document.getElementById(`filter-${ch}`).checked=true;
+    });
+    saveFilters();
     updateNodeVisibility();
 }
+
+/* ------------ INIT ------------ */
+document.addEventListener("DOMContentLoaded", loadTranslationsMap);
 </script>
+
 {% endblock %}

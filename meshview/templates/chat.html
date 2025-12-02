@@ -53,8 +53,9 @@
 
     <!-- ⭐ CHAT TITLE WITH ICON, aligned to container ⭐ -->
     <div class="container px-2">
-        <h2 data-translate="chat_title" style="color:white; margin:0 0 10px 0;">
-            💬 Chat
+        <h2 style="color:white; margin:0 0 10px 0;">
+            <span class="icon">💬</span>
+            <span data-translate="chat_title"></span>
         </h2>
     </div>
 
@@ -71,24 +72,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     const packetMap = new Map();
     let chatLang = {};
 
-    function applyTranslations(dict, root = document) {
+    /* ==========================================================
+       TRANSLATIONS FOR CHAT PAGE
+       ========================================================== */
+    function applyTranslations(dict, root=document) {
         root.querySelectorAll("[data-translate]").forEach(el => {
             const key = el.dataset.translate;
             const val = dict[key];
             if (!val) return;
             if (el.placeholder) el.placeholder = val;
-            else if (el.tagName === "INPUT" && el.value) el.value = val;
-            else if (key === "footer") el.innerHTML = val;
             else el.textContent = val;
         });
     }
 
+    async function loadChatLang() {
+        try {
+            const cfg = await window._siteConfigPromise;
+            const langCode = cfg?.site?.language || "en";
+            const res = await fetch(`/api/lang?lang=${langCode}&section=chat`);
+            chatLang = await res.json();
+
+            // Apply to existing DOM
+            applyTranslations(chatLang);
+        } catch (err) {
+            console.error("Chat translation load failed:", err);
+        }
+    }
+
+    /* ==========================================================
+       SAFE HTML
+       ========================================================== */
     function escapeHtml(text) {
         const div = document.createElement("div");
         div.textContent = text ?? "";
         return div.innerHTML;
     }
 
+    /* ==========================================================
+       RENDERING PACKETS
+       ========================================================== */
     function renderPacket(packet, highlight = false) {
         if (renderedPacketIds.has(packet.id)) return;
         renderedPacketIds.add(packet.id);
@@ -139,20 +161,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         const div = document.createElement("div");
         div.className = "row chat-packet" + (highlight ? " flash" : "");
         div.dataset.packetId = packet.id;
+
         div.innerHTML = `
-            <span class="col-2 timestamp" title="${packet.import_time_us}">${formattedTimestamp}</span>
+            <span class="col-2 timestamp" title="${packet.import_time_us}">
+                ${formattedTimestamp}
+            </span>
+
             <span class="col-2 channel">
                 <a href="/packet/${packet.id}" title="${chatLang.view_packet_details || 'View details'}">🔎</a>
-                 ${escapeHtml(packet.channel || "")}
+                ${escapeHtml(packet.channel || "")}
             </span>
+
             <span class="col-3 nodename">
                 <a href="/node/${packet.from_node_id}">
                     ${escapeHtml((packet.long_name || "").trim() || `Node ${packet.from_node_id}`)}
                 </a>
             </span>
-            <span class="col-5 message">${escapeHtml(packet.payload)}${replyHtml}</span>
+
+            <span class="col-5 message">
+                ${escapeHtml(packet.payload)}${replyHtml}
+            </span>
         `;
+
         chatContainer.prepend(div);
+
+        // Translate newly added DOM
         applyTranslations(chatLang, div);
 
         if (highlight) setTimeout(() => div.classList.remove("flash"), 2500);
@@ -161,26 +194,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     function renderPacketsEnsureDescending(packets, highlight=false) {
         if (!Array.isArray(packets) || packets.length===0) return;
         const sortedDesc = packets.slice().sort((a,b)=>{
-            const aTime =
-                (a.import_time_us && a.import_time_us > 0)
-                    ? a.import_time_us
-                    : (a.import_time ? new Date(a.import_time).getTime() * 1000 : 0);
-            const bTime =
-                (b.import_time_us && b.import_time_us > 0)
-                    ? b.import_time_us
-                    : (b.import_time ? new Date(b.import_time).getTime() * 1000 : 0);
+            const aTime = a.import_time_us || (new Date(a.import_time).getTime() * 1000);
+            const bTime = b.import_time_us || (new Date(b.import_time).getTime() * 1000);
             return bTime - aTime;
         });
-        for (let i=sortedDesc.length-1; i>=0; i--) renderPacket(sortedDesc[i], highlight);
+        for (let i=sortedDesc.length-1; i>=0; i--) {
+            renderPacket(sortedDesc[i], highlight);
+        }
     }
 
+    /* ==========================================================
+       FETCHING PACKETS
+       ========================================================== */
     async function fetchInitial() {
         try {
             const resp = await fetch("/api/packets?portnum=1&limit=100");
             const data = await resp.json();
             if (data?.packets?.length) renderPacketsEnsureDescending(data.packets);
             lastTime = data?.latest_import_time || lastTime;
-        } catch(err){ console.error("Initial fetch error:", err); }
+        } catch(err){
+            console.error("Initial fetch error:", err);
+        }
     }
 
     async function fetchUpdates() {
@@ -192,21 +226,19 @@ document.addEventListener("DOMContentLoaded", async () => {
             const data = await resp.json();
             if (data?.packets?.length) renderPacketsEnsureDescending(data.packets, true);
             lastTime = data?.latest_import_time || lastTime;
-        } catch(err){ console.error("Fetch updates error:", err); }
+        } catch(err){
+            console.error("Fetch updates error:", err);
+        }
     }
 
-    async function loadChatLang() {
-        try {
-            const cfg = await window._siteConfigPromise;
-            const langCode = cfg?.site?.language || "en";
-            const res = await fetch(`/api/lang?lang=${langCode}&section=chat`);
-            chatLang = await res.json();
-            applyTranslations(chatLang);
-        } catch(err){ console.error("Chat translation load failed:", err); }
-    }
+    /* ==========================================================
+       INIT
+       ========================================================== */
+    await loadChatLang();     // load translations FIRST
+    await fetchInitial();     // then fetch initial packets
 
-    await Promise.all([loadChatLang(), fetchInitial()]);
     setInterval(fetchUpdates, 5000);
 });
 </script>
+
 {% endblock %}

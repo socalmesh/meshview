@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Packet Details{%endblock%}
+{% block title %}Packet Details{% endblock %}
 
 {% block css %}
 {{ super() }}
@@ -48,7 +48,7 @@
     display: none;
 }
 
-/* --- SOURCE MARKER (slightly bigger) --- */
+/* --- SOURCE MARKER --- */
 .source-marker {
     width: 24px;
     height: 24px;
@@ -97,26 +97,27 @@
 {% block body %}
 <div class="container mt-4 mb-5 packet-container">
 
-    <div id="loading">Loading packet information...</div>
+    <div id="loading" data-translate-lang="loading">Loading packet information...</div>
     <div id="packet-card" class="packet-card d-none"></div>
 
     <div id="map"></div>
 
     <div id="seen-container" class="mt-4 d-none">
         <h5 style="color:#ccc; margin:15px 0 10px 0;">
-            📡 Seen By <span id="seen-count" style="color:#4da6ff;"></span>
+            📡 <span data-translate-lang="seen_by">Seen By</span>
+            <span id="seen-count" style="color:#4da6ff;"></span>
         </h5>
 
         <div class="table-responsive">
             <table class="table table-dark table-sm seen-table">
                 <thead>
                     <tr>
-                        <th>Gateway</th>
-                        <th>RSSI</th>
-                        <th>SNR</th>
-                        <th>Hop</th>
-                        <th>Channel</th>
-                        <th>Time</th>
+                        <th data-translate-lang="gateway">Gateway</th>
+                        <th data-translate-lang="rssi">RSSI</th>
+                        <th data-translate-lang="snr">SNR</th>
+                        <th data-translate-lang="hops">Hops</th>
+                        <th data-translate-lang="channel">Channel</th>
+                        <th data-translate-lang="time">Time</th>
                     </tr>
                 </thead>
                 <tbody id="seen-table-body"></tbody>
@@ -126,7 +127,38 @@
 </div>
 
 <script>
+
+/* ======================================================
+   PACKET PAGE TRANSLATION
+   ====================================================== */
+let packetTranslations = {};
+
+async function loadTranslationsPacket() {
+    try {
+        const cfg = await window._siteConfigPromise;
+        const lang = cfg?.site?.language || "en";
+        const res = await fetch(`/api/lang?lang=${lang}&section=packet`);
+        packetTranslations = await res.json();
+        applyTranslationsPacket(packetTranslations);
+    } catch (err) {
+        console.error("Packet translations failed:", err);
+    }
+}
+
+function applyTranslationsPacket(dict, root = document) {
+    root.querySelectorAll("[data-translate-lang]").forEach(el => {
+        const key = el.dataset.translateLang;
+        if (dict[key]) el.textContent = dict[key];
+    });
+}
+
+/* ======================================================
+   PACKET PAGE MAIN
+   ====================================================== */
+
 document.addEventListener("DOMContentLoaded", async () => {
+
+    await loadTranslationsPacket();  // <-- IMPORTANT
 
     const packetCard    = document.getElementById("packet-card");
     const loading       = document.getElementById("loading");
@@ -140,12 +172,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     ----------------------------------------------*/
     const match = window.location.pathname.match(/\/packet\/(\d+)/);
     if (!match) {
-        loading.textContent = "Invalid packet URL";
+        loading.textContent = packetTranslations.invalid_url || "Invalid packet URL";
         return;
     }
     const packetId = match[1];
 
-    /* PORT NAME MAP */
+    /* PORT LABELS (NOT TRANSLATED) */
     const PORT_NAMES = {
         0:"UNKNOWN APP",
         1:"Text",
@@ -164,28 +196,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     const packetRes = await fetch(`/api/packets?packet_id=${packetId}`);
     const packetData = await packetRes.json();
     if (!packetData.packets.length) {
-        loading.textContent = "Packet not found.";
+        loading.textContent = packetTranslations.not_found || "Packet not found.";
         return;
     }
     const p = packetData.packets[0];
 
     /* ---------------------------------------------
-       Fetch all nodes
+       Load nodes for names & positions
     ----------------------------------------------*/
     const nodesRes = await fetch("/api/nodes");
     const nodesData = await nodesRes.json();
     const nodeLookup = {};
     (nodesData.nodes || []).forEach(n => nodeLookup[n.node_id] = n);
 
-    const fromNodeObj   = nodeLookup[p.from_node_id];
-    const toNodeObj     = nodeLookup[p.to_node_id];
+    const fromNodeObj = nodeLookup[p.from_node_id];
+    const toNodeObj   = nodeLookup[p.to_node_id];
 
     const fromNodeLabel = fromNodeObj?.long_name || p.from_node_id;
+
     const toNodeLabel =
-        p.to_node_id == 4294967295 ? "All" : (toNodeObj?.long_name || p.to_node_id);
+        p.to_node_id == 4294967295
+            ? (packetTranslations.all_broadcast || "All")
+            : (toNodeObj?.long_name || p.to_node_id);
 
     /* ---------------------------------------------
-       Parse payload for lat/lon if this *packet* is a position packet
+       Parse payload for lat/lon
     ----------------------------------------------*/
     let lat = null, lon = null;
     const parsed = {};
@@ -195,14 +230,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             const [k, v] = line.split(":").map(x=>x.trim());
             if (k && v !== undefined) {
                 parsed[k] = v;
-                if (k === "latitude_i")  lat = Number(v) / 1e7;
+                if (k === "latitude_i") lat = Number(v) / 1e7;
                 if (k === "longitude_i") lon = Number(v) / 1e7;
             }
         });
     }
 
     /* ---------------------------------------------
-       Render packet header & details
+       Render card
     ----------------------------------------------*/
     const time = p.import_time_us
         ? new Date(p.import_time_us / 1000).toLocaleString()
@@ -216,42 +251,47 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     packetCard.innerHTML = `
         <div class="card-header">
-            <span>Packet ID: <i>${p.id}</i></span>
+            <span>
+                <span data-translate-lang="packet_id_label">${packetTranslations.packet_id_label || "Packet ID:"}</span>
+                <i>${p.id}</i>
+            </span>
             <small>${time}</small>
         </div>
 
         <div class="card-body">
             <dl>
-                <dt>From Node:</dt>
+                <dt data-translate-lang="from_node">${packetTranslations.from_node || "From Node"}:</dt>
                 <dd><a href="/node/${p.from_node_id}">${fromNodeLabel}</a></dd>
-                <dt>To Node:</dt>
+
+                <dt data-translate-lang="to_node">${packetTranslations.to_node || "To Node"}:</dt>
                 <dd>${
                     p.to_node_id === 4294967295
-                        ? `<i>All</i>`
+                        ? `<i data-translate-lang="all_broadcast">${packetTranslations.all_broadcast || "All"}</i>`
                         : p.to_node_id === 1
-                            ? `<i>Direct to MQTT</i>`
+                            ? `<i data-translate-lang="direct_to_mqtt">${packetTranslations.direct_to_mqtt || "Direct to MQTT"}</i>`
                             : `<a href="/node/${p.to_node_id}">${toNodeLabel}</a>`
                 }</dd>
 
+                <dt data-translate-lang="channel">${packetTranslations.channel || "Channel"}:</dt>
+                <dd>${p.channel ?? "—"}</dd>
 
-                <dt>Channel:</dt><dd>${p.channel ?? "—"}</dd>
-
-                <dt>Port:</dt>
+                <dt data-translate-lang="port">${packetTranslations.port || "Port"}:</dt>
                 <dd><i>${PORT_NAMES[p.portnum] || "UNKNOWN APP"}</i> (${p.portnum})</dd>
 
-                <dt>Raw Payload:</dt>
+                <dt data-translate-lang="raw_payload">${packetTranslations.raw_payload || "From Raw Payload"}:</dt>
                 <dd><pre>${escapeHtml(p.payload ?? "—")}</pre></dd>
 
                 ${
                     telemetryExtras.length
-                    ? `<dt>Decoded Telemetry</dt>
+                    ? `<dt data-translate-lang="decoded_telemetry">${packetTranslations.decoded_telemetry || "Decoded Telemetry"}</dt>
                        <dd><pre>${telemetryExtras.join("\n")}</pre></dd>`
                     : ""
                 }
 
                 ${
                     lat && lon
-                    ? `<dt>Location:</dt><dd>${lat.toFixed(6)}, ${lon.toFixed(6)}</dd>`
+                    ? `<dt data-translate-lang="location">${packetTranslations.location || "Location:"}</dt>
+                       <dd>${lat.toFixed(6)}, ${lon.toFixed(6)}</dd>`
                     : ""
                 }
             </dl>
@@ -262,22 +302,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     packetCard.classList.remove("d-none");
 
     /* ---------------------------------------------
-       Map initialization
+       Map setup
     ----------------------------------------------*/
     const map = L.map("map");
     mapDiv.style.display = "block";
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19
-    }).addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 })
+      .addTo(map);
 
     const allBounds = [];
 
     /* ---------------------------------------------
-       ALWAYS SHOW SOURCE POSITION
-       Priority:
-         1) position from packet payload
-         2) fallback: last_lat/last_long from /api/nodes
+       Determine packet source location
     ----------------------------------------------*/
     let srcLat = lat;
     let srcLon = lon;
@@ -304,135 +340,123 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         sourceMarker.bindPopup(`
             <div style="font-size:0.9em">
-                <b>Packet Source</b><br>
+                <b data-translate-lang="packet_source">${packetTranslations.packet_source || "Packet Source"}</b><br>
                 Lat: ${srcLat.toFixed(6)}<br>
                 Lon: ${srcLon.toFixed(6)}<br>
-                From Node: ${fromNodeLabel}<br>
-                Channel: ${p.channel ?? "—"}<br>
-                Port: ${PORT_NAMES[p.portnum] || "UNKNOWN"} (${p.portnum})
+                <span data-translate-lang="from_node">${packetTranslations.from_node || "From Node:"}</span> ${fromNodeLabel}<br>
+                <span data-translate-lang="channel">${packetTranslations.channel || "Channel:"}</span> ${p.channel ?? "—"}<br>
+                <span data-translate-lang="port">${packetTranslations.port || "Port:"}</span> ${PORT_NAMES[p.portnum] || "UNKNOWN"} (${p.portnum})
             </div>
         `);
-
     } else {
         map.setView([0,0], 2);
     }
 
     /* ---------------------------------------------
-       Color for hop indicator markers (warm → cold)
+       Colors for hops (warm → cold)
     ----------------------------------------------*/
     function hopColor(hopValue){
         const colors = [
-            "#ff3b30",
-            "#ff6b22",
-            "#ff9f0c",
-            "#ffd60a",
-            "#87d957",
-            "#57d9c4",
-            "#3db2ff",
-            "#1e63ff"
+            "#ff3b30","#ff6b22","#ff9f0c","#ffd60a",
+            "#87d957","#57d9c4","#3db2ff","#1e63ff"
         ];
         let h = Number(hopValue);
         if (isNaN(h)) return "#aaa";
-        if (h < 0) h = 0;
-        if (h > 7) h = 7;
-        return colors[h];
-    }
-
-    /* Distance helper */
-    function haversine(lat1,lon1,lat2,lon2){
-        const R=6371;
-        const dLat=(lat2-lat1)*Math.PI/180;
-        const dLon=(lon2-lon1)*Math.PI/180;
-        const a=Math.sin(dLat/2)**2+
-            Math.cos(lat1*Math.PI/180)*
-            Math.cos(lat2*Math.PI/180)*
-            Math.sin(dLon/2)**2;
-        return R*(2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)));
+        return colors[Math.min(Math.max(h, 0), 7)];
     }
 
     /* ---------------------------------------------
-       Fetch packets_seen
+       Distance helper
+    ----------------------------------------------*/
+    function haversine(lat1, lon1, lat2, lon2){
+        const R = 6371;
+        const dLat = (lat2-lat1)*Math.PI/180;
+        const dLon = (lon2-lon1)*Math.PI/180;
+        const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*Math.PI/180)*
+            Math.cos(lat2*Math.PI/180)*
+            Math.sin(dLon/2)**2;
+        return R * (2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    /* ---------------------------------------------
+       Load packets_seen
     ----------------------------------------------*/
     const seenRes  = await fetch(`/api/packets_seen/${packetId}`);
     const seenData = await seenRes.json();
     const seenList = seenData.seen ?? [];
 
-    /* sort by hop_start descending (warm → cold) */
     const seenSorted = seenList.slice().sort((a,b)=>{
-        const A=a.hop_start??-999;
-        const B=b.hop_start??-999;
-        return B-A;
+        return (b.hop_start ?? -999) - (a.hop_start ?? -999);
     });
 
     if (seenSorted.length){
         seenContainer.classList.remove("d-none");
-        seenCountSpan.textContent=`(${seenSorted.length} gateways)`;
+        seenCountSpan.textContent = `(${seenSorted.length})`;
     }
 
     /* ---------------------------------------------
-       Gateway markers and seen table
+       Render gateway table + map markers
     ----------------------------------------------*/
     seenTableBody.innerHTML = seenSorted.map(s=>{
-        const node=nodeLookup[s.node_id];
-        const label=node?(node.long_name||node.node_id):s.node_id;
+        const node = nodeLookup[s.node_id];
+        const label = node?.long_name || s.node_id;
 
         const timeStr = s.import_time_us
             ? new Date(s.import_time_us/1000).toLocaleTimeString()
             : "—";
 
-        if(node?.last_lat && node.last_long){
-            const rlat=node.last_lat/1e7;
-            const rlon=node.last_long/1e7;
-            allBounds.push([rlat,rlon]);
+        if (node?.last_lat && node.last_long){
+            const rlat = node.last_lat/1e7;
+            const rlon = node.last_long/1e7;
+            allBounds.push([rlat, rlon]);
 
-            const start = Number(s.hop_start ?? 0);
-            const limit = Number(s.hop_limit ?? 0);
-            const hopValue = start - limit;
-
+            const hopValue = (s.hop_start ?? 0) - (s.hop_limit ?? 0);
             const color = hopColor(hopValue);
 
-            const iconHtml = `
-                <div style="
-                    background:${color};
-                    width:24px;
-                    height:24px;
-                    border-radius:50%;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    color:white;
-                    font-size:11px;
-                    font-weight:700;
-                    border:2px solid rgba(0,0,0,0.35);
-                    box-shadow:0 0 5px rgba(0,0,0,0.45);
-                ">${hopValue}</div>`;
-
-            const marker=L.marker([rlat,rlon],{
-                icon:L.divIcon({
-                    html:iconHtml,
-                    className:"",
+            const marker = L.marker([rlat,rlon],{
+                icon: L.divIcon({
+                    html: `
+                    <div style="
+                        background:${color};
+                        width:24px; height:24px;
+                        border-radius:50%;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        color:white;
+                        font-size:11px;
+                        font-weight:700;
+                        border:2px solid rgba(0,0,0,0.35);
+                        box-shadow:0 0 5px rgba(0,0,0,0.45);
+                    ">${hopValue}</div>`,
+                    className: "",
                     iconSize:[24,24],
                     iconAnchor:[12,12]
                 })
             }).addTo(map);
 
-            let distKm=null,distMi=null;
-            if(srcLat&&srcLon){
-                distKm=haversine(srcLat,srcLon,rlat,rlon);
-                distMi=distKm*0.621371;
+            let distKm = null, distMi = null;
+            if (srcLat && srcLon){
+                distKm = haversine(srcLat, srcLon, rlat, rlon);
+                distMi = distKm * 0.621371;
             }
 
             marker.bindPopup(`
                 <div style="font-size:0.9em">
-                    <b>${node?.long_name || s.node_id}</b><br>
-                    Node ID: <a href="/node/${s.node_id}">${s.node_id}</a><br>
+                    <b>${label}</b><br>
+                    <span data-translate-lang="node_id_short">${packetTranslations.node_id_short || "Node ID"}</span>:
+                    <a href="/node/${s.node_id}">${s.node_id}</a><br>
                     HW: ${node?.hw_model ?? "—"}<br>
-                    Channel: ${s.channel ?? "—"}<br><br>
-                    <b>Signal</b><br>
+                    <span data-translate-lang="channel">${packetTranslations.channel || "Channel"}</span>: ${s.channel ?? "—"}<br><br>
+
+                    <b data-translate-lang="signal">${packetTranslations.signal || "Signal"}</b><br>
                     RSSI: ${s.rx_rssi ?? "—"}<br>
                     SNR: ${s.rx_snr ?? "—"}<br><br>
-                    <b>Hops</b>: ${hopValue}<br>
-                    <b>Distance</b><br>
+
+                    <b data-translate-lang="hops">${packetTranslations.hops || "Hops"}</b>: ${hopValue}<br>
+
+                    <b data-translate-lang="distance">${packetTranslations.distance || "Distance"}:</b><br>
                     ${
                         distKm
                         ? `${distKm.toFixed(2)} km (${distMi.toFixed(2)} mi)`
@@ -454,17 +478,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }).join("");
 
     /* ---------------------------------------------
-       Fit map to all markers
+       Fit map around all markers
     ----------------------------------------------*/
-    if(allBounds.length>0){
-        map.fitBounds(allBounds,{padding:[40,40]});
+    if (allBounds.length > 0){
+        map.fitBounds(allBounds, { padding:[40,40] });
     }
 
     /* ---------------------------------------------
-       Escape HTML
+       Escape HTML helper
     ----------------------------------------------*/
     function escapeHtml(unsafe) {
-        return (unsafe??"").replace(/[&<"'>]/g,m=>({
+        return (unsafe ?? "").replace(/[&<"'>]/g, m => ({
             "&":"&amp;",
             "<":"&lt;",
             ">":"&gt;",
@@ -475,4 +499,5 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 });
 </script>
+
 {% endblock %}

@@ -22,47 +22,69 @@
         }
       },
    "chat": {
+     "chat_title": "Chats:",
         "replying_to": "Replying to:",
         "view_packet_details": "View packet details"
    },
     "nodelist": {
-      "search_placeholder": "Search by name or ID...",
-      "all_roles": "All Roles",
-      "all_channels": "All Channels",
-      "all_hw_models": "All HW Models",
-      "all_firmware": "All Firmware",
-      "export_csv": "Export CSV",
-      "clear_filters": "Clear Filters",
-      "showing": "Showing",
-      "nodes": "nodes",
-      "short": "Short",
-      "long_name": "Long Name",
-      "hw_model": "HW Model",
-      "firmware": "Firmware",
-      "role": "Role",
-      "last_lat": "Last Latitude",
-      "last_long": "Last Longitude",
-      "channel": "Channel",
-      "last_update": "Last Update",
-      "loading_nodes": "Loading nodes...",
-      "no_nodes": "No nodes found",
-      "error_nodes": "Error loading nodes"
+        "search_placeholder": "Search by name or ID...",
+        "all_roles": "All Roles",
+        "all_channels": "All Channels",
+        "all_hw": "All HW Models",
+        "all_firmware": "All Firmware",
+
+        "show_favorites": "⭐ Show Favorites",
+        "show_all": "⭐ Show All",
+        "export_csv": "Export CSV",
+        "clear_filters": "Clear Filters",
+
+        "showing_nodes": "Showing",
+        "nodes_suffix": "nodes",
+
+        "loading_nodes": "Loading nodes...",
+        "error_loading_nodes": "Error loading nodes",
+        "no_nodes_found": "No nodes found",
+
+        "short_name": "Short",
+        "long_name": "Long Name",
+        "hw_model": "HW Model",
+        "firmware": "Firmware",
+        "role": "Role",
+        "last_lat": "Last Latitude",
+        "last_long": "Last Longitude",
+        "channel": "Channel",
+        "last_seen": "Last Seen",
+        "favorite": "Favorite",
+
+        "time_just_now": "just now",
+        "time_min_ago": "min ago",
+        "time_hr_ago": "hr ago",
+        "time_day_ago": "day ago",
+        "time_days_ago": "days ago"
     },
+
     "net": {
       "number_of_checkins": "Number of Check-ins:",
       "view_packet_details": "View packet details",
       "view_all_packets_from_node": "View all packets from this node",
       "no_packets_found": "No packets found."
     },
+
     "map": {
-      "channel": "Channel:",
-      "model": "Model:",
-      "role": "Role:",
+      "show_routers_only": "Show Routers Only",
+      "share_view": "Share This View",
+      "reset_filters": "Reset Filters To Defaults",
+      "channel_label": "Channel:",
+      "model_label": "Model:",
+      "role_label": "Role:",
       "last_seen": "Last seen:",
       "firmware": "Firmware:",
-      "show_routers_only": "Show Routers Only",
-      "share_view": "Share This View"
+      "link_copied": "Link Copied!",
+      "legend_traceroute": "Ruta de traceroute (con flechas)",
+      "legend_neighbor": "Enlace de vecino"
+
     },
+
     "stats":
     {
       "mesh_stats_summary": "Mesh Statistics - Summary (all available in Database)",
@@ -82,21 +104,20 @@
       "all_channels": "All Channels",
       "node_id": "Node ID"
     },
-    "top":
-    {
-      "top_traffic_nodes": "Top Traffic Nodes (last 24 hours)",
-      "chart_description_1": "This chart shows a bell curve (normal distribution) based on the total \"Times Seen\" values for all nodes. It helps visualize how frequently nodes are heard, relative to the average.",
-      "chart_description_2": "This \"Times Seen\" value is the closest that we can get to Mesh utilization by node.",
-      "mean_label": "Mean:",
-      "stddev_label": "Standard Deviation:",
+      "top": {
+      "top_traffic_nodes": "Top Nodes Traffic",
+      "channel": "Channel",
+      "search": "Search",
+      "search_placeholder": "Search nodes...",
       "long_name": "Long Name",
       "short_name": "Short Name",
-      "channel": "Channel",
-      "packets_sent": "Packets Sent",
-      "times_seen": "Times Seen",
-      "seen_percent": "Seen % of Mean",
-      "no_nodes": "No top traffic nodes available."
+      "packets_sent": "Sent (24h)",
+      "times_seen": "Seen (24h)",
+      "avg_gateways": "Avg Gateways",
+      "showing_nodes": "Showing",
+      "nodes_suffix": "nodes"
     },
+
     "nodegraph":
     {
       "channel_label": "Channel:",
@@ -131,11 +152,59 @@
         "telemetry": "Telemetry",
         "trace_route": "Trace Route",
         "neighbor_info": "Neighbor Info",
-
         "direct_to_mqtt": "direct to MQTT",
         "all": "All",
         "map": "Map",
         "graph": "Graph"
-      }
+      },
+    "node": {
+        "specifications": "Specifications:",
+        "node_id": "Node ID:",
+        "long_name": "Long Name:",
+        "short_name": "Short Name:",
+        "hw_model": "Hardware Model:",
+        "firmware": "Firmware:",
+        "role": "Role:",
+        "channel": "Channel:",
+        "latitude": "Latitude:",
+        "longitude": "Longitude:",
+        "last_update": "Last Update:",
+        "battery_voltage": "Battery & Voltage",
+        "air_channel": "Air & Channel Utilization",
+        "environment": "Environment Metrics",
+        "neighbors_chart": "Neighbors (Signal-to-Noise)",
+        "expand": "Expand",
+        "export_csv": "Export CSV",
+        "time": "Time",
+        "packet_id": "Packet ID",
+        "from": "From",
+        "to": "To",
+        "port": "Port",
+        "direct_to_mqtt": "Direct to MQTT",
+        "all_broadcast": "All"
+    },
+    "packet": {
+      "loading": "Loading packet information...",
+      "packet_id_label": "Packet ID",
+      "from_node": "From Node",
+      "to_node": "To Node",
+      "channel": "Channel",
+      "port": "Port",
+      "raw_payload": "Raw Payload",
+      "decoded_telemetry": "Decoded Telemetry",
+      "location": "Location",
+      "seen_by": "Seen By",
+      "gateway": "Gateway",
+      "rssi": "RSSI",
+      "snr": "SNR",
+      "hops": "Hop",
+      "time": "Time",
+      "packet_source": "Packet Source",
+      "distance": "Distance",
+      "node_id_short": "Node ID",
+      "all_broadcast": "All",
+      "direct_to_mqtt": "Direct to MQTT"
+  }
+
 
   }

@@ -421,43 +421,61 @@ async def api_stats_count(request):
 async def api_edges(request):
     since = datetime.datetime.now() - datetime.timedelta(hours=48)
     filter_type = request.query.get("type")
-
     edges = {}
+    traceroute_count = 0
+    neighbor_packet_count = 0
+    edges_added_tr = 0
+    edges_added_neighbor = 0
 
-    # Only build traceroute edges if requested
+    # --- Traceroute edges ---
     if filter_type in (None, "traceroute"):
+
         async for tr in store.get_traceroutes(since):
+            traceroute_count += 1
+
             try:
                 route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
             except Exception as e:
-                logger.error(f"Error decoding Traceroute {tr.id}: {e}")
+                print(f"  ERROR decoding traceroute {tr.id}: {e}")
                 continue
 
+            # Build full path
             path = [tr.packet.from_node_id] + list(route.route)
             path.append(tr.packet.to_node_id if tr.done else tr.gateway_node_id)
 
             for a, b in zip(path, path[1:], strict=False):
-                edges[(a, b)] = "traceroute"
+                if (a, b) not in edges:
+                    edges[(a, b)] = "traceroute"
+                    edges_added_tr += 1
 
-    # Only build neighbor edges if requested
+    # --- Neighbor edges ---
     if filter_type in (None, "neighbor"):
-        packets = await store.get_packets(portnum=PortNum.NEIGHBORINFO_APP, after=since)
+        packets = await store.get_packets(portnum=71)
+        neighbor_packet_count = len(packets)
+
         for packet in packets:
+            packet_id = getattr(packet, "id", "?")
             try:
                 _, neighbor_info = decode_payload.decode(packet)
-                for node in neighbor_info.neighbors:
-                    edges.setdefault((node.node_id, packet.from_node_id), "neighbor")
             except Exception as e:
-                logger.error(
-                    f"Error decoding NeighborInfo packet {getattr(packet, 'id', '?')}: {e}"
-                )
+                print(f"  ERROR decoding NeighborInfo packet {packet_id}: {e}")
+                continue
 
-    # Convert edges dict to list format for JSON response
+            for node in neighbor_info.neighbors:
+                edge = (node.node_id, packet.from_node_id)
+
+                if edge not in edges:
+                    edges[edge] = "neighbor"
+                    edges_added_neighbor += 1
+
+    # Convert to list
     edges_list = [
-        {"from": frm, "to": to, "type": edge_type} for (frm, to), edge_type in edges.items()
+        {"from": frm, "to": to, "type": edge_type}
+        for (frm, to), edge_type in edges.items()
     ]
 
     return web.json_response({"edges": edges_list})
+
 
 
 @routes.get("/api/config")

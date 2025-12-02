@@ -15,7 +15,7 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 10px;
+        gap: 20px;
         margin-bottom: 15px;
     }
 
@@ -38,14 +38,6 @@
         color: #ddd;
     }
 
-    .filter-bar {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 20px;
-    }
-
-
     table th { background-color: #333; }
     table tbody tr:nth-child(odd) { background-color: #272b2f; }
     table tbody tr:nth-child(even) { background-color: #212529; }
@@ -65,37 +57,42 @@
 
 {% block body %}
 
-<h1>Top Nodes Traffic</h1>
+<h1 data-translate-lang="top_traffic_nodes">Top Nodes Traffic</h1>
 
 <div class="top-container">
 
-<div class="filter-bar">
-    <div>
-        <label for="channelFilter">Channel:</label>
-        <select id="channelFilter" class="form-select form-select-sm" style="width:auto;"></select>
+    <div class="filter-bar">
+        <div>
+            <label for="channelFilter" data-translate-lang="channel">Channel:</label>
+            <select id="channelFilter" class="form-select form-select-sm" style="width:auto;"></select>
+        </div>
+
+        <div>
+            <label for="nodeSearch" data-translate-lang="search">Search:</label>
+            <input id="nodeSearch" type="text" class="form-control form-control-sm"
+                   placeholder="Search nodes..."
+                   data-translate-lang="search_placeholder"
+                   style="width:180px; display:inline-block;">
+        </div>
     </div>
 
-    <div>
-        <label for="nodeSearch">Search:</label>
-        <input id="nodeSearch" type="text" class="form-control form-control-sm"
-               placeholder="Search nodes..."
-               style="width:180px; display:inline-block;">
+    <!-- ⭐ ADDED NODE COUNT ⭐ -->
+    <div id="count-container" style="margin-bottom:10px; font-weight:bold;">
+        <span data-translate-lang="showing_nodes">Showing</span>
+        <span id="node-count">0</span>
+        <span data-translate-lang="nodes_suffix">nodes</span>
     </div>
-</div>
-
-
-
 
     <div class="table-responsive">
         <table id="nodesTable">
             <thead>
                 <tr>
-                    <th>Long Name</th>
-                    <th>Short Name</th>
-                    <th>Channel</th>
-                    <th>Sent (24h)</th>
-                    <th>Seen (24h)</th>
-                    <th>Avg Gateways</th>
+                    <th data-translate-lang="long_name">Long Name</th>
+                    <th data-translate-lang="short_name">Short Name</th>
+                    <th data-translate-lang="channel">Channel</th>
+                    <th data-translate-lang="packets_sent">Sent (24h)</th>
+                    <th data-translate-lang="times_seen">Seen (24h)</th>
+                    <th data-translate-lang="avg_gateways">Avg Gateways</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -105,74 +102,105 @@
 </div>
 
 <script>
-    let allNodes = [];
+/* ======================================================
+   TOP PAGE TRANSLATION (isolated from base)
+   ====================================================== */
+let topTranslations = {};
 
-    async function loadChannels() {
-        try {
-            const res = await fetch("/api/channels");
-            const data = await res.json();
-            const channels = data.channels || [];
+function applyTranslationsTop(dict, root=document) {
+    root.querySelectorAll("[data-translate-lang]").forEach(el => {
+        const key = el.dataset.translateLang;
+        if (!dict[key]) return;
 
-            const select = document.getElementById("channelFilter");
-
-            // Default LongFast first
-            if (channels.includes("LongFast")) {
-                const opt = document.createElement("option");
-                opt.value = "LongFast";
-                opt.textContent = "LongFast";
-                select.appendChild(opt);
-            }
-
-            for (const ch of channels) {
-                if (ch === "LongFast") continue;
-                const opt = document.createElement("option");
-                opt.value = ch;
-                opt.textContent = ch;
-                select.appendChild(opt);
-            }
-
-            select.addEventListener("change", renderTable);
-        } catch (err) {
-            console.error("Error loading channels:", err);
+        // input placeholder support
+        if (el.tagName === "INPUT" && el.placeholder !== undefined) {
+            el.placeholder = dict[key];
+        } else {
+            el.textContent = dict[key];
         }
-    }
+    });
+}
 
-    async function loadNodes() {
-        try {
-            const res = await fetch("/api/nodes");
-            const data = await res.json();
-            allNodes = data.nodes || [];
-        } catch (err) {
-            console.error("Error loading nodes:", err);
+async function loadTranslationsTop() {
+    try {
+        const cfg = await window._siteConfigPromise;
+        const lang = cfg?.site?.language || "en";
+
+        const res = await fetch(`/api/lang?lang=${lang}&section=top`);
+        topTranslations = await res.json();
+
+        applyTranslationsTop(topTranslations);
+    } catch (err) {
+        console.error("TOP translation load failed:", err);
+    }
+}
+
+/* ======================================================
+   PAGE LOGIC
+   ====================================================== */
+let allNodes = [];
+
+async function loadChannels() {
+    try {
+        const res = await fetch("/api/channels");
+        const data = await res.json();
+        const channels = data.channels || [];
+
+        const select = document.getElementById("channelFilter");
+
+        // LongFast first
+        if (channels.includes("LongFast")) {
+            const opt = document.createElement("option");
+            opt.value = "LongFast";
+            opt.textContent = "LongFast";
+            select.appendChild(opt);
         }
-    }
 
-    async function fetchNodeStats(nodeId) {
-        try {
-            const url = `/api/stats/count?from_node=${nodeId}&period_type=day&length=1`;
-            const res = await fetch(url);
-            const data = await res.json();
-
-            const sent = data.total_packets || 0;
-            const seen = data.total_seen || 0;
-            const avg = seen / Math.max(sent, 1);
-
-            return {
-                sent,
-                seen,
-                avg: avg
-            };
-        } catch (err) {
-            console.error("Stat error", err);
-            return { sent: 0, seen: 0, avg: 0 };
+        for (const ch of channels) {
+            if (ch === "LongFast") continue;
+            const opt = document.createElement("option");
+            opt.value = ch;
+            opt.textContent = ch;
+            select.appendChild(opt);
         }
-    }
 
-    function avgClass(v) {
-        if (v >= 10) return "good-x";   // Very strong node
-        if (v >= 2)  return "ok-x";     // Normal node
-        return "bad-x";                 // Weak node
+        select.addEventListener("change", renderTable);
+    } catch (err) {
+        console.error("Error loading channels:", err);
     }
+}
+
+async function loadNodes() {
+    try {
+        const res = await fetch("/api/nodes");
+        const data = await res.json();
+        allNodes = data.nodes || [];
+    } catch (err) {
+        console.error("Error loading nodes:", err);
+    }
+}
+
+async function fetchNodeStats(nodeId) {
+    try {
+        const res = await fetch(`/api/stats/count?from_node=${nodeId}&period_type=day&length=1`);
+        const data = await res.json();
+
+        const sent = data.total_packets || 0;
+        const seen = data.total_seen || 0;
+        const avg = seen / Math.max(sent, 1);
+
+        return { sent, seen, avg };
+    } catch (err) {
+        console.error("Stat error:", err);
+        return { sent: 0, seen: 0, avg: 0 };
+    }
+}
+
+function avgClass(v) {
+    if (v >= 10) return "good-x";
+    if (v >= 2) return "ok-x";
+    return "bad-x";
+}
 
 async function renderTable() {
     const tbody = document.querySelector("#nodesTable tbody");
@@ -181,10 +209,10 @@ async function renderTable() {
     const channel = document.getElementById("channelFilter").value;
     const searchText = document.getElementById("nodeSearch").value.trim().toLowerCase();
 
-    // Filter nodes by channel FIRST
+    // Filter by channel
     let filtered = allNodes.filter(n => n.channel === channel);
 
-    // Then apply search
+    // Filter by search
     if (searchText !== "") {
         filtered = filtered.filter(n =>
             (n.long_name && n.long_name.toLowerCase().includes(searchText)) ||
@@ -193,12 +221,10 @@ async function renderTable() {
         );
     }
 
-    // --- Create placeholder rows ---
+    // Placeholder rows first
     const rowRefs = filtered.map(n => {
         const tr = document.createElement("tr");
-        tr.addEventListener("click", () => {
-            window.location.href = `/node/${n.node_id}`;
-        });
+        tr.addEventListener("click", () => window.location.href = `/node/${n.node_id}`);
 
         const tdLong = document.createElement("td");
         const a = document.createElement("a");
@@ -215,13 +241,13 @@ async function renderTable() {
         tdChannel.textContent = n.channel || "";
 
         const tdSent = document.createElement("td");
-        tdSent.textContent = "Loading...";
+        tdSent.textContent = "...";
 
         const tdSeen = document.createElement("td");
-        tdSeen.textContent = "Loading...";
+        tdSeen.textContent = "...";
 
         const tdAvg = document.createElement("td");
-        tdAvg.textContent = "Loading...";
+        tdAvg.textContent = "...";
 
         tr.appendChild(tdLong);
         tr.appendChild(tdShort);
@@ -235,50 +261,49 @@ async function renderTable() {
         return { node: n, tr, tdSent, tdSeen, tdAvg };
     });
 
-    // --- Stats fetch ---
+    // Fetch stats
     const statsList = await Promise.all(
         rowRefs.map(ref => fetchNodeStats(ref.node.node_id))
     );
 
-    // --- Update + cleanup empty nodes ---
+    // Update rows
     let combined = rowRefs.map((ref, i) => {
         const stats = statsList[i];
 
         ref.tdSent.textContent = stats.sent;
         ref.tdSeen.textContent = stats.seen;
-        ref.tdAvg.innerHTML = `<span class="${avgClass(stats.avg)}">${stats.avg.toFixed(1)}</span>`;
+        ref.tdAvg.innerHTML =
+            `<span class="${avgClass(stats.avg)}">${stats.avg.toFixed(1)}</span>`;
 
-        return {
-            tr: ref.tr,
-            sent: stats.sent,
-            seen: stats.seen
-        };
+        return { tr: ref.tr, sent: stats.sent, seen: stats.seen };
     });
 
-    // Remove nodes with no traffic
+    // Remove nodes with no activity
     combined = combined.filter(r => !(r.sent === 0 && r.seen === 0));
 
-    // Sort by traffic (seen)
+    // Sort by seen
     combined.sort((a, b) => b.seen - a.seen);
 
-    // Rebuild table
     tbody.innerHTML = "";
-    for (const r of combined) {
-        tbody.appendChild(r.tr);
-    }
+    for (const r of combined) tbody.appendChild(r.tr);
+
+    // ⭐ UPDATE COUNT ⭐
+    document.getElementById("node-count").textContent = combined.length;
 }
 
-
-
-(async () => {
+/* ======================================================
+   INITIALIZE PAGE
+   ====================================================== */
+document.addEventListener("DOMContentLoaded", async () => {
+    await loadTranslationsTop();   // ⭐ MUST run first
     await loadNodes();
     await loadChannels();
-    document.getElementById("channelFilter").value = "LongFast";
 
+    document.getElementById("channelFilter").value = "LongFast";
     document.getElementById("nodeSearch").addEventListener("input", renderTable);
 
     renderTable();
-})();
+});
 </script>
 
 {% endblock %}

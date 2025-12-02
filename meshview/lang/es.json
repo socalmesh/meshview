@@ -1,16 +1,16 @@
 {
   "base": {
-    "conversations": "Conversaciones",
+    "chat": "Conversaciones",
     "nodes": "Nodos",
-    "everything": "Mostrar Todo",
-    "graph": "Gráficos de la Malla",
+    "everything": "Mostrar todo",
+    "graphs": "Gráficos de la Malla",
     "net": "Red Semanal",
     "map": "Mapa en Vivo",
     "stats": "Estadísticas",
     "top": "Nodos con Mayor Tráfico",
     "footer": "Visita <strong><a href=\"https://github.com/pablorevilla-meshtastic/meshview\">Meshview</a></strong> en Github.",
-    "node id": "ID de Nodo",
-    "go to node": "Ir al nodo",
+    "node_id": "ID de Nodo",
+    "go_to_node": "Ir al nodo",
     "all": "Todos",
     "portnum_options": {
       "1": "Mensaje de Texto",
@@ -21,48 +21,65 @@
       "71": "Información de Vecinos"
     }
   },
+
   "chat": {
-  "replying_to": "Respondiendo a:",
-  "view_packet_details": "Ver detalles del paquete"
+    "chat_title": "Conversaciones:",
+    "replying_to": "Respondiendo a:",
+    "view_packet_details": "Ver detalles del paquete"
   },
+
   "nodelist": {
     "search_placeholder": "Buscar por nombre o ID...",
-    "all_roles": "Todos los Roles",
-    "all_channels": "Todos los Canales",
-    "all_hw_models": "Todos los Modelos",
-    "all_firmware": "Todo el Firmware",
+    "all_roles": "Todos los roles",
+    "all_channels": "Todos los canales",
+    "all_hw": "Todos los modelos",
+    "all_firmware": "Todo el firmware",
+    "show_favorites": "⭐ Mostrar favoritos",
+    "show_all": "⭐ Mostrar todos",
     "export_csv": "Exportar CSV",
-    "clear_filters": "Limpiar Filtros",
-    "showing": "Mostrando",
-    "nodes": "nodos",
-    "short": "Corto",
-    "long_name": "Largo",
-    "hw_model": "Modelo",
+    "clear_filters": "Limpiar filtros",
+    "showing_nodes": "Mostrando",
+    "nodes_suffix": "nodos",
+    "loading_nodes": "Cargando nodos...",
+    "error_loading_nodes": "Error al cargar nodos",
+    "no_nodes_found": "No se encontraron nodos",
+    "short_name": "Corto",
+    "long_name": "Nombre largo",
+    "hw_model": "Modelo HW",
     "firmware": "Firmware",
     "role": "Rol",
-    "last_lat": "Última Latitud",
-    "last_long": "Última Longitud",
+    "last_lat": "Última latitud",
+    "last_long": "Última longitud",
     "channel": "Canal",
-    "last_update": "Última Actualización",
-    "loading_nodes": "Cargando nodos...",
-    "no_nodes": "No se encontraron nodos",
-    "error_nodes": "Error al cargar nodos"
+    "last_seen": "Última vez visto",
+    "favorite": "Favorito",
+    "time_just_now": "justo ahora",
+    "time_min_ago": "min atrás",
+    "time_hr_ago": "h atrás",
+    "time_day_ago": "día atrás",
+    "time_days_ago": "días atrás"
   },
+
   "net": {
-    "number_of_checkins": "Número de registros:",
-    "view_packet_details": "Ver detalles del paquete",
-    "view_all_packets_from_node": "Ver todos los paquetes de este nodo",
-    "no_packets_found": "No se encontraron paquetes."
+    "net_title": "Red Semanal:",
+    "total_messages": "Número de mensajes:",
+    "view_packet_details": "Más Detalles"
   },
+
   "map": {
-    "channel": "Canal:",
-    "model": "Modelo:",
-    "role": "Rol:",
+    "filter_routers_only": "Mostrar solo enrutadores",
+    "share_view": "Compartir esta vista",
+    "reset_filters": "Restablecer filtros",
+    "channel_label": "Canal:",
+    "model_label": "Modelo:",
+    "role_label": "Rol:",
     "last_seen": "Visto por última vez:",
     "firmware": "Firmware:",
-    "show_routers_only": "Mostrar solo enrutadores",
-    "share_view": "Compartir esta vista"
+    "link_copied": "¡Enlace copiado!",
+    "legend_traceroute": "Ruta de traceroute (flechas de dirección)",
+    "legend_neighbor": "Vínculo de vecinos"
   },
+
   "stats": {
     "mesh_stats_summary": "Estadísticas de la Malla - Resumen (completas en la base de datos)",
     "total_nodes": "Nodos Totales",
@@ -80,22 +97,22 @@
     "export_csv": "Exportar CSV",
     "all_channels": "Todos los Canales"
   },
+
   "top": {
-    "top_traffic_nodes": "Tráfico (últimas 24 horas)",
-    "chart_description_1": "Este gráfico muestra una curva normal (distribución normal) basada en el valor total de \"Veces Visto\" para todos los nodos. Ayuda a visualizar con qué frecuencia se detectan los nodos en relación con el promedio.",
-    "chart_description_2": "Este valor de \"Veces Visto\" es lo más aproximado que tenemos al nivel de uso de la malla por nodo.",
-    "mean_label": "Media:",
-    "stddev_label": "Desviación Estándar:",
+    "top_traffic_nodes": "Tráfico de Nodos (24h)",
+    "channel": "Canal",
+    "search": "Buscar",
+    "search_placeholder": "Buscar nodos...",
     "long_name": "Nombre Largo",
     "short_name": "Nombre Corto",
-    "channel": "Canal",
-    "packets_sent": "Paquetes Enviados",
-    "times_seen": "Veces Visto",
-    "seen_percent": "% Visto respecto a la Media",
-    "no_nodes": "No hay nodos con mayor tráfico disponibles."
+    "packets_sent": "Enviados (24h)",
+    "times_seen": "Visto (24h)",
+    "avg_gateways": "Promedio de Gateways",
+    "showing_nodes": "Mostrando",
+    "nodes_suffix": "nodos"
   },
-  "nodegraph":
-  {
+
+  "nodegraph": {
     "channel_label": "Canal:",
     "search_placeholder": "Buscar nodo...",
     "search_button": "Buscar",
@@ -109,34 +126,68 @@
     "unknown": "Desconocido",
     "node_not_found": "¡Nodo no encontrado en el canal actual!"
   },
-  "firehose":
-    {
-      "live_feed": "📡 Flujo en Vivo",
-      "pause": "Pausar",
-      "resume": "Continuar",
-      "time": "Hora",
-      "packet_id": "ID del Paquete",
-      "from": "De",
-      "to": "Para",
-      "port": "Puerto",
-      "links": "Enlaces",
 
-      "unknown_app": "APLICACIÓN DESCONOCIDA",
-      "text_message": "Mensaje de Texto",
-      "position": "Posición",
-      "node_info": "Información del Nodo",
-      "routing": "Enrutamiento",
-      "administration": "Administración",
-      "waypoint": "Punto de Ruta",
-      "store_forward": "Almacenar y Reenviar",
-      "telemetry": "Telemetría",
-      "trace_route": "Rastreo de Ruta",
-      "neighbor_info": "Información de Vecinos",
+  "firehose": {
+    "live_feed": "📡 Flujo en vivo",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "time": "Hora",
+    "packet_id": "ID de paquete",
+    "from": "De",
+    "to": "A",
+    "port": "Puerto",
+    "direct_to_mqtt": "Directo a MQTT",
+    "all_broadcast": "Todos"
+  },
 
-      "direct_to_mqtt": "Directo a MQTT",
-      "all": "Todos",
-      "map": "Mapa",
-      "graph": "Gráfico"
-    }
+  "node": {
+    "specifications": "Especificaciones:",
+    "node_id": "ID de Nodo:",
+    "long_name": "Nombre Largo:",
+    "short_name": "Nombre Corto:",
+    "hw_model": "Modelo de Hardware:",
+    "firmware": "Firmware:",
+    "role": "Rol:",
+    "channel": "Canal:",
+    "latitude": "Latitud:",
+    "longitude": "Longitud:",
+    "last_update": "Última Actualización:",
+    "battery_voltage": "Batería y voltaje",
+    "air_channel": "Utilización del aire y del canal",
+    "environment": "Métricas Ambientales",
+    "neighbors_chart": "Vecinos (Relación Señal/Ruido)",
+    "expand": "Ampliar",
+    "export_csv": "Exportar CSV",
+    "time": "Hora",
+    "packet_id": "ID del Paquete",
+    "from": "De",
+    "to": "A",
+    "port": "Puerto",
+    "direct_to_mqtt": "Directo a MQTT",
+    "all_broadcast": "Todos"
+  },
 
+  "packet": {
+    "loading": "Cargando información del paquete...",
+    "packet_id_label": "ID del Paquete",
+    "from_node": "De",
+    "to_node": "A",
+    "channel": "Canal",
+    "port": "Puerto",
+    "raw_payload": "Payload sin procesar",
+    "decoded_telemetry": "Telemetría Decodificada",
+    "location": "Ubicación",
+    "seen_by": "Visto por",
+    "gateway": "Gateway",
+    "rssi": "RSSI",
+    "snr": "SNR",
+    "hops": "Saltos",
+    "time": "Hora",
+    "packet_source": "Origen del Paquete",
+    "distance": "Distancia",
+    "node_id_short": "ID de Nodo",
+    "all_broadcast": "Todos",
+    "direct_to_mqtt": "Directo a MQTT",
+    "signal": "Señal"
+  }
 }

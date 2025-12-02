@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
-
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import select, and_, or_, func, cast, Text
 from sqlalchemy.orm import lazyload
 
 from meshview import database, models
@@ -27,18 +26,12 @@ async def get_fuzzy_nodes(query):
 async def get_packets(
     from_node_id=None,
     to_node_id=None,
-    node_id=None,  # legacy: match either from OR to
+    node_id=None,  # legacy
     portnum=None,
     after=None,
-    contains=None,  # NEW: SQL-level substring match
+    contains=None,  # substring search
     limit=50,
 ):
-    """
-    SQLAlchemy 2.0 async ORM version.
-    Supports strict from/to/node filtering, substring payload search,
-    portnum, since, and limit.
-    """
-
     async with database.async_session() as session:
         stmt = select(models.Packet)
         conditions = []
@@ -51,36 +44,40 @@ async def get_packets(
         if to_node_id is not None:
             conditions.append(models.Packet.to_node_id == to_node_id)
 
-        # Legacy node ID filter: match either direction
+        # Legacy node_id (either direction)
         if node_id is not None:
             conditions.append(
-                or_(models.Packet.from_node_id == node_id, models.Packet.to_node_id == node_id)
+                or_(
+                    models.Packet.from_node_id == node_id,
+                    models.Packet.to_node_id == node_id,
+                )
             )
 
         # Port filter
         if portnum is not None:
             conditions.append(models.Packet.portnum == portnum)
 
-        # Timestamp filter
+        # Timestamp filter using microseconds
         if after is not None:
             conditions.append(models.Packet.import_time_us > after)
 
-        # Case-insensitive substring search on UTF-8 payload (stored as BLOB)
+        # Case-insensitive substring search on payload (BLOB → TEXT)
         if contains:
-            contains_lower = contains.lower()
-            conditions.append(func.lower(models.Packet.payload).like(f"%{contains_lower}%"))
+            contains_lower = f"%{contains.lower()}%"
+            payload_text = cast(models.Packet.payload, Text)
+            conditions.append(func.lower(payload_text).like(contains_lower))
 
-        # Apply all conditions
+        # Apply WHERE conditions
         if conditions:
             stmt = stmt.where(and_(*conditions))
 
-        # Order newest → oldest
+        # Order by newest first
         stmt = stmt.order_by(models.Packet.import_time_us.desc())
 
-        # Apply limit
+        # Limit
         stmt = stmt.limit(limit)
 
-        # Execute query
+        # Run query
         result = await session.execute(stmt)
         return result.scalars().all()
 
