@@ -80,8 +80,8 @@
       "last_seen": "Last seen:",
       "firmware": "Firmware:",
       "link_copied": "Link Copied!",
-      "legend_traceroute": "Ruta de traceroute (con flechas)",
-      "legend_neighbor": "Enlace de vecino"
+      "legend_traceroute": "Traceroute (with arrows)",
+      "legend_neighbor": "Neighbor"
 
     },
 
@@ -140,7 +140,6 @@
         "to": "To",
         "port": "Port",
         "links": "Links",
-
         "unknown_app": "UNKNOWN APP",
         "text_message": "Text Message",
         "position": "Position",
