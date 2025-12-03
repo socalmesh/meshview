@@ -135,6 +135,14 @@ const palette = ["#e6194b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#b
 const colorMap = new Map(); let nextColorIndex = 0;
 const channelSet = new Set();
 
+map.on("popupopen", function (e) {
+    const popupEl = e.popup.getElement();
+    if (popupEl) {
+        applyTranslationsMap(popupEl);
+    }
+});
+
+
 function timeAgo(date){
     const diff = Date.now() - new Date(date);
     const s = Math.floor(diff/1000), m = Math.floor(s/60),
@@ -337,15 +345,13 @@ function renderNodesOnMap(){
             }
         `;
 
-        marker.on("click", () => {
+        marker.on('click', () => {
             onNodeClick(node);
             marker.bindPopup(popup).openPopup();
-            setTimeout(() => marker.closePopup(), 3000);
         });
-    });
 
-    // ❌ DO NOT auto-fit:
-    // map.fitBounds(bounds)
+
+    });
 
     // Still apply translations for popup content
     setTimeout(() => applyTranslationsMap(), 50);
