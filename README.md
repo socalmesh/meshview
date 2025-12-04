@@ -213,6 +213,8 @@ acme_challenge =
 # The domain name of your site.
 domain =
 
+# Select language
+language = es
 # Site title to show in the browser title bar and headers.
 title = Bay Area Mesh
 
