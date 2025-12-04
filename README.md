@@ -9,7 +9,7 @@ The project serves as a real-time monitoring and diagnostic tool for the Meshtas
 #### 🌐 Multi-Language Support (i18n)
 - New `/api/lang` endpoint for serving translations  
 - Section-based translation loading (e.g., `?section=firehose`)  
-- Default language controlled via `site.language` in config  
+- Default language controlled via config file language section and .json dictionary  
 - JSON-based translation files for easy expansion  
 - Core pages updated to support `data-translate-lang` attributes  
 
@@ -211,8 +211,9 @@ acme_challenge =
 # The domain name of your site.
 domain =
 
-# Select language
+# Select language (this represents the name of the json file in the /lang directory)
 language = es
+
 # Site title to show in the browser title bar and headers.
 title = Bay Area Mesh
 
