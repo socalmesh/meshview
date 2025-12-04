@@ -4,6 +4,21 @@
 
 The project serves as a real-time monitoring and diagnostic tool for the Meshtastic mesh network. It provides detailed insights into network activity, including message traffic, node positions, and telemetry data.
 
+## Version 3.0.1 — December 2025
+
+### ✨ New Features
+
+#### 🌐 Multi-Language Support (i18n)
+- New `/api/lang` endpoint for serving translations  
+- Section-based translation loading (e.g., `?section=firehose`)  
+- Default language controlled via `site.language` in config  
+- JSON-based translation files for easy expansion  
+- Core pages updated to support `data-translate-lang` attributes  
+
+### 🛠 Improvements
+- Updated UI elements across multiple templates for localization readiness  
+- General cleanup to support future language additions  
+
 ### Version 3.0.0 update - November 2025
 
 **Major Infrastructure Improvements:**
