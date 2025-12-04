@@ -9,7 +9,7 @@ The project serves as a real-time monitoring and diagnostic tool for the Meshtas
 #### 🌐 Multi-Language Support (i18n)
 - New `/api/lang` endpoint for serving translations  
 - Section-based translation loading (e.g., `?section=firehose`)  
-- Default language controlled via config file language section and .json dictionary  
+- Default language controlled via config file language section
 - JSON-based translation files for easy expansion  
 - Core pages updated to support `data-translate-lang` attributes  
 

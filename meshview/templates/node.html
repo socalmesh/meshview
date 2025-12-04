@@ -274,10 +274,10 @@ function applyTranslationsNode(dict, root=document) {
 
 /* ======================================================
     NODE LOGIC
-====================================================== */
+   ====================================================== */
 
 let nodeMap = {}, nodePositions = {}, map, markers = {};
-let chartData = {}, neighborData = { ids:[], <names></names>:[], snrs:[] };
+let chartData = {}, neighborData = { ids:[], names:[], snrs:[] };
 let allNodes = [];
 let fromNodeId = new URLSearchParams(window.location.search).get("from_node_id");
 if (!fromNodeId) {
