@@ -421,6 +421,19 @@ async def api_stats_count(request):
 async def api_edges(request):
     since = datetime.datetime.now() - datetime.timedelta(hours=48)
     filter_type = request.query.get("type")
+
+    # NEW → optional single-node filter
+    node_filter_str = request.query.get("node_id")
+    node_filter = None
+    if node_filter_str:
+        try:
+            node_filter = int(node_filter_str)
+        except ValueError:
+            return web.json_response(
+                {"error": "node_id must be integer"},
+                status=400
+            )
+
     edges = {}
     traceroute_count = 0
     neighbor_packet_count = 0
@@ -429,17 +442,14 @@ async def api_edges(request):
 
     # --- Traceroute edges ---
     if filter_type in (None, "traceroute"):
-
         async for tr in store.get_traceroutes(since):
             traceroute_count += 1
 
             try:
                 route = decode_payload.decode_payload(PortNum.TRACEROUTE_APP, tr.route)
-            except Exception as e:
-                print(f"  ERROR decoding traceroute {tr.id}: {e}")
+            except Exception:
                 continue
 
-            # Build full path
             path = [tr.packet.from_node_id] + list(route.route)
             path.append(tr.packet.to_node_id if tr.done else tr.gateway_node_id)
 
@@ -454,16 +464,13 @@ async def api_edges(request):
         neighbor_packet_count = len(packets)
 
         for packet in packets:
-            packet_id = getattr(packet, "id", "?")
             try:
                 _, neighbor_info = decode_payload.decode(packet)
-            except Exception as e:
-                print(f"  ERROR decoding NeighborInfo packet {packet_id}: {e}")
+            except Exception:
                 continue
 
             for node in neighbor_info.neighbors:
                 edge = (node.node_id, packet.from_node_id)
-
                 if edge not in edges:
                     edges[edge] = "neighbor"
                     edges_added_neighbor += 1
@@ -473,6 +480,13 @@ async def api_edges(request):
         {"from": frm, "to": to, "type": edge_type}
         for (frm, to), edge_type in edges.items()
     ]
+
+    # NEW → apply node_id filtering
+    if node_filter is not None:
+        edges_list = [
+            e for e in edges_list
+            if e["from"] == node_filter or e["to"] == node_filter
+        ]
 
     return web.json_response({"edges": edges_list})
 

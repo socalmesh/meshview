@@ -30,13 +30,13 @@
 {% block body %}
 
 <div id="map" style="width:100%; height:calc(100vh - 270px)"></div>
-<!-- ⭐ Map Legend (safe z-index below blinks) ⭐ -->
+
 <div id="map-legend"
      class="legend"
      style="position:absolute;
             bottom:30px;
             right:15px;
-            z-index:500;   /* ✔ Below Leaflet tooltips */
+            z-index:500;
             pointer-events:none;">
     <div>
         <i style="background:orange; width:15px; height:3px; border-radius:0;"></i>
@@ -105,16 +105,16 @@ function applyTranslationsMap(root = document) {
 }
 
 /* ======================================================
-   EXISTING MAP LOGIC (UNCHANGED)
+   EXISTING MAP LOGIC
    ====================================================== */
 
-// ---------------------- Map Initialization ----------------------
 var map = L.map('map');
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(map);
 
-// ---------------------- Globals ----------------------
-var nodes=[], markers={}, markerById={}, nodeMap = new Map();
-var edgesData=[], edgeLayer = L.layerGroup().addTo(map), selectedNodeId = null;
+// Data structures
+var nodes = [], markers = {}, markerById = {}, nodeMap = new Map();
+var edgeLayer = L.layerGroup().addTo(map), selectedNodeId = null;
 var activeBlinks = new Map(), lastImportTime = null;
 var mapInterval = 0;
 
@@ -137,11 +137,8 @@ const channelSet = new Set();
 
 map.on("popupopen", function (e) {
     const popupEl = e.popup.getElement();
-    if (popupEl) {
-        applyTranslationsMap(popupEl);
-    }
+    if (popupEl) applyTranslationsMap(popupEl);
 });
-
 
 function timeAgo(date){
     const diff = Date.now() - new Date(date);
@@ -158,10 +155,14 @@ function hashToColor(str){
 }
 
 function isInvalidCoord(n){
-    return !n||!n.lat||!n.long||n.lat===0||n.long===0||Number.isNaN(n.lat)||Number.isNaN(n.long);
+    return !n || !n.lat || !n.long || n.lat === 0 || n.long === 0 ||
+           Number.isNaN(n.lat) || Number.isNaN(n.long);
 }
 
-// ---------------------- Packet Fetching ----------------------
+/* ======================================================
+   PACKET FETCHING (unchanged)
+   ====================================================== */
+
 function fetchLatestPacket(){
     fetch(`/api/packets?limit=1`)
       .then(r=>r.json())
@@ -184,18 +185,20 @@ function fetchNewPackets(){
       .then(data=>{
           if(!data.packets || data.packets.length===0) return;
           let latest = lastImportTime;
+
           data.packets.forEach(pkt=>{
               if(pkt.import_time_us > latest) latest = pkt.import_time_us;
+
               const marker = markerById[pkt.from_node_id];
               const nodeData = nodeMap.get(pkt.from_node_id);
               if(marker && nodeData) blinkNode(marker,nodeData.long_name,pkt.portnum);
           });
+
           lastImportTime = latest;
       })
       .catch(console.error);
 }
 
-// ---------------------- Polling ----------------------
 let packetInterval=null;
 
 function startPacketFetcher(){
@@ -217,12 +220,10 @@ document.addEventListener("visibilitychange",()=>{
     document.hidden?stopPacketFetcher():startPacketFetcher();
 });
 
-// ---------------------- WAIT FOR CONFIG ----------------------
 async function waitForConfig() {
     while (typeof window._siteConfigPromise === "undefined") {
         await new Promise(r => setTimeout(r, 100));
     }
-
     try {
         const cfg = await window._siteConfigPromise;
         return cfg.site || {};
@@ -232,13 +233,11 @@ async function waitForConfig() {
     }
 }
 
-// ---------------------- Load Config & Start Polling ----------------------
 async function initMapPolling() {
     try {
         const site = await waitForConfig();
         mapInterval = parseInt(site.map_interval, 10) || 0;
 
-        // --- URL params ---
         const params = new URLSearchParams(window.location.search);
         const lat  = parseFloat(params.get('lat'));
         const lng  = parseFloat(params.get('lng'));
@@ -252,6 +251,7 @@ async function initMapPolling() {
         else {
             const tl = [parseFloat(site.map_top_left_lat), parseFloat(site.map_top_left_lon)];
             const br = [parseFloat(site.map_bottom_right_lat), parseFloat(site.map_bottom_right_lon)];
+
             if (tl.every(isFinite) && br.every(isFinite)) {
                 map.fitBounds([tl, br]);
                 window.configBoundsApplied = true;
@@ -268,45 +268,45 @@ async function initMapPolling() {
 
 initMapPolling();
 
-// ---------------------- Load Nodes + Edges ----------------------
+/* ======================================================
+   LOAD NODES
+   ====================================================== */
+
 fetch('/api/nodes?days_active=3')
     .then(r=>r.json())
     .then(data=>{
         if(!data.nodes) return;
 
         nodes = data.nodes.map(n=>({
-            key: n.node_id??n.id,
+            key: n.node_id ?? n.id,
             id: n.id,
             node_id: n.node_id,
-            lat: n.last_lat? n.last_lat/1e7 : null,
-            long: n.last_long? n.last_long/1e7 : null,
-            long_name: n.long_name||"",
-            short_name: n.short_name||"",
-            channel: n.channel||"",
-            hw_model: n.hw_model||"",
-            role: n.role||"",
-            firmware: n.firmware||"",
-            last_update: n.last_update||"",
+            lat: n.last_lat ? n.last_lat/1e7 : null,
+            long: n.last_long ? n.last_long/1e7 : null,
+            long_name: n.long_name || "",
+            short_name: n.short_name || "",
+            channel: n.channel || "",
+            hw_model: n.hw_model || "",
+            role: n.role || "",
+            firmware: n.firmware || "",
+            last_update: n.last_update || "",
             isRouter: (n.role||"").toLowerCase().includes("router")
         }));
 
         nodes.forEach(n=>{
-            nodeMap.set(n.key,n);
+            nodeMap.set(n.key, n);
             if(n.channel) channelSet.add(n.channel);
         });
 
         renderNodesOnMap();
         createChannelFilters();
-
-        return fetch('/api/edges');
-    })
-    .then(r=>r?r.json():null)
-    .then(data=>{
-        if(data && data.edges) edgesData=data.edges;
     })
     .catch(console.error);
 
-// ---------------------- Render Nodes ----------------------
+/* ======================================================
+   RENDER NODES
+   ====================================================== */
+
 function renderNodesOnMap(){
     nodes.forEach(node=>{
         if(isInvalidCoord(node)) return;
@@ -349,74 +349,87 @@ function renderNodesOnMap(){
             onNodeClick(node);
             marker.bindPopup(popup).openPopup();
         });
-
-
     });
 
-    // Still apply translations for popup content
     setTimeout(() => applyTranslationsMap(), 50);
 }
 
-// ---------------------- Render Edges ----------------------
-function onNodeClick(node){
+/* ======================================================
+   ⭐ NEW: DYNAMIC EDGE LOADING
+   ====================================================== */
+
+async function onNodeClick(node){
     selectedNodeId = node.key;
     edgeLayer.clearLayers();
 
-    edgesData.forEach(edge=>{
-        if(edge.from !== node.key && edge.to !== node.key) return;
+    try {
+        const res = await fetch(`/api/edges?node_id=${node.key}`);
+        const data = await res.json();
+        const edges = data.edges || [];
 
-        const f=nodeMap.get(edge.from);
-        const t=nodeMap.get(edge.to);
+        edges.forEach(edge=>{
+            const f = nodeMap.get(edge.from);
+            const t = nodeMap.get(edge.to);
 
-        if(!f || !t || isInvalidCoord(f) || isInvalidCoord(t)) return;
+            if(!f || !t || isInvalidCoord(f) || isInvalidCoord(t)) return;
 
-        const color = edge.type==="neighbor" ? "gray" : "orange";
-        const line  = L.polyline([[f.lat,f.long],[t.lat,t.long]],{color,weight:3}).addTo(edgeLayer);
-
-        if(edge.type==="traceroute"){
-            L.polylineDecorator(line,{
-                patterns:[
-                    {
-                        offset:'100%',
-                        repeat:0,
-                        symbol:L.Symbol.arrowHead({
-                            pixelSize:5,polygon:false,
-                            pathOptions:{stroke:true,color}
-                        })
-                    }
-                ]
+            const color = edge.type === "neighbor" ? "gray" : "orange";
+            const line  = L.polyline([[f.lat, f.long], [t.lat, t.long]], {
+                color, weight: 3
             }).addTo(edgeLayer);
-        }
-    });
+
+            if(edge.type === "traceroute"){
+                L.polylineDecorator(line, {
+                    patterns: [
+                        {
+                            offset: '100%',
+                            repeat: 0,
+                            symbol: L.Symbol.arrowHead({
+                                pixelSize:5,
+                                polygon:false,
+                                pathOptions:{stroke:true,color}
+                            })
+                        }
+                    ]
+                }).addTo(edgeLayer);
+            }
+        });
+
+    } catch(err){
+        console.error("Failed to load edges for node", node.key, err);
+    }
 }
 
-map.on('click',e=>{
+map.on('click', e=>{
     if(!e.originalEvent.target.classList.contains('leaflet-interactive')){
         edgeLayer.clearLayers();
         selectedNodeId=null;
     }
 });
 
-// ---------------------- Blinking ----------------------
+/* ======================================================
+   BLINKING
+   ====================================================== */
+
 function blinkNode(marker,longName,portnum){
     if(!map.hasLayer(marker)) return;
+
     if(activeBlinks.has(marker)){
         clearInterval(activeBlinks.get(marker));
-        marker.setStyle({fillColor:marker.originalColor});
+        marker.setStyle({ fillColor: marker.originalColor });
         if(marker.tooltip) map.removeLayer(marker.tooltip);
     }
 
-    let blinkCount=0;
-    const portName = portMap[portnum] || `Port ${portnum}`;
-
+    let blinkCount = 0;
     const tooltip = L.tooltip({
         permanent:true,
         direction:'top',
         offset:[0,-marker.options.radius-5],
         className:'blinking-tooltip'
-    }).setContent(`${longName} (${portName})`)
-      .setLatLng(marker.getLatLng())
-      .addTo(map);
+    })
+    .setContent(`${longName} (${portMap[portnum] || "Port "+portnum})`)
+    .setLatLng(marker.getLatLng())
+    .addTo(map);
 
     marker.tooltip = tooltip;
 
@@ -428,27 +441,32 @@ function blinkNode(marker,longName,portnum){
             marker.bringToFront();
         }
         blinkCount++;
+
         if(blinkCount>7){
             clearInterval(interval);
-            marker.setStyle({fillColor:marker.originalColor});
+            marker.setStyle({ fillColor: marker.originalColor });
             map.removeLayer(tooltip);
             activeBlinks.delete(marker);
         }
+
     },500);
 
-    activeBlinks.set(marker,interval);
+    activeBlinks.set(marker, interval);
 }
 
-// ---------------------- Channel Filters ----------------------
+/* ======================================================
+   CHANNEL FILTERS
+   ====================================================== */
+
 function createChannelFilters(){
     const filterContainer = document.getElementById("filter-container");
     const saved = JSON.parse(localStorage.getItem("mapFilters") || "{}");
 
     channelSet.forEach(channel=>{
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.className = "filter-checkbox";
-        cb.id = `filter-channel-${channel}`;
+        const cb=document.createElement("input");
+        cb.type="checkbox";
+        cb.className="filter-checkbox";
+        cb.id=`filter-channel-${channel}`;
         cb.checked = saved[channel] !== false;
 
         cb.addEventListener("change", saveFiltersToLocalStorage);
@@ -456,14 +474,14 @@ function createChannelFilters(){
 
         filterContainer.appendChild(cb);
 
-        const label = document.createElement("label");
-        label.htmlFor = cb.id;
-        label.innerText = channel;
+        const label=document.createElement("label");
+        label.htmlFor=cb.id;
+        label.innerText=channel;
         label.style.color = hashToColor(channel);
         filterContainer.appendChild(label);
     });
 
-    const routerOnly = document.getElementById("filter-routers-only");
+    const routerOnly=document.getElementById("filter-routers-only");
     routerOnly.checked = saved["routersOnly"] || false;
 
     routerOnly.addEventListener("change", saveFiltersToLocalStorage);
@@ -491,16 +509,19 @@ function updateNodeVisibility(){
     nodes.forEach(n=>{
         const marker = markerById[n.key];
         if(marker){
-            const visible = (!routerOnly || n.isRouter) &&
-                            activeChannels.includes(n.channel);
+            const visible =
+                (!routerOnly || n.isRouter) &&
+                activeChannels.includes(n.channel);
 
-            if(visible) map.addLayer(marker);
-            else        map.removeLayer(marker);
+            visible ? map.addLayer(marker) : map.removeLayer(marker);
         }
     });
 }
 
-// ---------------------- Share / Reset ----------------------
+/* ======================================================
+   SHARE / RESET
+   ====================================================== */
+
 function shareCurrentView() {
     const c = map.getCenter();
     const url = `${window.location.origin}/map?lat=${c.lat.toFixed(6)}&lng=${c.lng.toFixed(6)}&zoom=${map.getZoom()}`;
@@ -510,6 +531,7 @@ function shareCurrentView() {
         const old = btn.textContent;
         btn.textContent = '✓ ' + (mapTranslations.link_copied || 'Link Copied!');
         btn.style.backgroundColor = '#2196F3';
+
         setTimeout(()=>{
             btn.textContent = old;
             btn.style.backgroundColor = '#4CAF50';
@@ -527,7 +549,7 @@ function resetFiltersToDefaults(){
 }
 
 /* ======================================================
-   START TRANSLATION + PAGE LOAD
+   TRANSLATION LOAD
    ====================================================== */
 
 document.addEventListener("DOMContentLoaded", () => {
