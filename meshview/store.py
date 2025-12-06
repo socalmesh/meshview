@@ -260,11 +260,12 @@ async def get_node_traffic(node_id: int):
         return []
 
 
-async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
+async def get_nodes(node_id=None, role=None, channel=None, hw_model=None, days_active=None):
     """
     Fetches nodes from the database based on optional filtering criteria.
 
     Parameters:
+        node_id
         role (str, optional): The role of the node (converted to uppercase for consistency).
         channel (str, optional): The communication channel associated with the node.
         hw_model (str, optional): The hardware model of the node.
@@ -280,6 +281,8 @@ async def get_nodes(role=None, channel=None, hw_model=None, days_active=None):
             query = select(Node)
 
             # Apply filters based on provided parameters
+            if node_id is not None:
+                query = query.where(Node.node_id == node_id)
             if role is not None:
                 query = query.where(Node.role == role.upper())  # Ensure role is uppercase
             if channel is not None:

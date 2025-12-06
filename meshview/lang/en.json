@@ -64,10 +64,9 @@
     },
 
     "net": {
-      "number_of_checkins": "Number of Check-ins:",
-      "view_packet_details": "View packet details",
-      "view_all_packets_from_node": "View all packets from this node",
-      "no_packets_found": "No packets found."
+      "net_title": "Weekly Net:",
+    "total_messages": "Number of messages:",
+    "view_packet_details": "More details"
     },
 
     "map": {
@@ -157,17 +156,17 @@
         "graph": "Graph"
       },
     "node": {
-        "specifications": "Specifications:",
-        "node_id": "Node ID:",
-        "long_name": "Long Name:",
-        "short_name": "Short Name:",
-        "hw_model": "Hardware Model:",
-        "firmware": "Firmware:",
-        "role": "Role:",
-        "channel": "Channel:",
-        "latitude": "Latitude:",
-        "longitude": "Longitude:",
-        "last_update": "Last Update:",
+        "specifications": "Specifications",
+        "node_id": "Node ID",
+        "long_name": "Long Name",
+        "short_name": "Short Name",
+        "hw_model": "Hardware Model",
+        "firmware": "Firmware",
+        "role": "Role",
+        "channel": "Channel",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "last_update": "Last Update",
         "battery_voltage": "Battery & Voltage",
         "air_channel": "Air & Channel Utilization",
         "environment": "Environment Metrics",

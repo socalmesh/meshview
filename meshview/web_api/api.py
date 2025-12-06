@@ -48,6 +48,7 @@ async def api_channels(request: web.Request):
 async def api_nodes(request):
     try:
         # Optional query parameters
+        node_id = request.query.get("node_id")
         role = request.query.get("role")
         channel = request.query.get("channel")
         hw_model = request.query.get("hw_model")
@@ -61,7 +62,7 @@ async def api_nodes(request):
 
         # Fetch nodes from database
         nodes = await store.get_nodes(
-            role=role, channel=channel, hw_model=hw_model, days_active=days_active
+            node_id=node_id, role=role, channel=channel, hw_model=hw_model, days_active=days_active
         )
 
         # Prepare the JSON response
@@ -214,6 +215,7 @@ async def api_packets(request):
                 "portnum": int(p.portnum),
                 "long_name": getattr(p.from_node, "long_name", ""),
                 "payload": (p.payload or "").strip(),
+                "to_long_name": getattr(p.to_node, "long_name", ""),
             }
 
             reply_id = getattr(
