@@ -679,7 +679,7 @@ async function loadTrack(){
 
 async function loadPackets(){
     const url = new URL("/api/packets", window.location.origin);
-    url.searchParams.set("from_node_id", fromNodeId);
+    url.searchParams.set("node_id", fromNodeId); // node_id includes to/from
     url.searchParams.set("limit", 200);
 
     const res = await fetch(url);
