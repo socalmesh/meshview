@@ -453,9 +453,9 @@ class _HardwareModelEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """
     Seeed Tracker L1 EINK driver
     """
-    QWANTZ_TINY_ARMS: _HardwareModel.ValueType  # 101
+    MUZI_R1_NEO: _HardwareModel.ValueType  # 101
     """
-    Reserved ID for future and past use
+    Muzi Works R1 Neo
     """
     T_DECK_PRO: _HardwareModel.ValueType  # 102
     """
@@ -465,9 +465,10 @@ class _HardwareModelEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """
     Lilygo TLora Pager
     """
-    GAT562_MESH_TRIAL_TRACKER: _HardwareModel.ValueType  # 104
+    M5STACK_RESERVED: _HardwareModel.ValueType  # 104
     """
-    GAT562 Mesh Trial Tracker
+    M5Stack Reserved
+    0x68
     """
     WISMESH_TAG: _HardwareModel.ValueType  # 105
     """
@@ -493,6 +494,34 @@ class _HardwareModelEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     HELTEC_V4: _HardwareModel.ValueType  # 110
     """
     New Heltec LoRA32 with ESP32-S3 CPU
+    """
+    M5STACK_C6L: _HardwareModel.ValueType  # 111
+    """
+    M5Stack C6L
+    """
+    M5STACK_CARDPUTER_ADV: _HardwareModel.ValueType  # 112
+    """
+    M5Stack Cardputer Adv
+    """
+    HELTEC_WIRELESS_TRACKER_V2: _HardwareModel.ValueType  # 113
+    """
+    ESP32S3 main controller with GPS and TFT screen.
+    """
+    T_WATCH_ULTRA: _HardwareModel.ValueType  # 114
+    """
+    LilyGo T-Watch Ultra
+    """
+    THINKNODE_M3: _HardwareModel.ValueType  # 115
+    """
+    Elecrow ThinkNode M3
+    """
+    WISMESH_TAP_V2: _HardwareModel.ValueType  # 116
+    """
+    RAK WISMESH_TAP_V2 with ESP32-S3 CPU
+    """
+    RAK3401: _HardwareModel.ValueType  # 117
+    """
+    RAK3401
     """
     PRIVATE_HW: _HardwareModel.ValueType  # 255
     """
@@ -930,9 +959,9 @@ SEEED_WIO_TRACKER_L1_EINK: HardwareModel.ValueType  # 100
 """
 Seeed Tracker L1 EINK driver
 """
-QWANTZ_TINY_ARMS: HardwareModel.ValueType  # 101
+MUZI_R1_NEO: HardwareModel.ValueType  # 101
 """
-Reserved ID for future and past use
+Muzi Works R1 Neo
 """
 T_DECK_PRO: HardwareModel.ValueType  # 102
 """
@@ -942,9 +971,10 @@ T_LORA_PAGER: HardwareModel.ValueType  # 103
 """
 Lilygo TLora Pager
 """
-GAT562_MESH_TRIAL_TRACKER: HardwareModel.ValueType  # 104
+M5STACK_RESERVED: HardwareModel.ValueType  # 104
 """
-GAT562 Mesh Trial Tracker
+M5Stack Reserved
+0x68
 """
 WISMESH_TAG: HardwareModel.ValueType  # 105
 """
@@ -970,6 +1000,34 @@ Lilygo T-Echo Lite
 HELTEC_V4: HardwareModel.ValueType  # 110
 """
 New Heltec LoRA32 with ESP32-S3 CPU
+"""
+M5STACK_C6L: HardwareModel.ValueType  # 111
+"""
+M5Stack C6L
+"""
+M5STACK_CARDPUTER_ADV: HardwareModel.ValueType  # 112
+"""
+M5Stack Cardputer Adv
+"""
+HELTEC_WIRELESS_TRACKER_V2: HardwareModel.ValueType  # 113
+"""
+ESP32S3 main controller with GPS and TFT screen.
+"""
+T_WATCH_ULTRA: HardwareModel.ValueType  # 114
+"""
+LilyGo T-Watch Ultra
+"""
+THINKNODE_M3: HardwareModel.ValueType  # 115
+"""
+Elecrow ThinkNode M3
+"""
+WISMESH_TAP_V2: HardwareModel.ValueType  # 116
+"""
+RAK WISMESH_TAP_V2 with ESP32-S3 CPU
+"""
+RAK3401: HardwareModel.ValueType  # 117
+"""
+RAK3401
 """
 PRIVATE_HW: HardwareModel.ValueType  # 255
 """

@@ -198,16 +198,18 @@
     </div>
 
     <!-- Neighbor chart -->
-    <div id="neighbor_chart_container" class="chart-container" style="display:none;">
-        <div class="chart-header">
-            📡 <span data-translate-lang="neighbors_chart">Neighbors (Signal-to-Noise)</span>
-            <div class="chart-actions">
-                <button onclick="expandChart('neighbors')" data-translate-lang="expand">Expand</button>
-                <button onclick="exportCSV('neighbors')" data-translate-lang="export_csv">Export CSV</button>
-            </div>
+<!-- Neighbor Time-Series Chart -->
+<div id="neighbor_chart_container" class="chart-container">
+    <div class="chart-header">
+        📡 <span data-translate-lang="neighbors_chart">Neighbors (SNR Over Time)</span>
+        <div class="chart-actions">
+            <button onclick="expandChart('neighbors')" data-translate-lang="expand">Expand</button>
+            <button onclick="exportCSV('neighbors')" data-translate-lang="export_csv">Export CSV</button>
         </div>
-        <div id="chart_neighbors" style="height:260px;"></div>
     </div>
+    <div id="chart_neighbors" style="height:260px;"></div>
+</div>
+
 
     <!-- Packets -->
     <table class="packet-table">
@@ -906,53 +908,79 @@ async function loadTelemetryCharts(){
 }
 
 /* ======================================================
-    NEIGHBOR CHART (portnum=71, latest)
+    NEIGHBOR CHART (portnum=71)
    ====================================================== */
 
-async function loadNeighborChart(){
-    const url = `/api/packets?portnum=71&from_node_id=${fromNodeId}&limit=1`;
+async function loadNeighborTimeSeries() {
+    const url = `/api/packets?portnum=71&from_node_id=${fromNodeId}&limit=500`;
     const res = await fetch(url);
-    if (!res.ok) return;
+
+    if (!res.ok) {
+        document.getElementById("neighbor_chart_container").style.display = "none";
+        return;
+    }
 
     const data = await res.json();
     const packets = data.packets || [];
+
     if (!packets.length) {
         document.getElementById("neighbor_chart_container").style.display = "none";
         return;
     }
 
-    const pkt = packets[0];
-    const payload = pkt.payload || "";
+    // Time-series structure:
+    // neighborHistory = { node_id: { name, snr:[...], times:[...] } }
+    const neighborHistory = {};
 
-    const re = /neighbors\s*\{\s*([^}]+)\}/g;
-    let m;
-    const ids = [], names = [], snrs = [];
+    for (const pkt of packets.reverse()) {
+        const ts = new Date(pkt.import_time_us / 1000).toLocaleString([], {
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
 
-    while ((m = re.exec(payload)) !== null) {
-        const block = m[1];
-        const idMatch  = block.match(/node_id:\s*(\d+)/);
-        const snrMatch = block.match(/snr:\s*(-?\d+(?:\.\d+)?)/);
-        if (!idMatch || !snrMatch) continue;
+        const payload = pkt.payload || "";
 
-        const nid = parseInt(idMatch[1], 10);
-        const snr = parseFloat(snrMatch[1]);
+        // Parse neighbor blocks
+        const re = /neighbors\s*\{\s*([^}]+)\}/g;
+        let m;
 
-        // Try to enrich with node name from API (lazy)
-        if (!nodeMap[nid]) {
-            await fetchNodeFromApi(nid);
+        while ((m = re.exec(payload)) !== null) {
+            const block = m[1];
+            const idMatch  = block.match(/node_id:\s*(\d+)/);
+            const snrMatch = block.match(/snr:\s*(-?\d+(?:\.\d+)?)/);
+
+            if (!idMatch || !snrMatch) continue;
+
+            const nid = parseInt(idMatch[1], 10);
+            const snr = parseFloat(snrMatch[1]);
+
+            // Fetch name if needed
+            if (!nodeMap[nid]) {
+                await fetchNodeFromApi(nid);
+            }
+
+            const label = nodeMap[nid] || nid;
+
+            if (!neighborHistory[nid]) {
+                neighborHistory[nid] = {
+                    name: label,
+                    snr: [],
+                    times: []
+                };
+            }
+
+            neighborHistory[nid].snr.push(snr);
+            neighborHistory[nid].times.push(ts);
         }
-
-        ids.push(nid);
-        names.push(nodeMap[nid] || nid);
-        snrs.push(snr);
     }
 
-    if (!ids.length) {
+    const neighborIds = Object.keys(neighborHistory);
+    if (!neighborIds.length) {
         document.getElementById("neighbor_chart_container").style.display = "none";
         return;
     }
-
-    neighborData = { ids, names, snrs };
 
     const container = document.getElementById("neighbor_chart_container");
     container.style.display = "block";
@@ -960,31 +988,45 @@ async function loadNeighborChart(){
     const chartEl = document.getElementById("chart_neighbors");
     const neighborChart = echarts.init(chartEl);
 
+    const series = neighborIds.map(nid => ({
+        name: neighborHistory[nid].name,
+        type: "line",
+        smooth: true,
+        connectNulls: true,
+        showSymbol: false,
+        data: neighborHistory[nid].snr,
+    }));
+
+    // All times should be aligned → use union of all timestamps
+    const allTimes = [];
+    for (const nid of neighborIds) {
+        for (const t of neighborHistory[nid].times) {
+            if (!allTimes.includes(t)) allTimes.push(t);
+        }
+    }
+
     neighborChart.setOption({
-        tooltip: { trigger:'axis' },
-        legend: { data:['SNR (dB)'], textStyle:{ color:'#ccc' } },
+        tooltip: { trigger: "axis" },
+        legend: {
+            data: neighborIds.map(nid => neighborHistory[nid].name),
+            textStyle: { color: "#ccc" }
+        },
         xAxis: {
-            type:'category',
-            data:names,
-            axisLabel:{ color:'#ccc', rotate: names.length > 8 ? 45 : 0 }
+            type: "category",
+            data: allTimes,
+            axisLabel: { color: "#ccc", rotate: allTimes.length > 6 ? 45 : 0 }
         },
         yAxis: {
-            type:'value',
-            name:'SNR (dB)',
-            axisLabel:{ color:'#ccc' }
+            type: "value",
+            name: "SNR (dB)",
+            axisLabel: { color: "#ccc" }
         },
-        series:[{
-            name:'SNR (dB)',
-            type:'bar',
-            data:snrs,
-            itemStyle:{ color:'rgba(138,255,108,1)' }
-        }]
+        series
     });
 
-    window.addEventListener("resize", () => {
-        neighborChart.resize();
-    });
+    window.addEventListener("resize", () => neighborChart.resize());
 }
+
 
 /* ======================================================
    EXPAND / EXPORT BUTTONS
@@ -1073,7 +1115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         await loadTrack();
         await loadPackets();
         await loadTelemetryCharts();
-        await loadNeighborChart();
+        await loadNeighborTimeSeries();
         ensureMapVisible();
         setTimeout(ensureMapVisible, 1000);
         window.addEventListener("resize", ensureMapVisible);
