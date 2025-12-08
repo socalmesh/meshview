@@ -691,7 +691,7 @@ async function loadPackets(){
     for (const pkt of (data.packets || []).reverse()) {
         const safePayload = (pkt.payload || "").replace(/[<>]/g, m => m === "<" ? "&lt;" : "&gt;");
         const localTime   = formatLocalTime(pkt.import_time_us);
-        const fromCell    = nodeLink(pkt.from_node_id);
+        const fromCell    = nodeLink(pkt.from_node_id,pkt.long_name);
         const toCell = nodeLink(pkt.to_node_id, pkt.to_long_name);
 
         // Neighbor packets (port 71) → draw neighbors on map
