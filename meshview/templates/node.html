@@ -928,8 +928,10 @@ async function loadNeighborTimeSeries() {
         return;
     }
 
-    // Time-series structure:
-    // neighborHistory = { node_id: { name, snr:[...], times:[...] } }
+    // --- FIX: sort packets chronologically (oldest → newest) ---
+    packets.sort((a, b) => (b.import_time_us || 0) - (a.import_time_us || 0));
+
+
     const neighborHistory = {};
 
     for (const pkt of packets.reverse()) {
