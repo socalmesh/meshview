@@ -989,9 +989,19 @@ async function loadNeighborTimeSeries() {
         });
     }
 
-    // Build merged x-axis from first neighbor’s timestamps
-    // (Your original code already behaved this way)
-    const sampleTimes = Object.values(neighborHistory)[0]?.times || [];
+    // Collect all timestamps from all neighbors
+    const allTimesSet = new Set();
+
+    for (const entry of Object.values(neighborHistory)) {
+        for (const t of entry.times) {
+            allTimesSet.add(t);
+        }
+    }
+
+    // Convert to array and sort chronologically
+    const sampleTimes = Array.from(allTimesSet).sort((a, b) => {
+        return new Date(a) - new Date(b);
+    });
 
     chart.setOption({
         tooltip: { trigger: "axis" },
