@@ -2,22 +2,31 @@
 
 {% block css %}
 <style>
+    html, body {
+    overflow-x: auto !important;
+}
+
 table {
-    width: 80%;
+    /* FIX: allow table to keep natural width so scrolling works */
+    width: max-content;
+    min-width: 100%;
     border-collapse: collapse;
     margin: 1em auto;
 }
 
-/* Ensure table centered visually */
+/* Desktop scroll wrapper */
 #node-list {
-    display: flex;
-    justify-content: center;
+    width: 100%;
+    overflow-x: auto;     /* allows horizontal scroll */
+    overflow-y: hidden;
+    /* !!! removed display:flex because it prevents scrolling */
 }
 
 #node-list table {
-    margin-left: auto;
-    margin-right: auto;
+    width: max-content;   /* table keeps its natural width */
+    min-width: 100%;      /* won't shrink smaller than viewport */
 }
+
 
 th, td {
     padding: 10px;
@@ -134,16 +143,20 @@ select, .export-btn, .search-box, .clear-btn {
 /* --------------------------------------------- */
 @media (max-width: 768px) {
 
-    /* Hide desktop table */
+    /* Hide desktop view */
     #node-list table {
         display: none;
     }
 
-    /* Show mobile card list */
+    /* Show mobile cards */
     #mobile-node-list {
         display: block !important;
         width: 100%;
         padding: 0 10px;
+
+        /* If you want horizontal swiping, uncomment:
+        overflow-x: auto;
+        white-space: nowrap; */
     }
 
     .node-card {
@@ -177,6 +190,7 @@ select, .export-btn, .search-box, .clear-btn {
         font-size: 1.4em;
     }
 }
+
 </style>
 {% endblock %}
 
