@@ -87,6 +87,7 @@ Samples of currently running instances:
 - https://map.wpamesh.net (Western Pennsylvania)
 - https://meshview.chicagolandmesh.org (Chicago)
 - https://meshview.mt.gt (Canadaverse)
+- https://canadaverse.org (Canadaverse)
 - https://meshview.meshtastic.es (Spain)
 - https://view.mtnme.sh (North Georgia / East Tennessee)
 - https://meshview.lsinfra.de (Hessen - Germany)
