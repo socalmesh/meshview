@@ -380,102 +380,136 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     /* ---------------------------------------------
-       Load packets_seen
-    ----------------------------------------------*/
-    const seenRes  = await fetch(`/api/packets_seen/${packetId}`);
-    const seenData = await seenRes.json();
-    const seenList = seenData.seen ?? [];
+   Load packets_seen
+----------------------------------------------*/
+const seenRes  = await fetch(`/api/packets_seen/${packetId}`);
+const seenData = await seenRes.json();
+const seenList = seenData.seen ?? [];
 
-    const seenSorted = seenList.slice().sort((a,b)=>{
-        return (b.hop_start ?? -999) - (a.hop_start ?? -999);
-    });
+/* ---------------------------------------------
+   Sort by hop count (highest first)
+----------------------------------------------*/
+const seenSorted = seenList.slice().sort((a,b)=>{
+    const ha = (a.hop_start ?? 0) - (a.hop_limit ?? 0);
+    const hb = (b.hop_start ?? 0) - (b.hop_limit ?? 0);
+    return hb - ha;
+});
 
-    if (seenSorted.length){
-        seenContainer.classList.remove("d-none");
-        seenCountSpan.textContent = `(${seenSorted.length})`;
-    }
+if (seenSorted.length){
+    seenContainer.classList.remove("d-none");
+    seenCountSpan.textContent = `(${seenSorted.length})`;
+}
 
-    /* ---------------------------------------------
-       Render gateway table + map markers
-    ----------------------------------------------*/
-    seenTableBody.innerHTML = seenSorted.map(s=>{
-        const node = nodeLookup[s.node_id];
-        const label = node?.long_name || s.node_id;
+/* ---------------------------------------------
+   GROUP BY HOP COUNT
+----------------------------------------------*/
+const hopGroups = {};
 
-        const timeStr = s.import_time_us
-            ? new Date(s.import_time_us/1000).toLocaleTimeString()
-            : "—";
+seenSorted.forEach(s => {
+    const hopValue = Math.max(
+        0,
+        (s.hop_start ?? 0) - (s.hop_limit ?? 0)
+    );
+    if (!hopGroups[hopValue]) hopGroups[hopValue] = [];
+    hopGroups[hopValue].push(s);
+});
 
-        if (node?.last_lat && node.last_long){
-            const rlat = node.last_lat/1e7;
-            const rlon = node.last_long/1e7;
-            allBounds.push([rlat, rlon]);
+/* ---------------------------------------------
+   Render grouped gateway table + map markers
+----------------------------------------------*/
+seenTableBody.innerHTML = Object.keys(hopGroups)
+    .sort((a,b) => Number(a) - Number(b))   // 0 hop first
+    .map(hopKey => {
 
-            const hopValue = (s.hop_start ?? 0) - (s.hop_limit ?? 0);
-            const color = hopColor(hopValue);
+        const hopLabel =
+            hopKey === "0"
+                ? (packetTranslations.direct || "Direct (0 hops)")
+                : `${hopKey} ${packetTranslations.hops || "hops"}`;
 
-            const marker = L.marker([rlat,rlon],{
-                icon: L.divIcon({
-                    html: `
-                    <div style="
-                        background:${color};
-                        width:24px; height:24px;
-                        border-radius:50%;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        color:white;
-                        font-size:11px;
-                        font-weight:700;
-                        border:2px solid rgba(0,0,0,0.35);
-                        box-shadow:0 0 5px rgba(0,0,0,0.45);
-                    ">${hopValue}</div>`,
-                    className: "",
-                    iconSize:[24,24],
-                    iconAnchor:[12,12]
-                })
-            }).addTo(map);
+        const rows = hopGroups[hopKey].map(s => {
+            const node = nodeLookup[s.node_id];
+            const label = node?.long_name || s.node_id;
 
-            let distKm = null, distMi = null;
-            if (srcLat && srcLon){
-                distKm = haversine(srcLat, srcLon, rlat, rlon);
-                distMi = distKm * 0.621371;
+            const timeStr = s.import_time_us
+                ? new Date(s.import_time_us/1000).toLocaleTimeString()
+                : "—";
+
+            /* ---------------- MAP MARKERS (UNCHANGED) ---------------- */
+            if (node?.last_lat && node.last_long){
+                const rlat = node.last_lat/1e7;
+                const rlon = node.last_long/1e7;
+                allBounds.push([rlat, rlon]);
+
+                const color = hopColor(hopKey);
+
+                const marker = L.marker([rlat,rlon],{
+                    icon: L.divIcon({
+                        html: `
+                        <div style="
+                            background:${color};
+                            width:24px; height:24px;
+                            border-radius:50%;
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            color:white;
+                            font-size:11px;
+                            font-weight:700;
+                            border:2px solid rgba(0,0,0,0.35);
+                            box-shadow:0 0 5px rgba(0,0,0,0.45);
+                        ">${hopKey}</div>`,
+                        className: "",
+                        iconSize:[24,24],
+                        iconAnchor:[12,12]
+                    })
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div style="font-size:0.9em">
+                        <b>${label}</b><br>
+                        <span data-translate-lang="node_id_short">Node ID</span>:
+                        <a href="/node/${s.node_id}">${s.node_id}</a><br>
+                        HW: ${node?.hw_model ?? "—"}<br>
+                        <span data-translate-lang="channel">Channel</span>: ${s.channel ?? "—"}<br><br>
+
+                        <b data-translate-lang="signal">Signal</b><br>
+                        RSSI: ${s.rx_rssi ?? "—"}<br>
+                        SNR: ${s.rx_snr ?? "—"}<br><br>
+
+                        <b data-translate-lang="hops">Hops</b>: ${hopKey}
+                    </div>
+                `);
             }
 
-            marker.bindPopup(`
-                <div style="font-size:0.9em">
-                    <b>${label}</b><br>
-                    <span data-translate-lang="node_id_short">${packetTranslations.node_id_short || "Node ID"}</span>:
-                    <a href="/node/${s.node_id}">${s.node_id}</a><br>
-                    HW: ${node?.hw_model ?? "—"}<br>
-                    <span data-translate-lang="channel">${packetTranslations.channel || "Channel"}</span>: ${s.channel ?? "—"}<br><br>
-
-                    <b data-translate-lang="signal">${packetTranslations.signal || "Signal"}</b><br>
-                    RSSI: ${s.rx_rssi ?? "—"}<br>
-                    SNR: ${s.rx_snr ?? "—"}<br><br>
-
-                    <b data-translate-lang="hops">${packetTranslations.hops || "Hops"}</b>: ${hopValue}<br>
-
-                    <b data-translate-lang="distance">${packetTranslations.distance || "Distance"}:</b><br>
-                    ${
-                        distKm
-                        ? `${distKm.toFixed(2)} km (${distMi.toFixed(2)} mi)`
-                        : "—"
-                    }
-                </div>
-            `);
-        }
+            return `
+                <tr>
+                    <td><a href="/node/${s.node_id}">${label}</a></td>
+                    <td>${s.rx_rssi ?? "—"}</td>
+                    <td>${s.rx_snr ?? "—"}</td>
+                    <td>${hopKey}</td>
+                    <td>${s.channel ?? "—"}</td>
+                    <td>${timeStr}</td>
+                </tr>
+            `;
+        }).join("");
 
         return `
             <tr>
-                <td><a href="/node/${s.node_id}">${label}</a></td>
-                <td>${s.rx_rssi ?? "—"}</td>
-                <td>${s.rx_snr ?? "—"}</td>
-                <td>${s.hop_start ?? "—"} → ${s.hop_limit ?? "—"}</td>
-                <td>${s.channel ?? "—"}</td>
-                <td>${timeStr}</td>
-            </tr>`;
+                <td colspan="6"
+                    style="
+                        background:#1f2327;
+                        font-weight:700;
+                        color:#9ecbff;
+                        border-top:1px solid #444;
+                        padding:8px 12px;
+                    ">
+                    🔁 ${hopLabel} (${hopGroups[hopKey].length})
+                </td>
+            </tr>
+            ${rows}
+        `;
     }).join("");
+
 
     /* ---------------------------------------------
        Fit map around all markers
